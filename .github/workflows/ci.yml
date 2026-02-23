@@ -24,18 +24,7 @@ jobs:
         run: go mod verify
 
       - name: go vet
-        id: vet
-        run: |
-          OUTPUT=$(go vet ./... 2>&1)
-          if [ -n "$OUTPUT" ]; then
-            echo "## go vet output" >> "$GITHUB_STEP_SUMMARY"
-            echo '```' >> "$GITHUB_STEP_SUMMARY"
-            echo "$OUTPUT" >> "$GITHUB_STEP_SUMMARY"
-            echo '```' >> "$GITHUB_STEP_SUMMARY"
-            echo "$OUTPUT"
-            exit 1
-          fi
-          echo "go vet: clean" >> "$GITHUB_STEP_SUMMARY"
+        run: go vet ./...
 
       - name: Run tests
         run: |
