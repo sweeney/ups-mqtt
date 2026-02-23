@@ -1,0 +1,157 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  # ── test ──────────────────────────────────────────────────────────────────
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Verify module graph
+        run: go mod verify
+
+      - name: go vet
+        id: vet
+        run: |
+          OUTPUT=$(go vet ./... 2>&1)
+          if [ -n "$OUTPUT" ]; then
+            echo "## go vet output" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo "$OUTPUT" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo "$OUTPUT"
+            exit 1
+          fi
+          echo "go vet: clean" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run tests
+        run: |
+          go test -v -race -coverprofile=coverage.out -json ./... | tee test-results.json
+          echo "Exit code: ${PIPESTATUS[0]}"
+          test "${PIPESTATUS[0]}" -eq 0
+
+      - name: Enforce 100% coverage on internal/metrics
+        run: |
+          go test -coverprofile=metrics-coverage.out ./internal/metrics/
+          go tool cover -func=metrics-coverage.out | tee metrics-coverage.txt
+          TOTAL=$(grep '^total:' metrics-coverage.txt | awk '{print $3}' | tr -d '%')
+          echo "internal/metrics coverage: ${TOTAL}%"
+          if [ "$TOTAL" != "100.0" ]; then
+            echo "::error::internal/metrics coverage is ${TOTAL}%, expected 100.0%"
+            exit 1
+          fi
+
+      - name: Generate coverage HTML
+        run: go tool cover -html=coverage.out -o coverage.html
+
+      - name: Coverage summary
+        run: |
+          echo "## Coverage by package" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Package | Coverage |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---------|----------|" >> "$GITHUB_STEP_SUMMARY"
+          go tool cover -func=coverage.out | grep -v '^total' | \
+            awk -F'\t' 'NF==3 {pkg=$1; sub(/.*\//, "", pkg); pct=$3} /^[^[:space:]]/ && NF<3 {pkg=$1}' | \
+            grep '%' | sort | \
+            awk '{print "| " $1 " | " $3 " |"}' >> "$GITHUB_STEP_SUMMARY" || true
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          go tool cover -func=coverage.out | grep '^total' | \
+            awk '{print "**Total: " $3 "**"}' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Test summary
+        if: always()
+        run: |
+          echo "## Test results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          PASS=$(grep '"Action":"pass"' test-results.json | grep '"Test"' | wc -l | tr -d ' ')
+          FAIL=$(grep '"Action":"fail"' test-results.json | grep '"Test"' | wc -l | tr -d ' ')
+          SKIP=$(grep '"Action":"skip"' test-results.json | grep '"Test"' | wc -l | tr -d ' ')
+          echo "| Passed | Failed | Skipped |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|--------|--------|---------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| $PASS | $FAIL | $SKIP |" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$FAIL" -gt 0 ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "<details><summary>Failed tests</summary>" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            grep '"Action":"fail"' test-results.json | grep '"Test"' | \
+              python3 -c "import sys,json; [print(json.loads(l)['Test']) for l in sys.stdin]" \
+              >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo "</details>" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: |
+            coverage.out
+            coverage.html
+            metrics-coverage.txt
+          retention-days: 30
+
+  # ── build ─────────────────────────────────────────────────────────────────
+  build:
+    name: Build (${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goarm && format('-arm{0}', matrix.goarm) || '' }})
+    runs-on: ubuntu-latest
+    needs: test
+
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            goarm: ""
+            suffix: linux-amd64
+          - goos: linux
+            goarch: arm
+            goarm: "6"
+            suffix: linux-arm-pi-zero
+          - goos: linux
+            goarch: arm64
+            goarm: ""
+            suffix: linux-arm64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          GOARM: ${{ matrix.goarm }}
+          CGO_ENABLED: "0"
+        run: |
+          go build -ldflags="-s -w" -o "ups-mqtt-${{ matrix.suffix }}" ./cmd/ups-mqtt
+
+      - name: Report binary size
+        run: |
+          SIZE=$(du -sh "ups-mqtt-${{ matrix.suffix }}" | cut -f1)
+          echo "Binary \`ups-mqtt-${{ matrix.suffix }}\`: **${SIZE}**" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ups-mqtt-${{ matrix.suffix }}
+          path: ups-mqtt-${{ matrix.suffix }}
+          retention-days: 90

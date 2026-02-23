@@ -1,0 +1,16 @@
+[Unit]
+Description=UPS MQTT Bridge (NUT)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=SERVICE_USER
+ExecStart=/usr/local/bin/ups-mqtt --config /etc/ups-mqtt/config.toml
+Restart=on-failure
+RestartSec=10s
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

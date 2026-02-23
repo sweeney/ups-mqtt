@@ -1,0 +1,19 @@
+# ups-mqtt configuration — copy to /etc/ups-mqtt/config.toml and edit.
+
+[nut]
+host          = "localhost"
+port          = 3493
+username      = ""          # leave empty if upsd requires no authentication
+password      = ""
+ups_name      = "cyberpower"
+poll_interval = "30s"
+
+[mqtt]
+broker        = "tcp://localhost:1883"   # use "ssl://host:8883" for TLS
+username      = ""
+password      = ""
+client_id     = "ups-mqtt"
+topic_prefix  = "ups"
+retained      = true
+qos           = 1
+tls_ca_cert   = ""          # absolute path to PEM CA cert; empty = no custom CA

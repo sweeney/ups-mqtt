@@ -1,0 +1,20 @@
+# Built binaries
+ups-mqtt-linux-*
+
+# Coverage and test output
+*.out
+*.test
+
+# Local config (copy config.toml.example and edit)
+config.toml
+
+# macOS
+.DS_Store
+
+# Editor swap/backup files
+*.swp
+*.swo
+*~
+
+# Claude Code internals
+.claude/
