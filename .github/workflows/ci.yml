@@ -51,14 +51,38 @@ jobs:
           echo "## Coverage by package" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Package | Coverage |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|---------|----------|" >> "$GITHUB_STEP_SUMMARY"
-          go tool cover -func=coverage.out | grep -v '^total' | \
-            awk -F'\t' 'NF==3 {pkg=$1; sub(/.*\//, "", pkg); pct=$3} /^[^[:space:]]/ && NF<3 {pkg=$1}' | \
-            grep '%' | sort | \
-            awk '{print "| " $1 " | " $3 " |"}' >> "$GITHUB_STEP_SUMMARY" || true
+          echo "|---------|---------|" >> "$GITHUB_STEP_SUMMARY"
+          awk '
+            NR == 1 { next }
+            {
+              split($1, a, ":")
+              file = a[1]
+              n = split(file, parts, "/")
+              pkg = ""
+              for (i = 1; i < n; i++) pkg = (i > 1 ? pkg "/" : "") parts[i]
+              stmts[pkg] += $2
+              if ($3 > 0) hit[pkg] += $2
+            }
+            END {
+              for (pkg in stmts) {
+                pct = stmts[pkg] ? hit[pkg] / stmts[pkg] * 100 : 0
+                n = split(pkg, p, "/")
+                disp = (n >= 2) ? p[n-1] "/" p[n] : p[n]
+                printf "%.1f\t%s\n", pct, disp
+              }
+            }
+          ' coverage.out | sort -t$'\t' -k2 | awk -F'\t' '{
+            pct = $1; pkg = $2
+            filled = int(pct / 5 + 0.5)
+            if (filled > 20) filled = 20
+            bar = ""; pad = ""
+            for (i = 0; i < filled; i++) bar = bar "█"
+            for (i = filled; i < 20; i++) pad = pad "░"
+            printf "| `%s` | %s%s %.1f%% |\n", pkg, bar, pad, pct
+          }' >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          go tool cover -func=coverage.out | grep '^total' | \
-            awk '{print "**Total: " $3 "**"}' >> "$GITHUB_STEP_SUMMARY"
+          go tool cover -func=coverage.out | \
+            awk '/^total:/ { print "**Total: " $NF "**" }' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Test summary
         if: always()
