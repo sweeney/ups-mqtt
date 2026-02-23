@@ -259,3 +259,15 @@ func TestFakePublisher_Reset(t *testing.T) {
 		t.Error("Reset should set Closed=false")
 	}
 }
+
+// TestPublishAll_VarsPublishError verifies the error path when a variable
+// topic publish fails (non-empty vars map so the vars loop is entered).
+func TestPublishAll_VarsPublishError(t *testing.T) {
+	fp := &publisher.FakePublisher{PublishError: errors.New("broker down")}
+	m := metrics.Compute(sampleVars)
+	cfg := publisher.PublishConfig{Prefix: "ups", UPSName: "test", Retained: false}
+	err := publisher.PublishAll(sampleVars, m, cfg, fp)
+	if err == nil {
+		t.Fatal("expected error when vars publish fails")
+	}
+}

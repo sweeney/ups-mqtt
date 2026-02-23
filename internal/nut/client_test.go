@@ -2,6 +2,7 @@ package nut
 
 import (
 	"errors"
+	"net"
 	"testing"
 )
 
@@ -163,5 +164,59 @@ func TestFakePoller_Poll_ReturnsCopy(t *testing.T) {
 	// Original should be unchanged.
 	if fp.Variables[0].Value != "1" {
 		t.Error("Poll should return a copy, not a reference to the underlying slice")
+	}
+}
+
+// ── VarsToMap ────────────────────────────────────────────────────────────────
+
+func TestVarsToMap(t *testing.T) {
+	vars := []Variable{
+		{Name: "ups.status", Value: "OL"},
+		{Name: "ups.load", Value: "8"},
+	}
+	m := VarsToMap(vars)
+	if len(m) != 2 {
+		t.Fatalf("len(m) = %d, want 2", len(m))
+	}
+	if m["ups.status"] != "OL" {
+		t.Errorf(`m["ups.status"] = %q, want "OL"`, m["ups.status"])
+	}
+	if m["ups.load"] != "8" {
+		t.Errorf(`m["ups.load"] = %q, want "8"`, m["ups.load"])
+	}
+}
+
+func TestVarsToMap_Empty(t *testing.T) {
+	if m := VarsToMap(nil); len(m) != 0 {
+		t.Errorf("VarsToMap(nil) len = %d, want 0", len(m))
+	}
+}
+
+// ── Client ──────────────────────────────────────────────────────────────────
+
+// TestNewClient_ConnectionRefused verifies that NewClient returns an error
+// when upsd is not listening.
+func TestNewClient_ConnectionRefused(t *testing.T) {
+	// Grab a free port then immediately close the listener so nothing is
+	// listening on it when NewClient dials.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("could not allocate test port: %v", err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	ln.Close()
+
+	_, err = NewClient("127.0.0.1", port, "", "", "test")
+	if err == nil {
+		t.Fatal("NewClient should return an error when nothing is listening")
+	}
+}
+
+// TestClient_Close_NilConn verifies that Close on an unconnected Client is a
+// no-op that returns nil.
+func TestClient_Close_NilConn(t *testing.T) {
+	c := &Client{} // conn is nil
+	if err := c.Close(); err != nil {
+		t.Errorf("Close on nil conn returned error: %v", err)
 	}
 }
