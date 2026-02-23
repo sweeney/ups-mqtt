@@ -48,64 +48,83 @@ jobs:
 
       - name: Coverage summary
         run: |
-          echo "## Coverage by package" >> "$GITHUB_STEP_SUMMARY"
+          TOTAL=$(go tool cover -func=coverage.out | awk '/^total:/ { print $NF }')
+          echo "## 📊 Coverage Report" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Package | Coverage |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|---------|---------|" >> "$GITHUB_STEP_SUMMARY"
-          awk '
-            NR == 1 { next }
-            {
-              split($1, a, ":")
-              file = a[1]
-              n = split(file, parts, "/")
-              pkg = ""
-              for (i = 1; i < n; i++) pkg = (i > 1 ? pkg "/" : "") parts[i]
-              stmts[pkg] += $2
-              if ($3 > 0) hit[pkg] += $2
-            }
-            END {
-              for (pkg in stmts) {
-                pct = stmts[pkg] ? hit[pkg] / stmts[pkg] * 100 : 0
-                n = split(pkg, p, "/")
-                disp = (n >= 2) ? p[n-1] "/" p[n] : p[n]
-                printf "%.1f\t%s\n", pct, disp
-              }
-            }
-          ' coverage.out | sort -t$'\t' -k2 | awk -F'\t' '{
-            pct = $1; pkg = $2
-            filled = int(pct / 5 + 0.5)
-            if (filled > 20) filled = 20
-            bar = ""; pad = ""
-            for (i = 0; i < filled; i++) bar = bar "█"
-            for (i = filled; i < 20; i++) pad = pad "░"
-            printf "| `%s` | %s%s %.1f%% |\n", pkg, bar, pad, pct
-          }' >> "$GITHUB_STEP_SUMMARY"
+          echo "**Overall Coverage: ${TOTAL}**" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          go tool cover -func=coverage.out | \
-            awk '/^total:/ { print "**Total: " $NF "**" }' >> "$GITHUB_STEP_SUMMARY"
+          echo "### Coverage by Package" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          for pkg in cmd/ups-mqtt internal/config internal/metrics internal/nut internal/publisher; do
+            if go test -coverprofile=tmp.out ./$pkg/ 2>/dev/null; then
+              COV=$(go tool cover -func=tmp.out | awk '/^total:/ { gsub(/%/, "", $NF); print $NF }')
+              if [ -n "$COV" ]; then
+                FILLED=$(echo "$COV / 10" | bc)
+                EMPTY=$((10 - FILLED))
+                BAR=""
+                for i in $(seq 1 "$FILLED" 2>/dev/null); do BAR+="█"; done
+                for i in $(seq 1 "$EMPTY" 2>/dev/null); do BAR+="░"; done
+                printf "%-24s %s %5.1f%%\n" "$pkg" "$BAR" "$COV" >> "$GITHUB_STEP_SUMMARY"
+              fi
+            fi
+          done
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          UNCOVERED=$(go tool cover -func=coverage.out | grep -v "100.0%" | grep -v "^total:" || true)
+          if [ -n "$UNCOVERED" ]; then
+            echo "<details>" >> "$GITHUB_STEP_SUMMARY"
+            echo "<summary>⚠️ Functions below 100% coverage</summary>" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo "$UNCOVERED" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo "</details>" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "<details>" >> "$GITHUB_STEP_SUMMARY"
+          echo "<summary>📋 Full function coverage</summary>" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          go tool cover -func=coverage.out >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "</details>" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Test summary
         if: always()
         run: |
-          echo "## Test results" >> "$GITHUB_STEP_SUMMARY"
+          echo "## 🧪 Test Results" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           PASS=$(grep '"Action":"pass"' test-results.json | grep '"Test"' | wc -l | tr -d ' ')
           FAIL=$(grep '"Action":"fail"' test-results.json | grep '"Test"' | wc -l | tr -d ' ')
           SKIP=$(grep '"Action":"skip"' test-results.json | grep '"Test"' | wc -l | tr -d ' ')
-          echo "| Passed | Failed | Skipped |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|--------|--------|---------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| ✅ Passed | ❌ Failed | ⏭️ Skipped |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|:--------:|:--------:|:---------:|" >> "$GITHUB_STEP_SUMMARY"
           echo "| $PASS | $FAIL | $SKIP |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
           if [ "$FAIL" -gt 0 ]; then
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "<details><summary>Failed tests</summary>" >> "$GITHUB_STEP_SUMMARY"
+            echo "<details open>" >> "$GITHUB_STEP_SUMMARY"
+            echo "<summary>❌ Failed test output</summary>" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
             echo '```' >> "$GITHUB_STEP_SUMMARY"
-            grep '"Action":"fail"' test-results.json | grep '"Test"' | \
-              python3 -c "import sys,json; [print(json.loads(l)['Test']) for l in sys.stdin]" \
-              >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+            jq -r 'select(.Action=="output") | select(.Test != null) | .Output // empty' \
+              test-results.json 2>/dev/null | head -200 >> "$GITHUB_STEP_SUMMARY" || true
             echo '```' >> "$GITHUB_STEP_SUMMARY"
             echo "</details>" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
           fi
+          echo "<details>" >> "$GITHUB_STEP_SUMMARY"
+          echo "<summary>🐢 Slowest tests (top 10)</summary>" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Test | Duration |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|------|----------|" >> "$GITHUB_STEP_SUMMARY"
+          jq -r 'select(.Action=="pass" and .Test != null and .Elapsed != null) |
+            "\(.Package | split("/") | .[-1])/\(.Test)|\(.Elapsed)s"' \
+            test-results.json 2>/dev/null | sort -t'|' -k2 -rn | head -10 | \
+            while IFS='|' read -r test dur; do
+              echo "| \`$test\` | $dur |" >> "$GITHUB_STEP_SUMMARY"
+            done || true
+          echo "</details>" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload coverage artifacts
         if: always()
