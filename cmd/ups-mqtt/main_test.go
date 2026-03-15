@@ -38,6 +38,21 @@ func newOutageStart() **time.Time {
 	return &p
 }
 
+// topicFailPublisher succeeds for every topic except failTopic, where it
+// returns an error.  Used to exercise the outage-publish and outage-clear
+// error paths in doPoll without affecting the PublishAll calls that precede them.
+type topicFailPublisher struct {
+	*publisher.FakePublisher
+	failTopic string
+}
+
+func (t *topicFailPublisher) Publish(msg publisher.Message) error {
+	if msg.Topic == t.failTopic {
+		return errors.New("injected publish error")
+	}
+	return t.FakePublisher.Publish(msg)
+}
+
 func TestDoPoll_Success(t *testing.T) {
 	fp := &nut.FakePoller{Variables: sampleVars}
 	fpub := &publisher.FakePublisher{}
@@ -116,6 +131,39 @@ func TestDoPoll_OutageStart_NotResetOnSubsequentOnBatteryPoll(t *testing.T) {
 	}
 	if *outageStart != first {
 		t.Error("outageStart should not change between consecutive on-battery polls")
+	}
+}
+
+func TestDoPoll_OutagePublishError_Propagated(t *testing.T) {
+	fp := &nut.FakePoller{Variables: onBatteryVars}
+	fpub := &topicFailPublisher{
+		FakePublisher: &publisher.FakePublisher{},
+		failTopic:     "ups/cyberpower/outage",
+	}
+	outageStart := newOutageStart()
+
+	err := doPoll(fp, fpub, testCfg, outageStart)
+	if err == nil {
+		t.Fatal("expected error when outage publish fails")
+	}
+}
+
+func TestDoPoll_OutageClearError_Propagated(t *testing.T) {
+	// Step 1: drive into on-battery state with a normal publisher.
+	fp := &nut.FakePoller{Sequence: [][]nut.Variable{onBatteryVars, sampleVars}}
+	outageStart := newOutageStart()
+	if err := doPoll(fp, &publisher.FakePublisher{}, testCfg, outageStart); err != nil {
+		t.Fatalf("on-battery poll: %v", err)
+	}
+
+	// Step 2: power-restored poll with a publisher that fails on the outage topic.
+	fpub := &topicFailPublisher{
+		FakePublisher: &publisher.FakePublisher{},
+		failTopic:     "ups/cyberpower/outage",
+	}
+	err := doPoll(fp, fpub, testCfg, outageStart)
+	if err == nil {
+		t.Fatal("expected error when outage clear fails")
 	}
 }
 
