@@ -55,11 +55,13 @@ func main() {
 
 	log.Printf("polling every %s", cfg.NUT.PollInterval)
 
+	var outageStart *time.Time
+
 loop:
 	for {
 		select {
 		case <-ticker.C:
-			if err := doPoll(nutClient, pub, cfg); err != nil {
+			if err := doPoll(nutClient, pub, cfg, &outageStart); err != nil {
 				log.Printf("poll error: %v", err)
 			}
 		case <-ctx.Done():
@@ -71,7 +73,7 @@ loop:
 	ticker.Stop()
 
 	// Attempt a final poll so subscribers see fresh state on exit.
-	if err := doPoll(nutClient, pub, cfg); err != nil {
+	if err := doPoll(nutClient, pub, cfg, &outageStart); err != nil {
 		log.Printf("final poll failed (%v); skipping final state snapshot", err)
 	}
 
@@ -115,7 +117,10 @@ func connectNUT(ctx context.Context, cfg config.NUTConfig) (*nut.Client, error) 
 }
 
 // doPoll fetches NUT variables, computes metrics, and publishes everything.
-func doPoll(poller nut.Poller, pub publisher.Publisher, cfg *config.Config) error {
+// outageStart tracks when the current OB condition began; it is set on the
+// first on-battery poll, cleared when mains are restored, and used to compute
+// the outage duration and to clear the retained outage message.
+func doPoll(poller nut.Poller, pub publisher.Publisher, cfg *config.Config, outageStart **time.Time) error {
 	vars, err := poller.Poll()
 	if err != nil {
 		return fmt.Errorf("polling NUT: %w", err)
@@ -132,5 +137,23 @@ func doPoll(poller nut.Poller, pub publisher.Publisher, cfg *config.Config) erro
 	if err := publisher.PublishAll(varMap, m, pubCfg, pub); err != nil {
 		return fmt.Errorf("publishing: %w", err)
 	}
+
+	if m.OnBattery {
+		if *outageStart == nil {
+			now := time.Now()
+			*outageStart = &now
+			log.Printf("power outage detected — UPS on battery")
+		}
+		if err := publisher.PublishOutage(varMap, m, **outageStart, pubCfg, pub); err != nil {
+			return fmt.Errorf("publishing outage: %w", err)
+		}
+	} else if *outageStart != nil {
+		log.Printf("power restored — clearing outage topic")
+		*outageStart = nil
+		if err := publisher.ClearOutage(pubCfg, pub); err != nil {
+			return fmt.Errorf("clearing outage: %w", err)
+		}
+	}
+
 	return nil
 }

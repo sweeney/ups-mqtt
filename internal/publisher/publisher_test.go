@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/sweeney/ups-mqtt/internal/metrics"
 	"github.com/sweeney/ups-mqtt/internal/publisher"
@@ -260,7 +261,135 @@ func TestFakePublisher_Reset(t *testing.T) {
 	}
 }
 
-// TestPublishAll_VarsPublishError verifies the error path when a variable
+// ---- OutageTopic ----------------------------------------------------------
+
+func TestOutageTopic(t *testing.T) {
+	got := publisher.OutageTopic("home", "myups")
+	if got != "home/myups/outage" {
+		t.Errorf("OutageTopic = %q, want %q", got, "home/myups/outage")
+	}
+}
+
+// ---- PublishOutage --------------------------------------------------------
+
+var onBatteryVars = map[string]string{
+	"ups.status":            "OB DISCHRG",
+	"ups.load":              "8",
+	"ups.realpower.nominal": "900",
+	"battery.charge":        "95",
+	"battery.runtime":       "4090",
+}
+
+func runPublishOutage(t *testing.T, outageStart time.Time) (*publisher.FakePublisher, publisher.OutageMessage) {
+	t.Helper()
+	m := metrics.Compute(onBatteryVars)
+	fp := &publisher.FakePublisher{}
+	cfg := publisher.PublishConfig{Prefix: "ups", UPSName: "cyberpower", Retained: true}
+	if err := publisher.PublishOutage(onBatteryVars, m, outageStart, cfg, fp); err != nil {
+		t.Fatalf("PublishOutage: %v", err)
+	}
+	msg, ok := fp.Find("ups/cyberpower/outage")
+	if !ok {
+		t.Fatal("outage topic not published")
+	}
+	var out publisher.OutageMessage
+	if err := json.Unmarshal([]byte(msg.Payload), &out); err != nil {
+		t.Fatalf("outage payload invalid JSON: %v\npayload: %s", err, msg.Payload)
+	}
+	return fp, out
+}
+
+func TestPublishOutage_TopicAndRetained(t *testing.T) {
+	fp, _ := runPublishOutage(t, time.Now().Add(-30*time.Second))
+	msg, _ := fp.Find("ups/cyberpower/outage")
+	if !msg.Retained {
+		t.Error("outage message should always be retained")
+	}
+}
+
+func TestPublishOutage_UPSName(t *testing.T) {
+	_, out := runPublishOutage(t, time.Now().Add(-30*time.Second))
+	if out.UPSName != "cyberpower" {
+		t.Errorf("ups_name = %q, want %q", out.UPSName, "cyberpower")
+	}
+}
+
+func TestPublishOutage_Status(t *testing.T) {
+	_, out := runPublishOutage(t, time.Now().Add(-30*time.Second))
+	if out.Status != "OB DISCHRG" {
+		t.Errorf("status = %q, want %q", out.Status, "OB DISCHRG")
+	}
+	if out.StatusDisplay != "On Battery, Discharging" {
+		t.Errorf("status_display = %q, want %q", out.StatusDisplay, "On Battery, Discharging")
+	}
+}
+
+func TestPublishOutage_BatteryFields(t *testing.T) {
+	_, out := runPublishOutage(t, time.Now().Add(-30*time.Second))
+	if out.BatteryChargePct != 95 {
+		t.Errorf("battery_charge_pct = %v, want 95", out.BatteryChargePct)
+	}
+	if out.BatteryRuntimeSecs != 4090 {
+		t.Errorf("battery_runtime_secs = %v, want 4090", out.BatteryRuntimeSecs)
+	}
+	if out.BatteryRuntimeMins != 68.17 {
+		t.Errorf("battery_runtime_mins = %v, want 68.17", out.BatteryRuntimeMins)
+	}
+}
+
+func TestPublishOutage_LoadWatts(t *testing.T) {
+	_, out := runPublishOutage(t, time.Now().Add(-30*time.Second))
+	// 8% × 900W = 72W
+	if out.LoadWatts != 72 {
+		t.Errorf("load_watts = %v, want 72", out.LoadWatts)
+	}
+}
+
+func TestPublishOutage_OutageDuration(t *testing.T) {
+	start := time.Now().Add(-90 * time.Second)
+	_, out := runPublishOutage(t, start)
+	if out.OutageDurationSecs < 89 || out.OutageDurationSecs > 95 {
+		t.Errorf("outage_duration_secs = %d, want ~90", out.OutageDurationSecs)
+	}
+	if out.OutageStartedAt == "" {
+		t.Error("outage_started_at should not be empty")
+	}
+}
+
+func TestPublishOutage_Timestamps(t *testing.T) {
+	_, out := runPublishOutage(t, time.Now().Add(-30*time.Second))
+	if _, err := time.Parse(time.RFC3339, out.Timestamp); err != nil {
+		t.Errorf("timestamp %q is not RFC3339: %v", out.Timestamp, err)
+	}
+	if _, err := time.Parse(time.RFC3339, out.OutageStartedAt); err != nil {
+		t.Errorf("outage_started_at %q is not RFC3339: %v", out.OutageStartedAt, err)
+	}
+	if _, err := time.Parse(time.RFC3339, out.EstimatedDepletionAt); err != nil {
+		t.Errorf("estimated_depletion_at %q is not RFC3339: %v", out.EstimatedDepletionAt, err)
+	}
+}
+
+// ---- ClearOutage ----------------------------------------------------------
+
+func TestClearOutage_EmptyRetainedPayload(t *testing.T) {
+	fp := &publisher.FakePublisher{}
+	cfg := publisher.PublishConfig{Prefix: "ups", UPSName: "cyberpower"}
+	if err := publisher.ClearOutage(cfg, fp); err != nil {
+		t.Fatalf("ClearOutage: %v", err)
+	}
+	msg, ok := fp.Find("ups/cyberpower/outage")
+	if !ok {
+		t.Fatal("clear message not published")
+	}
+	if msg.Payload != "" {
+		t.Errorf("clear payload = %q, want empty", msg.Payload)
+	}
+	if !msg.Retained {
+		t.Error("clear message must be retained to erase the broker's retained copy")
+	}
+}
+
+// ---- TestPublishAll_VarsPublishError verifies the error path when a variable
 // topic publish fails (non-empty vars map so the vars loop is entered).
 func TestPublishAll_VarsPublishError(t *testing.T) {
 	fp := &publisher.FakePublisher{PublishError: errors.New("broker down")}

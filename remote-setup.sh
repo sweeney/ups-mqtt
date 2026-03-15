@@ -33,7 +33,7 @@ echo "  Installed service → /etc/systemd/system/${SERVICE}.service (User=${INS
 # Passwordless sudo for systemctl so deploy.sh works without a password.
 # Scoped to systemctl only.
 SUDOERS_FILE="/etc/sudoers.d/${SERVICE}"
-echo "${INSTALL_USER} ALL=(ALL) NOPASSWD: /usr/bin/systemctl, /usr/bin/journalctl" > "${SUDOERS_FILE}"
+echo "${INSTALL_USER} ALL=(ALL) NOPASSWD: /usr/bin/systemctl, /usr/bin/journalctl, /usr/bin/tee /etc/${SERVICE}/config.toml" > "${SUDOERS_FILE}"
 chmod 440 "${SUDOERS_FILE}"
 visudo -c -f "${SUDOERS_FILE}" > /dev/null
 echo "  Added sudoers rule → ${SUDOERS_FILE}"

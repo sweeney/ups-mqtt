@@ -72,7 +72,13 @@ ssh "${TARGET}" "
 "
 
 # ---------------------------------------------------------------------------
-# 6. Restart
+# 6. Upload config
+# ---------------------------------------------------------------------------
+echo "==> Uploading config.toml to ${TARGET}:/etc/${SERVICE}/config.toml..."
+< config.toml ssh "${TARGET}" "sudo tee /etc/${SERVICE}/config.toml > /dev/null"
+
+# ---------------------------------------------------------------------------
+# 7. Restart
 # ---------------------------------------------------------------------------
 echo "==> Restarting ${SERVICE}..."
 ssh "${TARGET}" "sudo systemctl daemon-reload && sudo systemctl restart ${SERVICE}"
@@ -87,7 +93,7 @@ if [ "${STATUS}" != "active" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# 7. Prune old versions (keep KEEP_VERSIONS most recent)
+# 8. Prune old versions (keep KEEP_VERSIONS most recent)
 # ---------------------------------------------------------------------------
 echo "==> Pruning old versions (keeping ${KEEP_VERSIONS})..."
 ssh "${TARGET}" "

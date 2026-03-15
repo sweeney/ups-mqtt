@@ -8,7 +8,7 @@ Built against a **CyberPower CP1500EPFCLCD** (900 W nominal, 1500 VA), but compa
 
 ## What it publishes
 
-Every poll cycle, ups-mqtt publishes three kinds of MQTT messages.
+Every poll cycle, ups-mqtt publishes three kinds of MQTT messages. When the UPS switches to battery a fourth, outage-specific topic is published as well.
 
 ### 1. Raw NUT variables
 
@@ -65,7 +65,37 @@ A single combined JSON snapshot on `{prefix}/{upsname}/state`:
 }
 ```
 
-All messages are published with configurable QoS and retain flag. An LWT (last will and testament) of `{"online":false,"timestamp":"…"}` is registered at startup so MQTT subscribers see the device go offline immediately if the daemon dies unexpectedly.
+### 4. Outage topic
+
+When the UPS switches to battery (`ups.status` contains `OB`), a call-to-action message is published to `{prefix}/{upsname}/outage` on every poll:
+
+```json
+{
+  "timestamp": "2026-02-23T16:40:38Z",
+  "ups_name": "cyberpower",
+  "outage_started_at": "2026-02-23T16:40:28Z",
+  "outage_duration_secs": 10,
+  "status": "OB DISCHRG",
+  "status_display": "On Battery, Discharging",
+  "battery_charge_pct": 100,
+  "battery_runtime_secs": 4090,
+  "battery_runtime_mins": 68.17,
+  "estimated_depletion_at": "2026-02-23T17:48:25Z",
+  "load_watts": 72,
+  "low_battery": false
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `outage_started_at` | When the OB condition was first detected (fixed for the duration of the outage) |
+| `outage_duration_secs` | Seconds elapsed since `outage_started_at`; increases each poll |
+| `estimated_depletion_at` | `timestamp` + `battery_runtime_secs` — the key field for graceful-shutdown decisions |
+| `low_battery` | `true` when `ups.status` contains `LB` |
+
+The message is always published **retained** so a subscriber that connects mid-outage receives it immediately. When mains power is restored, an empty retained payload is published to the same topic, clearing the retained copy from the broker. Subscribers should treat an empty or absent payload as "no active outage".
+
+All other messages are published with configurable QoS and retain flag. An LWT (last will and testament) of `{"online":false,"timestamp":"…"}` is registered at startup so MQTT subscribers see the device go offline immediately if the daemon dies unexpectedly.
 
 ---
 
