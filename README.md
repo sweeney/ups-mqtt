@@ -40,6 +40,17 @@ A set of derived values published under `computed/`:
 
 Status tokens are decoded: `OL`→Online, `OB`→On Battery, `LB`→Low Battery, `CHRG`→Charging, `DISCHRG`→Discharging, `RB`→Replace Battery, and so on.
 
+> **Note on `load_watts` accuracy at low load.** The CyberPower CP1500EPFCLCD's HID
+> firmware only reports `ups.load` as a **whole integer percent** of its 900 W rating —
+> i.e. a resolution of **9 W per step**. It exposes no `output.current` or actual-power
+> field, so `load_watts` can only ever be `load% × 900`. Below ~9 W of real draw the meter
+> rounds to **0%**, and a light load near one step dithers between 0% and 2% (0 W / 18 W).
+> So a reading of **0 W is expected for small loads and does not mean nothing is plugged in**.
+> Cross-checked 2026-06-03: the host Mac mini (M4) drew ~0.24 W at the SoC (a few watts at
+> the wall) while the UPS reported 0% — the load is simply below this oversized unit's
+> measurement floor. For true low-wattage figures, use an inline energy monitor (e.g. a
+> Shelly PM) on the UPS output. A spot-check script lives at `scripts/soc-power-probe.sh`.
+
 ### 3. JSON state topic
 
 A single combined JSON snapshot on `{prefix}/{label}/state`:
