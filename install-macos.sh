@@ -19,11 +19,13 @@ set -euo pipefail
 
 SERVICE="ups-mqtt"
 BUNDLE_ID="net.swee.ups-mqtt"
-PLIST_TEMPLATE="org.ups-mqtt.plist"
-PLIST_LABEL="org.ups-mqtt"   # used by launchctl bootstrap/bootout
+PLIST_TEMPLATE="net.swee.ups-mqtt.plist"
+PLIST_LABEL="net.swee.ups-mqtt"   # used by launchctl bootstrap/bootout
 HOME_DIR="${HOME}"
 AGENT_DIR="${HOME_DIR}/Library/LaunchAgents"
-PLIST_DST="${AGENT_DIR}/org.ups-mqtt.plist"
+PLIST_DST="${AGENT_DIR}/net.swee.ups-mqtt.plist"
+OLD_PLIST_LABEL="org.ups-mqtt"
+OLD_PLIST_DST="${AGENT_DIR}/org.ups-mqtt.plist"
 APP_BUNDLE="${HOME_DIR}/Applications/ups-mqtt.app"
 APP_BIN="${APP_BUNDLE}/Contents/MacOS/${SERVICE}"
 CONFIG_DST="/etc/${SERVICE}/config.toml"
@@ -95,10 +97,12 @@ fi
 # 4. LaunchAgent plist — points into the app bundle
 # ---------------------------------------------------------------------------
 mkdir -p "${AGENT_DIR}"
-PATCHED_PLIST="$(mktemp /tmp/org.ups-mqtt.XXXXXX.plist)"
+PATCHED_PLIST="$(mktemp /tmp/net.swee.ups-mqtt.XXXXXX.plist)"
 trap 'rm -f "./${SERVICE}" "${PATCHED_PLIST}"' EXIT
 sed "s|HOME_DIR|${HOME_DIR}|g" "${PLIST_TEMPLATE}" > "${PATCHED_PLIST}"
 
+launchctl bootout "gui/$(id -u)/${OLD_PLIST_LABEL}" 2>/dev/null || true
+rm -f "${OLD_PLIST_DST}"
 launchctl bootout "gui/$(id -u)/${PLIST_LABEL}" 2>/dev/null || true
 cp "${PATCHED_PLIST}" "${PLIST_DST}"
 launchctl bootstrap "gui/$(id -u)" "${PLIST_DST}"
