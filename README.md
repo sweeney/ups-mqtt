@@ -1,8 +1,8 @@
 # ups-mqtt
 
-A Go daemon that polls a [Network UPS Tools](https://networkupstools.org/) (NUT) server and publishes UPS state to an MQTT broker. Designed to run as a systemd service on any Linux machine that has a UPS attached via USB and NUT's `upsd` running locally.
+A Go daemon that polls a [Network UPS Tools](https://networkupstools.org/) (NUT) server and publishes UPS state to an MQTT broker. Runs as a systemd service on Linux or a LaunchAgent on macOS.
 
-Built against a **CyberPower CP1500EPFCLCD** (900 W nominal, 1500 VA), but compatible with any UPS that NUT supports.
+Tested against a **CyberPower CP1500EPFCLCD** (900 W, 1500 VA) and an **APC Back-UPS XS 1400U** (700 W, 1400 VA), but compatible with any UPS that NUT supports.
 
 ---
 
@@ -10,16 +10,18 @@ Built against a **CyberPower CP1500EPFCLCD** (900 W nominal, 1500 VA), but compa
 
 Every poll cycle, ups-mqtt publishes three kinds of MQTT messages. When the UPS switches to battery a fourth, outage-specific topic is published as well.
 
+The middle component of every topic is the **label** — a human-readable name set in config (e.g. `office-ups`, `network-ups`). It defaults to the NUT device name (`ups_name`) if no label is set.
+
 ### 1. Raw NUT variables
 
 Every variable that `upsc <upsname>` returns is published on its own topic, with dots replaced by slashes:
 
 ```
-ups/cyberpower/battery/charge          → "100"
-ups/cyberpower/battery/runtime         → "4920"
-ups/cyberpower/ups/status              → "OL"
-ups/cyberpower/ups/load                → "8"
-ups/cyberpower/input/voltage           → "242.0"
+ups/office-ups/battery/charge          → "100"
+ups/office-ups/battery/runtime         → "4920"
+ups/office-ups/ups/status              → "OL"
+ups/office-ups/ups/load                → "8"
+ups/office-ups/input/voltage           → "242"
 ```
 
 ### 2. Computed metrics
@@ -40,18 +42,18 @@ Status tokens are decoded: `OL`→Online, `OB`→On Battery, `LB`→Low Battery,
 
 ### 3. JSON state topic
 
-A single combined JSON snapshot on `{prefix}/{upsname}/state`:
+A single combined JSON snapshot on `{prefix}/{label}/state`:
 
 ```json
 {
   "timestamp": "2026-02-23T16:40:18Z",
-  "ups_name": "cyberpower",
+  "ups_name": "office-ups",
   "variables": {
     "ups.status": "OL",
     "ups.load": "8",
     "battery.charge": "100",
     "battery.runtime": "4920",
-    "input.voltage": "242.0"
+    "input.voltage": "242"
   },
   "computed": {
     "load_watts": 72,
@@ -67,12 +69,12 @@ A single combined JSON snapshot on `{prefix}/{upsname}/state`:
 
 ### 4. Outage topic
 
-When the UPS switches to battery (`ups.status` contains `OB`), a call-to-action message is published to `{prefix}/{upsname}/outage` on every poll:
+When the UPS switches to battery (`ups.status` contains `OB`), a call-to-action message is published to `{prefix}/{label}/outage` on every poll:
 
 ```json
 {
   "timestamp": "2026-02-23T16:40:38Z",
-  "ups_name": "cyberpower",
+  "ups_name": "office-ups",
   "outage_started_at": "2026-02-23T16:40:28Z",
   "outage_duration_secs": 10,
   "status": "OB DISCHRG",
@@ -110,18 +112,23 @@ port          = 3493          # upsd port
 username      = ""            # leave empty if auth not configured
 password      = ""
 ups_name      = "cyberpower"  # name as shown in upsc -l
-poll_interval = "10s"
+label         = "network-ups" # optional: MQTT topic name; defaults to ups_name
+poll_interval = "30s"
 
 [mqtt]
 broker        = "tcp://localhost:1883"  # use "ssl://" for TLS
 username      = ""
 password      = ""
-client_id     = "ups-mqtt"
+client_id     = "ups-mqtt"             # must be unique per broker when running multiple instances
 topic_prefix  = "ups"
 retained      = true
 qos           = 1
-tls_ca_cert   = ""            # path to custom CA cert; empty = system CAs
+tls_ca_cert   = ""                     # path to custom CA cert; empty = system CAs
 ```
+
+The `label` field decouples the MQTT topic name from the NUT device identifier. This lets you use meaningful names like `office-ups` or `network-ups` independently of what the device is called in `ups.conf`.
+
+If you run multiple instances against the same broker, each must have a distinct `client_id`. Duplicate IDs cause the broker to disconnect the older client when a new one connects.
 
 ### Environment variable overrides
 
@@ -134,6 +141,7 @@ Every field has a `UPS_MQTT_` override (useful for Docker / secrets):
 | `UPS_MQTT_NUT_USERNAME` | `nut.username` |
 | `UPS_MQTT_NUT_PASSWORD` | `nut.password` |
 | `UPS_MQTT_NUT_UPS_NAME` | `nut.ups_name` |
+| `UPS_MQTT_NUT_LABEL` | `nut.label` |
 | `UPS_MQTT_NUT_POLL_INTERVAL` | `nut.poll_interval` |
 | `UPS_MQTT_MQTT_BROKER` | `mqtt.broker` |
 | `UPS_MQTT_MQTT_USERNAME` | `mqtt.username` |
@@ -152,11 +160,43 @@ Invalid values (e.g. a non-numeric port) are logged and ignored, leaving the def
 
 ### Prerequisites
 
-- NUT installed and `upsd` running (`apt install nut nut-client`)
-- MQTT broker reachable (e.g. Mosquitto on the same host)
+- NUT installed and `upsd` running
+- MQTT broker reachable (e.g. Mosquitto)
 - Go 1.21+ on your build machine (not required on the target)
 
-### First deployment
+### macOS (LaunchAgent)
+
+```bash
+./install-macos.sh
+```
+
+The script:
+1. Builds a native binary for the detected architecture (arm64 or amd64)
+2. Installs it inside `~/Applications/ups-mqtt.app` — required for macOS to track the app in TCC and prompt for Local Network privacy permission
+3. Ad-hoc code-signs the bundle with identifier `net.swee.ups-mqtt`
+4. Copies config to `/etc/ups-mqtt/config.toml` (sudo, first install only)
+5. Installs and loads a LaunchAgent at `~/Library/LaunchAgents/net.swee.ups-mqtt.plist`
+
+On first install, run the binary once from the terminal to trigger the macOS Local Network permission prompt:
+
+```bash
+~/Applications/ups-mqtt.app/Contents/MacOS/ups-mqtt --config /etc/ups-mqtt/config.toml
+```
+
+Re-running `install-macos.sh` is safe: it replaces the binary and reloads the service without touching the config.
+
+```bash
+# Stop / start
+launchctl bootout  gui/$(id -u)/net.swee.ups-mqtt
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/net.swee.ups-mqtt.plist
+
+# Logs
+tail -f ~/Library/Logs/ups-mqtt.log
+```
+
+NUT on macOS requires the `usbhid-ups` driver to run as root (USB device access). See `brew install nut` and configure LaunchDaemons for `usbhid-ups` and `upsd` separately.
+
+### Linux (systemd)
 
 ```bash
 # 1. Copy and edit the config
@@ -168,7 +208,7 @@ ssh user@host 'sudo mkdir -p /etc/ups-mqtt && sudo mv /tmp/ups-mqtt.toml /etc/up
 ./deploy.sh user@host
 ```
 
-### Subsequent deployments
+Subsequent deployments:
 
 ```bash
 ./deploy.sh              # default host (sweeney@garibaldi)
@@ -183,7 +223,7 @@ The script:
 5. Restarts the service and waits briefly to confirm it's `active`
 6. Prunes all but the three most recent versions from the remote host
 
-### Supported architectures
+#### Supported architectures
 
 | Host `uname -m` | Builds as |
 |-----------------|-----------|
@@ -192,7 +232,7 @@ The script:
 | `armv7l` | `linux/arm` GOARM=7 |
 | `armv6l` | `linux/arm` GOARM=6 (Pi Zero) |
 
-### systemd unit
+#### systemd unit
 
 The service file (`ups-mqtt.service`) is installed to `/etc/systemd/system/` via a symlink on first deploy. Key settings:
 
@@ -214,10 +254,16 @@ The daemon handles `SIGTERM`/`SIGINT` gracefully: it publishes one final state s
 ### Checking the service
 
 ```bash
+# Linux
 sudo systemctl status ups-mqtt
-sudo journalctl -u ups-mqtt -f          # follow logs
-sudo journalctl -u ups-mqtt -n 50       # last 50 lines
-mosquitto_sub -t 'ups/#' -v             # watch all MQTT topics
+sudo journalctl -u ups-mqtt -f
+
+# macOS
+launchctl list | grep ups-mqtt
+tail -f ~/Library/Logs/ups-mqtt.log
+
+# Watch all MQTT topics
+mosquitto_sub -h <broker> -t 'ups/#' -v
 ```
 
 ---
@@ -244,7 +290,7 @@ Cross-compile for a specific target:
 ```bash
 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o ups-mqtt-linux-amd64 ./cmd/ups-mqtt/
 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o ups-mqtt-linux-arm64 ./cmd/ups-mqtt/
-GOOS=linux GOARCH=arm GOARM=6 go build -ldflags="-s -w" -o ups-mqtt-linux-armv6 ./cmd/ups-mqtt/
+GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o ups-mqtt-darwin-arm64 ./cmd/ups-mqtt/
 ```
 
 ### Testing
@@ -298,7 +344,9 @@ type Publisher interface {
 
 ### Testing from real data
 
-The integration scenario tests (`internal/integration_scenarios_test.go`) were built from a **live power-cut event** recorded on 2026-02-23. A ~2m40s outage on the CyberPower unit was captured as 120KB of `mosquitto_sub` output, then distilled into four complete NUT variable snapshots:
+The integration scenario tests (`internal/integration_scenarios_test.go`) are built from live hardware captures:
+
+**CyberPower CP1500EPFCLCD** — a ~2m40s power-cut event recorded on 2026-02-23, distilled into four NUT variable snapshots:
 
 | Snapshot | `ups.status` | When |
 |----------|-------------|------|
@@ -307,12 +355,16 @@ The integration scenario tests (`internal/integration_scenarios_test.go`) were b
 | `snapshotOLDischrg` | `OL DISCHRG` | Transitional: mains just restored |
 | `snapshotCharging` | `OL CHRG` | Active charging |
 
-These drive `TestPowerCutSequence`, which replays the full status machine using `FakePoller.Sequence` (which steps through the snapshots in order, repeating the last when exhausted). Two real firmware quirks are tested explicitly:
+**APC Back-UPS XS 1400U** — steady-state variables captured from a live device on 2026-05-15, used to verify cross-brand NUT variable compatibility.
 
-- **Noisy battery charge readings** during discharge (100% → 79% → 82% — documented in test comments)
-- **`input.voltage = "0"`** for one poll during reconnect — the daemon reports −100% deviation (mathematically correct) without panicking
+`TestPowerCutSequence` replays the full CyberPower status machine using `FakePoller.Sequence`. Two real firmware quirks are tested explicitly:
 
-This approach means the tests are living documentation: they describe exactly what the daemon does in the scenarios that matter most, verified against hardware.
+- **Noisy battery charge readings** during discharge (100% → 79% → 82%)
+- **`input.voltage = "0"`** for one poll during reconnect — the daemon reports −100% deviation without panicking
+
+### Label and topic routing
+
+The `label` field in config decouples the MQTT topic name from the NUT device identifier. `NUTConfig.EffectiveLabel()` returns the label if set, falling back to `ups_name`. All topic routing — including the LWT, outage topic, and JSON state — uses `EffectiveLabel()`, so renaming a device in MQTT never requires changes to the NUT configuration.
 
 ### Single source of truth for topic names
 
