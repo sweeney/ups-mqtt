@@ -5,7 +5,10 @@ host          = "localhost"
 port          = 3493
 username      = ""          # leave empty if upsd requires no authentication
 password      = ""
-ups_name      = "cyberpower"
+ups_name      = "cyberpower" # must match the device name in upsd's ups.conf
+label         = ""           # optional: human-readable name used in MQTT topics
+                             # e.g. "office-ups" or "network-cabinet-ups"
+                             # defaults to ups_name if not set
 poll_interval = "30s"
 
 [mqtt]

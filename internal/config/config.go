@@ -35,7 +35,17 @@ type NUTConfig struct {
 	Username     string   `toml:"username"`
 	Password     string   `toml:"password"`
 	UPSName      string   `toml:"ups_name"`
+	Label        string   `toml:"label"`
 	PollInterval Duration `toml:"poll_interval"`
+}
+
+// EffectiveLabel returns Label if set, otherwise UPSName.
+// Use this for MQTT topic routing; use UPSName only for NUT device lookup.
+func (c NUTConfig) EffectiveLabel() string {
+	if c.Label != "" {
+		return c.Label
+	}
+	return c.UPSName
 }
 
 // MQTTConfig holds MQTT broker connection settings.
@@ -119,6 +129,9 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if v := os.Getenv("UPS_MQTT_NUT_UPS_NAME"); v != "" {
 		cfg.NUT.UPSName = v
+	}
+	if v := os.Getenv("UPS_MQTT_NUT_LABEL"); v != "" {
+		cfg.NUT.Label = v
 	}
 	if v := os.Getenv("UPS_MQTT_NUT_POLL_INTERVAL"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {

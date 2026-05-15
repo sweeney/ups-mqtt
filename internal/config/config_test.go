@@ -333,3 +333,50 @@ func TestLoad_EnvOverride_QOS_Bad(t *testing.T) {
 		t.Errorf("MQTT.QOS = %d with bad env, want default 1", cfg.MQTT.QOS)
 	}
 }
+
+// TestLoad_Label_FromTOML verifies that label is parsed from a TOML file.
+func TestLoad_Label_FromTOML(t *testing.T) {
+	f, err := os.CreateTemp("", "ups-mqtt-*.toml")
+	if err != nil {
+		t.Fatalf("creating temp file: %v", err)
+	}
+	defer os.Remove(f.Name())
+	f.WriteString("[nut]\nups_name = \"apc\"\nlabel = \"office-ups\"\n") //nolint:errcheck
+	f.Close()                                                              //nolint:errcheck
+
+	cfg, err := config.Load(f.Name())
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if cfg.NUT.Label != "office-ups" {
+		t.Errorf("NUT.Label = %q, want %q", cfg.NUT.Label, "office-ups")
+	}
+}
+
+// TestLoad_Label_EnvOverride verifies that UPS_MQTT_NUT_LABEL is applied.
+func TestLoad_Label_EnvOverride(t *testing.T) {
+	t.Setenv("UPS_MQTT_NUT_LABEL", "office-ups")
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if cfg.NUT.Label != "office-ups" {
+		t.Errorf("NUT.Label = %q, want %q", cfg.NUT.Label, "office-ups")
+	}
+}
+
+// TestEffectiveLabel_WithLabel verifies that Label takes precedence over UPSName.
+func TestEffectiveLabel_WithLabel(t *testing.T) {
+	c := config.NUTConfig{UPSName: "apc", Label: "office-ups"}
+	if got := c.EffectiveLabel(); got != "office-ups" {
+		t.Errorf("EffectiveLabel() = %q, want %q", got, "office-ups")
+	}
+}
+
+// TestEffectiveLabel_FallsBackToUPSName verifies the fallback when Label is empty.
+func TestEffectiveLabel_FallsBackToUPSName(t *testing.T) {
+	c := config.NUTConfig{UPSName: "apc"}
+	if got := c.EffectiveLabel(); got != "apc" {
+		t.Errorf("EffectiveLabel() = %q, want %q", got, "apc")
+	}
+}

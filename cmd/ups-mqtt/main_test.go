@@ -15,6 +15,11 @@ var testCfg = &config.Config{
 	MQTT: config.MQTTConfig{TopicPrefix: "ups", Retained: true},
 }
 
+var labelledCfg = &config.Config{
+	NUT:  config.NUTConfig{UPSName: "apc", Label: "office-ups"},
+	MQTT: config.MQTTConfig{TopicPrefix: "ups", Retained: true},
+}
+
 var sampleVars = []nut.Variable{
 	{Name: "ups.status", Value: "OL"},
 	{Name: "ups.load", Value: "8"},
@@ -164,6 +169,38 @@ func TestDoPoll_OutageClearError_Propagated(t *testing.T) {
 	err := doPoll(fp, fpub, testCfg, outageStart)
 	if err == nil {
 		t.Fatal("expected error when outage clear fails")
+	}
+}
+
+func TestDoPoll_Label_UsedInTopics(t *testing.T) {
+	fp := &nut.FakePoller{Variables: sampleVars}
+	fpub := &publisher.FakePublisher{}
+	outageStart := newOutageStart()
+
+	if err := doPoll(fp, fpub, labelledCfg, outageStart); err != nil {
+		t.Fatalf("doPoll: %v", err)
+	}
+	if _, ok := fpub.Find("ups/office-ups/state"); !ok {
+		t.Error("state topic should use label, not ups_name")
+	}
+	if _, ok := fpub.Find("ups/apc/state"); ok {
+		t.Error("state topic must not use ups_name when label is set")
+	}
+}
+
+func TestDoPoll_Label_UsedInOutageTopic(t *testing.T) {
+	fp := &nut.FakePoller{Variables: onBatteryVars}
+	fpub := &publisher.FakePublisher{}
+	outageStart := newOutageStart()
+
+	if err := doPoll(fp, fpub, labelledCfg, outageStart); err != nil {
+		t.Fatalf("doPoll: %v", err)
+	}
+	if _, ok := fpub.Find("ups/office-ups/outage"); !ok {
+		t.Error("outage topic should use label, not ups_name")
+	}
+	if _, ok := fpub.Find("ups/apc/outage"); ok {
+		t.Error("outage topic must not use ups_name when label is set")
 	}
 }
 

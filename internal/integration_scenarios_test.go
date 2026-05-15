@@ -541,6 +541,83 @@ func TestPowerCutSequence(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Scenario: APC Back-UPS XS 1400U (700W nominal)
+// Variables captured from a live device (2026-05-15, ups.status=OL CHRG).
+// ---------------------------------------------------------------------------
+
+var snapshotAPC = []nut.Variable{
+	{Name: "battery.charge", Value: "94"},
+	{Name: "battery.charge.low", Value: "10"},
+	{Name: "battery.charge.warning", Value: "50"},
+	{Name: "battery.runtime", Value: "18612"},
+	{Name: "battery.runtime.low", Value: "120"},
+	{Name: "battery.type", Value: "PbAc"},
+	{Name: "battery.voltage", Value: "27.3"},
+	{Name: "battery.voltage.nominal", Value: "24.0"},
+	{Name: "device.mfr", Value: "American Power Conversion"},
+	{Name: "device.model", Value: "Back-UPS XS 1400U"},
+	{Name: "device.type", Value: "ups"},
+	{Name: "driver.name", Value: "usbhid-ups"},
+	{Name: "driver.version.data", Value: "APC HID 0.101"},
+	{Name: "input.sensitivity", Value: "low"},
+	{Name: "input.transfer.high", Value: "280"},
+	{Name: "input.transfer.low", Value: "150"},
+	{Name: "input.voltage", Value: "242.0"},
+	{Name: "input.voltage.nominal", Value: "230"},
+	{Name: "ups.firmware", Value: "926.T2 .I"},
+	{Name: "ups.load", Value: "0"},
+	{Name: "ups.mfr", Value: "American Power Conversion"},
+	{Name: "ups.model", Value: "Back-UPS XS 1400U"},
+	{Name: "ups.realpower.nominal", Value: "700"},
+	{Name: "ups.status", Value: "OL CHRG"},
+}
+
+func TestScenario_APC_ComputedMetrics(t *testing.T) {
+	// ups.load=0, nominal=700W → load_watts=0
+	// battery.runtime=18612s → 310.2 min / 5.17 hr
+	// input.voltage=242, nominal=230 → deviation=5.22%
+	m, fpub := pollOnce(t, snapshotAPC)
+
+	if m.OnBattery {
+		t.Error("OnBattery should be false for OL CHRG")
+	}
+	if m.LowBattery {
+		t.Error("LowBattery should be false")
+	}
+	if m.LoadWatts != 0 {
+		t.Errorf("LoadWatts = %v, want 0 (ups.load=0)", m.LoadWatts)
+	}
+	if m.BatteryRuntimeMins != 310.2 {
+		t.Errorf("BatteryRuntimeMins = %v, want 310.2", m.BatteryRuntimeMins)
+	}
+	if m.BatteryRuntimeHours != 5.17 {
+		t.Errorf("BatteryRuntimeHours = %v, want 5.17", m.BatteryRuntimeHours)
+	}
+	if m.StatusDisplay != "Online, Charging" {
+		t.Errorf("StatusDisplay = %q, want %q", m.StatusDisplay, "Online, Charging")
+	}
+	if m.InputVoltageDeviationPct != 5.22 {
+		t.Errorf("InputVoltageDeviationPct = %v, want 5.22", m.InputVoltageDeviationPct)
+	}
+
+	requireTopic(t, fpub, "ups/cyberpower/computed/load_watts", "0")
+	requireTopic(t, fpub, "ups/cyberpower/computed/battery_runtime_mins", "310.2")
+	requireTopic(t, fpub, "ups/cyberpower/computed/battery_runtime_hours", "5.17")
+	requireTopic(t, fpub, "ups/cyberpower/computed/on_battery", "false")
+	requireTopic(t, fpub, "ups/cyberpower/computed/status_display", "Online, Charging")
+	requireTopic(t, fpub, "ups/cyberpower/computed/input_voltage_deviation_pct", "5.22")
+}
+
+func TestScenario_APC_VariableTopics(t *testing.T) {
+	_, fpub := pollOnce(t, snapshotAPC)
+
+	requireTopic(t, fpub, "ups/cyberpower/battery/charge", "94")
+	requireTopic(t, fpub, "ups/cyberpower/ups/status", "OL CHRG")
+	requireTopic(t, fpub, "ups/cyberpower/ups/realpower/nominal", "700")
+	requireTopic(t, fpub, "ups/cyberpower/input/voltage", "242.0")
+}
+
 // TestPowerCutSequence_SequenceRepeatsLastElement verifies that once the
 // sequence is exhausted the FakePoller repeats the final snapshot.
 func TestPowerCutSequence_SequenceRepeatsLastElement(t *testing.T) {

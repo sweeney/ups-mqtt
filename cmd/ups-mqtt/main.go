@@ -24,14 +24,14 @@ func main() {
 		log.Fatalf("loading config: %v", err)
 	}
 
-	log.Printf("ups-mqtt starting (NUT: %s:%d, UPS: %s, MQTT: %s)",
-		cfg.NUT.Host, cfg.NUT.Port, cfg.NUT.UPSName, cfg.MQTT.Broker)
+	log.Printf("ups-mqtt starting (NUT: %s:%d, UPS: %s, label: %s, MQTT: %s)",
+		cfg.NUT.Host, cfg.NUT.Port, cfg.NUT.UPSName, cfg.NUT.EffectiveLabel(), cfg.MQTT.Broker)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
 
 	// Connect to MQTT broker first so LWT is registered before we talk to NUT.
-	lwtTopic := publisher.StateTopic(cfg.MQTT.TopicPrefix, cfg.NUT.UPSName)
+	lwtTopic := publisher.StateTopic(cfg.MQTT.TopicPrefix, cfg.NUT.EffectiveLabel())
 	lwtPayload := publisher.FormatOffline()
 
 	pub, err := publisher.NewMQTTPublisher(cfg.MQTT, lwtTopic, lwtPayload)
@@ -131,7 +131,7 @@ func doPoll(poller nut.Poller, pub publisher.Publisher, cfg *config.Config, outa
 
 	pubCfg := publisher.PublishConfig{
 		Prefix:   cfg.MQTT.TopicPrefix,
-		UPSName:  cfg.NUT.UPSName,
+		UPSName:  cfg.NUT.EffectiveLabel(),
 		Retained: cfg.MQTT.Retained,
 	}
 	if err := publisher.PublishAll(varMap, m, pubCfg, pub); err != nil {
