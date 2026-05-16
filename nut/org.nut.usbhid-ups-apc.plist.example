@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  LaunchDaemon for the NUT usbhid-ups driver on macOS (Homebrew).
+  Install to: /Library/LaunchDaemons/org.nut.usbhid-ups-apc.plist
+  Load:       sudo launchctl bootstrap system /Library/LaunchDaemons/org.nut.usbhid-ups-apc.plist
+  Stop:       sudo launchctl bootout system/org.nut.usbhid-ups-apc
+
+  Must run as a LaunchDaemon (system context, root) because libusb requires
+  root to claim a USB HID device on macOS. Cannot run as a LaunchAgent.
+
+  The -a argument must match the section name in ups.conf (e.g. [apc]).
+  The -u root flag tells the driver to run as root (required for USB access).
+  The -F flag keeps the process in the foreground so launchd can manage it.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>org.nut.usbhid-ups-apc</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/usbhid-ups</string>
+        <string>-a</string>
+        <string>apc</string>
+        <string>-u</string>
+        <string>root</string>
+        <string>-F</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/opt/homebrew/var/log/nut-driver.log</string>
+    <key>StandardErrorPath</key>
+    <string>/opt/homebrew/var/log/nut-driver.log</string>
+</dict>
+</plist>

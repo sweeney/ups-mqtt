@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  LaunchDaemon for the NUT data server (upsd) on macOS (Homebrew).
+  Install to: /Library/LaunchDaemons/org.nut.upsd.plist
+  Load:       sudo launchctl bootstrap system /Library/LaunchDaemons/org.nut.upsd.plist
+  Stop:       sudo launchctl bootout system/org.nut.upsd
+
+  upsd must start after the driver (org.nut.usbhid-ups-apc) has initialised.
+  KeepAlive ensures launchd restarts it if it crashes.
+
+  upsd reads /opt/homebrew/etc/nut/upsd.conf and ups.conf for its configuration.
+  The -F flag keeps the process in the foreground so launchd can manage it.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>org.nut.upsd</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/sbin/upsd</string>
+        <string>-F</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/opt/homebrew/var/log/nut-upsd.log</string>
+    <key>StandardErrorPath</key>
+    <string>/opt/homebrew/var/log/nut-upsd.log</string>
+</dict>
+</plist>

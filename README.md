@@ -166,6 +166,45 @@ Invalid values (e.g. a non-numeric port) are logged and ignored, leaving the def
 
 ### macOS (LaunchAgent)
 
+#### 1. Install and configure NUT
+
+```bash
+brew install nut
+```
+
+NUT config lives in `/opt/homebrew/etc/nut/`. Copy the example and edit the UPS name to match your device:
+
+```bash
+cp nut/ups.conf.example /opt/homebrew/etc/nut/ups.conf
+```
+
+The critical setting is `interrupt_pipe_no_events_tolerance = 10` — see [USB HID driver staleness](#usb-hid-driver-staleness) below for why this is essential.
+
+Install the NUT LaunchDaemons (driver + data server). Both must run as system daemons (root) because `libusb` requires root to claim a USB HID device on macOS:
+
+```bash
+sudo cp nut/org.nut.usbhid-ups-apc.plist.example /Library/LaunchDaemons/org.nut.usbhid-ups-apc.plist
+sudo cp nut/org.nut.upsd.plist.example            /Library/LaunchDaemons/org.nut.upsd.plist
+
+sudo launchctl bootstrap system /Library/LaunchDaemons/org.nut.usbhid-ups-apc.plist
+sudo launchctl bootstrap system /Library/LaunchDaemons/org.nut.upsd.plist
+```
+
+Verify NUT is talking to the UPS:
+
+```bash
+upsc apc@localhost
+```
+
+NUT daemon logs:
+
+```bash
+tail -f /opt/homebrew/var/log/nut-driver.log
+tail -f /opt/homebrew/var/log/nut-upsd.log
+```
+
+#### 2. Install ups-mqtt
+
 ```bash
 ./install-macos.sh
 ```
@@ -176,6 +215,8 @@ The script:
 3. Ad-hoc code-signs the bundle with identifier `net.swee.ups-mqtt`
 4. Copies config to `/etc/ups-mqtt/config.toml` (sudo, first install only)
 5. Installs and loads a LaunchAgent at `~/Library/LaunchAgents/net.swee.ups-mqtt.plist`
+
+ups-mqtt runs as a **LaunchAgent** (user session), not a LaunchDaemon. macOS enforces Local Network privacy (TCC) per-user session — a system daemon has no user context to prompt against, so the network connection is silently blocked.
 
 On first install, run the binary once from the terminal to trigger the macOS Local Network permission prompt:
 
@@ -194,7 +235,23 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/net.swee.ups-mqtt.plist
 tail -f ~/Library/Logs/ups-mqtt.log
 ```
 
-NUT on macOS requires the `usbhid-ups` driver to run as root (USB device access). See `brew install nut` and configure LaunchDaemons for `usbhid-ups` and `upsd` separately.
+#### USB HID driver staleness
+
+On macOS, the `usbhid-ups` driver can silently stop receiving USB HID interrupt events from the device. NUT reports `Error: Data stale` and never recovers on its own. **The fix is `interrupt_pipe_no_events_tolerance = 10` in `ups.conf`** — it tells the driver to reconnect to the USB device after N consecutive polls with no events. At NUT's default 2 s poll interval that's ~20 s to auto-recover.
+
+This setting is already present in `nut/ups.conf.example`. Without it, the driver will silently stall and the only recovery is a manual restart.
+
+#### Restarting the NUT driver
+
+If the driver does need a manual restart:
+
+```bash
+sudo ./restart-nut-driver.sh
+```
+
+This does a clean `launchctl bootout` / `bootstrap` cycle and waits 5 s before checking `upsc`. **Do not** just kill the driver process — launchd will restart it, but if it was stopped via `bootout` first, macOS will have reclaimed the USB HID device and the driver will fail with `No matching HID UPS found`.
+
+If you see `No matching HID UPS found` after a restart, unplug and replug the USB cable. This releases the macOS kernel HID driver's claim on the device so libusb can reclaim it.
 
 ### Linux (systemd)
 
