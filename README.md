@@ -183,17 +183,17 @@ The critical setting is `interrupt_pipe_no_events_tolerance = 10` — see [USB H
 Install the NUT LaunchDaemons (driver + data server). Both must run as system daemons (root) because `libusb` requires root to claim a USB HID device on macOS:
 
 ```bash
-sudo cp nut/org.nut.usbhid-ups-apc.plist.example /Library/LaunchDaemons/org.nut.usbhid-ups-apc.plist
-sudo cp nut/org.nut.upsd.plist.example            /Library/LaunchDaemons/org.nut.upsd.plist
+sudo cp nut/org.nut.usbhid-ups-cyberpower.plist.example /Library/LaunchDaemons/org.nut.usbhid-ups-cyberpower.plist
+sudo cp nut/org.nut.upsd.plist.example                 /Library/LaunchDaemons/org.nut.upsd.plist
 
-sudo launchctl bootstrap system /Library/LaunchDaemons/org.nut.usbhid-ups-apc.plist
+sudo launchctl bootstrap system /Library/LaunchDaemons/org.nut.usbhid-ups-cyberpower.plist
 sudo launchctl bootstrap system /Library/LaunchDaemons/org.nut.upsd.plist
 ```
 
 Verify NUT is talking to the UPS:
 
 ```bash
-upsc apc@localhost
+upsc cyberpower@localhost
 ```
 
 NUT daemon logs:
@@ -238,6 +238,8 @@ tail -f ~/Library/Logs/ups-mqtt.log
 #### USB HID driver staleness
 
 On macOS, the `usbhid-ups` driver can silently stop receiving USB HID interrupt events from the device. NUT reports `Error: Data stale` and never recovers on its own. **The fix is `interrupt_pipe_no_events_tolerance = 10` in `ups.conf`** — it tells the driver to reconnect to the USB device after N consecutive polls with no events. At NUT's default 2 s poll interval that's ~20 s to auto-recover.
+
+This is a macOS-specific issue with the `usbhid-ups` driver, not specific to any UPS brand — it affects APC, CyberPower, and others alike. The setting must be kept in `ups.conf` regardless of which device is connected.
 
 This setting is already present in `nut/ups.conf.example`. Without it, the driver will silently stall and the only recovery is a manual restart.
 

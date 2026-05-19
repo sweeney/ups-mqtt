@@ -1,22 +1,22 @@
 # ups.conf for macOS (Homebrew NUT install)
 # Location: /opt/homebrew/etc/nut/ups.conf
 #
-# CRITICAL: interrupt_pipe_no_events_tolerance must be set for USB UPS devices
-# on macOS. Without it, the usbhid-ups driver silently stops receiving USB HID
-# interrupt events and enters a "Data stale" state it never recovers from on its
-# own. With NUT's default poll interval (2 s), a value of 10 means the driver
-# detects the stall and reconnects to the USB device after ~20 s of silence.
-# Confirmed effective on APC Back-UPS XS 1400U running overnight without a
-# single stale event.
+# CRITICAL: interrupt_pipe_no_events_tolerance must be set for any USB UPS on
+# macOS. This is a macOS usbhid-ups issue, not device-specific — it affects
+# all USB HID UPS brands (APC, CyberPower, etc.). Without it, the driver
+# silently stops receiving USB HID interrupt events and enters a "Data stale"
+# state it never recovers from on its own. With NUT's default poll interval
+# (2 s), a value of 10 means the driver detects the stall and reconnects to
+# the USB device after ~20 s of silence.
 
 maxretry = 3
 
-[apc]
+[cyberpower]
     driver = usbhid-ups
     port = auto
-    desc = "APC Back-UPS XS 1400U"
+    desc = "CyberPower CP1500EPFCLCD"
     interrupt_pipe_no_events_tolerance = 10
 
-# The section name ([apc] above) is the ups_name you set in config.toml.
+# The section name ([cyberpower] above) is the ups_name you set in config.toml.
 # If you have a different UPS, change both the section header and desc.
 # Use `upsc -l localhost` to list recognised UPS names after upsd is running.

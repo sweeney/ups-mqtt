@@ -6,7 +6,7 @@
   Load:       sudo launchctl bootstrap system /Library/LaunchDaemons/org.nut.upsd.plist
   Stop:       sudo launchctl bootout system/org.nut.upsd
 
-  upsd must start after the driver (org.nut.usbhid-ups-apc) has initialised.
+  upsd must start after the driver (org.nut.usbhid-ups-cyberpower) has initialised.
   KeepAlive ensures launchd restarts it if it crashes.
 
   upsd reads /opt/homebrew/etc/nut/upsd.conf and ups.conf for its configuration.
