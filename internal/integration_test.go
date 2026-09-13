@@ -105,14 +105,25 @@ func TestEndToEnd_StatusDisplay(t *testing.T) {
 	}
 }
 
-func TestEndToEnd_VariableTopic(t *testing.T) {
+// Raw NUT variables reach subscribers inside the state payload, not as
+// individual retained topics.
+func TestEndToEnd_VariablesInStateNotTopics(t *testing.T) {
 	fpub := runOnce(t, deviceVars)
-	msg, ok := fpub.Find("ups/cyberpower/battery/charge")
-	if !ok {
-		t.Fatal("battery/charge topic not published")
+
+	if _, ok := fpub.Find("ups/cyberpower/battery/charge"); ok {
+		t.Error("raw variable topic battery/charge should no longer be published")
 	}
-	if msg.Payload != "100" {
-		t.Errorf("battery/charge = %q, want %q", msg.Payload, "100")
+
+	msg, ok := fpub.Find("ups/cyberpower/state")
+	if !ok {
+		t.Fatal("state topic not published")
+	}
+	var state publisher.StateMessage
+	if err := json.Unmarshal([]byte(msg.Payload), &state); err != nil {
+		t.Fatalf("state payload invalid JSON: %v", err)
+	}
+	if got := state.Variables["battery.charge"]; got != "100" {
+		t.Errorf("state.variables[battery.charge] = %q, want %q", got, "100")
 	}
 }
 

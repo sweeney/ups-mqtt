@@ -145,15 +145,64 @@ func optionalVar(vars map[string]string, name string) *float64 {
 	return &v
 }
 
-// PublishAll publishes every NUT variable as an individual topic, every
-// computed metric under the "computed/" sub-tree, and the combined JSON
-// state topic.
+// noisyVariableFamilies are variable prefixes excluded from the published
+// state.  They describe NUT itself, or hardware the device does not have, and
+// are re-sent unchanged on every poll.
+//
+//   - "driver." is NUT's own build and configuration metadata: driver.version,
+//     driver.parameter.* (our own ups.conf echoed back), driver.debug.  It
+//     says nothing about the UPS.  driver.state is also the single noisiest
+//     value in the system — 165 of the 236 value changes observed across a
+//     full outage capture, flapping between "updateinfo" and "quiet".
+//   - "output.L2." and "output.L3." are phantom phases.  Every UPS here is
+//     single-phase, so they are permanently zero.
+//
+// This is a denylist, not an allowlist, so variables from an unfamiliar UPS
+// still reach subscribers: the three devices in use already expose three
+// different variable sets, and an allowlist would silently swallow anything
+// unanticipated.
+var noisyVariableFamilies = []string{
+	"driver.",
+	"output.L2.",
+	"output.L3.",
+}
+
+// publishableVariables returns vars with the noisy families removed.  The
+// input map is never modified.
+func publishableVariables(vars map[string]string) map[string]string {
+	out := make(map[string]string, len(vars))
+	for name, value := range vars {
+		if isNoisyVariable(name) {
+			continue
+		}
+		out[name] = value
+	}
+	return out
+}
+
+// isNoisyVariable reports whether name belongs to a denied family.
+func isNoisyVariable(name string) bool {
+	for _, prefix := range noisyVariableFamilies {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// PublishAll publishes every computed metric under the "computed/" sub-tree,
+// plus the combined JSON state topic.
+//
+// Raw NUT variables are deliberately NOT published as individual topics.  They
+// duplicated, value for value, what the state topic already carries as JSON —
+// around 46 retained topics per poll that no subscriber read.  The state topic
+// is published on every poll regardless of whether anything changed, so it
+// doubles as a heartbeat.
 //
 // Every message is attempted even when earlier ones fail, and the failures are
-// returned joined.  Stopping at the first error would let one unlucky variable
-// topic suppress every message after it — including the combined state topic,
-// which is also the LWT topic.  Go randomises map iteration order, so which
-// topics were lost would vary from poll to poll.
+// returned joined.  Stopping at the first error would let one unlucky topic
+// suppress every message after it — including the state topic, which is also
+// the LWT topic.
 func PublishAll(
 	vars map[string]string,
 	m metrics.Metrics,
@@ -161,14 +210,6 @@ func PublishAll(
 	pub Publisher,
 ) error {
 	var errs []error
-
-	// --- individual NUT variable topics ---
-	for name, value := range vars {
-		topic := fmt.Sprintf("%s/%s/%s", cfg.Prefix, cfg.UPSName, strings.ReplaceAll(name, ".", "/"))
-		if err := pub.Publish(Message{Topic: topic, Payload: value, Retained: cfg.Retained}); err != nil {
-			errs = append(errs, fmt.Errorf("publishing %q: %w", topic, err))
-		}
-	}
 
 	// --- computed metric topics ---
 	for name, payload := range m.AsTopicMap() {
@@ -210,7 +251,7 @@ func publishState(
 	state := StateMessage{
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 		UPSName:   cfg.UPSName,
-		Variables: vars,
+		Variables: publishableVariables(vars),
 		Computed:  m,
 	}
 	payload, err := json.Marshal(state)

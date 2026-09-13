@@ -70,11 +70,15 @@ func TestDoPoll_Success(t *testing.T) {
 	if fp.CallCount != 1 {
 		t.Errorf("CallCount = %d, want 1", fp.CallCount)
 	}
-	if _, ok := fpub.Find("ups/cyberpower/ups/status"); !ok {
-		t.Error("ups/cyberpower/ups/status not published")
-	}
 	if _, ok := fpub.Find("ups/cyberpower/state"); !ok {
 		t.Error("ups/cyberpower/state not published")
+	}
+	if _, ok := fpub.Find("ups/cyberpower/computed/status_display"); !ok {
+		t.Error("ups/cyberpower/computed/status_display not published")
+	}
+	// Raw variables travel inside the state payload, not as their own topics.
+	if _, ok := fpub.Find("ups/cyberpower/ups/status"); ok {
+		t.Error("raw variable topics should no longer be published")
 	}
 }
 
@@ -302,8 +306,8 @@ func TestDoPoll_OutageSurvivesTotalTelemetryFailure(t *testing.T) {
 
 // Every telemetry topic must still be attempted after one of them fails,
 // rather than the loop abandoning the rest.
-func TestDoPoll_OneFailedVariableDoesNotDropTheRest(t *testing.T) {
-	failing := "ups/cyberpower/ups/load"
+func TestDoPoll_OneFailedTopicDoesNotDropTheRest(t *testing.T) {
+	failing := "ups/cyberpower/computed/load_watts"
 	fp := &publisher.FakePublisher{FailTopic: func(tp string) bool { return tp == failing }}
 	poller := &nut.FakePoller{Variables: sampleVars}
 
@@ -318,11 +322,11 @@ func TestDoPoll_OneFailedVariableDoesNotDropTheRest(t *testing.T) {
 	// The state topic is published last and is also the LWT topic: it is the
 	// message most likely to be lost to an early return.
 	if _, ok := fp.Find(stateTopic); !ok {
-		t.Error("state topic was not published after an earlier variable failed")
+		t.Error("state topic was not published after an earlier topic failed")
 	}
-	// 7 variables - 1 failed = 6, plus computed topics, plus state.
-	if len(fp.Messages) < 6 {
-		t.Errorf("only %d messages published; the remaining topics were dropped", len(fp.Messages))
+	// 7 computed - 1 failed = 6, plus the state topic.
+	if len(fp.Messages) != 7 {
+		t.Errorf("published %d messages, want 7; the remaining topics were dropped", len(fp.Messages))
 	}
 }
 

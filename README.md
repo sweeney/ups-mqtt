@@ -8,23 +8,25 @@ Tested against a **CyberPower CP1500EPFCLCD** (900 W, 1500 VA) and an **APC Back
 
 ## What it publishes
 
-Every poll cycle, ups-mqtt publishes three kinds of MQTT messages. When the UPS switches to battery a fourth, outage-specific topic is published as well.
+Every poll cycle, ups-mqtt publishes two kinds of MQTT messages. When the UPS switches to battery a third, outage-specific topic is published as well.
 
 The middle component of every topic is the **label** — a human-readable name set in config (e.g. `office-ups`, `network-ups`). It defaults to the NUT device name (`ups_name`) if no label is set.
 
-### 1. Raw NUT variables
+The state topic is published on every poll whether or not anything changed, so it doubles as a heartbeat.
 
-Every variable that `upsc <upsname>` returns is published on its own topic, with dots replaced by slashes:
+> **Raw NUT variables are no longer published as individual topics.**
+> Earlier versions mirrored every variable `upsc` returns onto its own retained
+> topic (`ups/office-ups/battery/charge` → `"100"`, and so on) — around 46 topics
+> per poll. They duplicated, value for value, what the state topic already carries
+> as JSON, and measurement showed 88% of them never changed even across a full
+> power cut. The values are unchanged and still available: read them from
+> `variables` in the [state topic](#2-json-state-topic).
+>
+> Note that retained topics persist until overwritten, so an upgraded deployment
+> will leave its old variable topics frozen at their last value on the broker
+> until they are cleared.
 
-```
-ups/office-ups/battery/charge          → "100"
-ups/office-ups/battery/runtime         → "4920"
-ups/office-ups/ups/status              → "OL"
-ups/office-ups/ups/load                → "8"
-ups/office-ups/input/voltage           → "242"
-```
-
-### 2. Computed metrics
+### 1. Computed metrics
 
 A set of derived values published under `computed/`:
 
@@ -51,9 +53,9 @@ Status tokens are decoded: `OL`→Online, `OB`→On Battery, `LB`→Low Battery,
 > measurement floor. For true low-wattage figures, use an inline energy monitor (e.g. a
 > Shelly PM) on the UPS output. A spot-check script lives at `scripts/soc-power-probe.sh`.
 
-### 3. JSON state topic
+### 2. JSON state topic
 
-A single combined JSON snapshot on `{prefix}/{label}/state`:
+A single combined JSON snapshot on `{prefix}/{label}/state`, published every poll:
 
 ```json
 {
@@ -78,7 +80,24 @@ A single combined JSON snapshot on `{prefix}/{label}/state`:
 }
 ```
 
-### 4. Outage topic
+`variables` carries every NUT variable except two families, which are excluded
+because they describe NUT itself or hardware the device does not have:
+
+| Excluded | Why |
+|----------|-----|
+| `driver.*` | NUT's own build and configuration metadata — `driver.version`, `driver.parameter.*` (the contents of `ups.conf` echoed back), `driver.debug`. Says nothing about the UPS. `driver.state` is also the noisiest value in the system, flapping between `updateinfo` and `quiet`. |
+| `output.L2.*`, `output.L3.*` | Phantom phases. Single-phase UPSes report them as permanently zero. `output.L1.*` is kept. |
+
+This is a denylist rather than an allowlist, so variables from an unfamiliar UPS
+still reach subscribers — different devices expose markedly different variable
+sets, and an allowlist would silently swallow anything unanticipated.
+
+Values that a UPS does not report are **absent**, not zero. A device with no
+`battery.runtime` publishes no `battery_runtime_mins`, rather than `0` — which a
+subscriber would otherwise read as a flat battery. See
+[Absent versus zero](#absent-versus-zero).
+
+### 3. Outage topic
 
 When the UPS switches to battery (`ups.status` contains `OB`), a call-to-action message is published to `{prefix}/{label}/outage` on every poll:
 
@@ -393,6 +412,41 @@ internal/publisher/        Topic routing, JSON assembly, real MQTT publisher
 - **100% test coverage is achievable** — every branch exercisable with a map literal
 - **Tests run instantly** — no process to start, no network, no hardware
 - Adding a new metric touches exactly three places: the struct field, `Compute()`, and `AsTopicMap()`. CI rejects anything that drops coverage below 100%, so a missing `AsTopicMap()` entry is a compile-time + test failure.
+
+### Absent versus zero
+
+Not every UPS reports every variable, and the difference between "the device
+cannot tell us" and "the value is zero" matters more than it might appear.
+
+The Riello iPlug (`riello_usb`) reports no `battery.runtime` and no
+`battery.charge` at all — confirmed across 168 consecutive samples spanning a
+full power cut, where the variable set was identical on mains and on battery.
+Published as a flat `0` to a **retained** topic, `battery_runtime_mins` reads
+downstream as a battery with nothing left. The outage message was worse still:
+with runtime unknown it dated `estimated_depletion_at` to the current instant,
+announcing mid-outage that the battery was about to die.
+
+So numeric fields in `metrics.Metrics` are `*float64`. A `nil` metric is omitted
+from the state JSON and publishes no `computed/` topic at all, and
+`OutageMessage` omits unknown battery fields and `estimated_depletion_at`
+entirely. A real zero — a genuine 0% load — is still published as `0`; only
+unknowns disappear.
+
+This is why `computed/` is device-dependent: the CyberPower and APC units
+publish all seven metrics, while the Riello publishes five.
+
+### Why sentinel values are filtered numerically
+
+`riello_usb` reports unpopulated bypass registers as `4095` (0xFFF, an all-ones
+12-bit ADC word) and `409.50` (the same word scaled by ten). Published raw they
+look like a 4 kV supply at 409 Hz, so `nut.VarsToMap` drops them.
+
+The comparison is numeric, not textual, and that distinction is load-bearing:
+upsd sends `"409.50"`, but go.nut decodes values into `interface{}` and the
+client renders them back with `%v`, which drops the trailing zero to `"409.5"`.
+A string match passed every unit test written against `upsc` output and failed
+silently against real hardware. Fixtures copied from `upsc` are not byte-faithful
+to what the Go code receives.
 
 ### Dependency injection via interfaces
 

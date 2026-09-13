@@ -34,41 +34,64 @@ func runPublishAll(t *testing.T) *publisher.FakePublisher {
 	return fp
 }
 
+// decodeState unmarshals the published state payload.
+func decodeState(t *testing.T, fp *publisher.FakePublisher) publisher.StateMessage {
+	t.Helper()
+	msg, ok := fp.Find("ups/cyberpower/state")
+	if !ok {
+		t.Fatal("state topic not published")
+	}
+	var state publisher.StateMessage
+	if err := json.Unmarshal([]byte(msg.Payload), &state); err != nil {
+		t.Fatalf("state payload invalid JSON: %v", err)
+	}
+	return state
+}
+
 // ---- Variable topic routing -----------------------------------------------
 
-func TestPublishAll_VariableTopic_DotsToSlashes(t *testing.T) {
+// Raw NUT variables are no longer published as individual topics; they
+// duplicated what the state topic already carries, and no subscriber read them.
+func TestPublishAll_NoRawVariableTopics(t *testing.T) {
 	fp := runPublishAll(t)
-	msg, ok := fp.Find("ups/cyberpower/battery/charge")
-	if !ok {
-		t.Fatal("topic ups/cyberpower/battery/charge not published")
-	}
-	if msg.Payload != "100" {
-		t.Errorf("payload = %q, want %q", msg.Payload, "100")
-	}
-	if !msg.Retained {
-		t.Error("message should be retained")
+	for _, topic := range []string{
+		"ups/cyberpower/battery/charge",
+		"ups/cyberpower/ups/load",
+		"ups/cyberpower/ups/status",
+		"ups/cyberpower/input/voltage",
+	} {
+		if _, ok := fp.Find(topic); ok {
+			t.Errorf("raw variable topic %q should no longer be published", topic)
+		}
 	}
 }
 
-func TestPublishAll_VariableTopic_UpsLoad(t *testing.T) {
+// Only computed/ scalars and the state topic go out.
+func TestPublishAll_PublishesOnlyComputedAndState(t *testing.T) {
 	fp := runPublishAll(t)
-	msg, ok := fp.Find("ups/cyberpower/ups/load")
-	if !ok {
-		t.Fatal("topic ups/cyberpower/ups/load not published")
+	for _, msg := range fp.Messages {
+		rest := strings.TrimPrefix(msg.Topic, "ups/cyberpower/")
+		if rest != "state" && !strings.HasPrefix(rest, "computed/") {
+			t.Errorf("unexpected topic published: %q", msg.Topic)
+		}
 	}
-	if msg.Payload != "8" {
-		t.Errorf("payload = %q, want %q", msg.Payload, "8")
+	if _, ok := fp.Find("ups/cyberpower/state"); !ok {
+		t.Error("state topic must still be published")
 	}
 }
 
-func TestPublishAll_VariableTopic_UpsStatus(t *testing.T) {
+// The values themselves must survive inside the state payload.
+func TestPublishAll_VariablesCarriedInState(t *testing.T) {
 	fp := runPublishAll(t)
-	msg, ok := fp.Find("ups/cyberpower/ups/status")
-	if !ok {
-		t.Fatal("topic ups/cyberpower/ups/status not published")
-	}
-	if msg.Payload != "OL" {
-		t.Errorf("payload = %q, want %q", msg.Payload, "OL")
+	state := decodeState(t, fp)
+	for name, want := range map[string]string{
+		"battery.charge": "100",
+		"ups.load":       "8",
+		"ups.status":     "OL",
+	} {
+		if got := state.Variables[name]; got != want {
+			t.Errorf("state.variables[%q] = %q, want %q", name, got, want)
+		}
 	}
 }
 
@@ -525,11 +548,14 @@ func publishAllCfg() publisher.PublishConfig {
 	return publisher.PublishConfig{Prefix: "ups", UPSName: "cyberpower", Retained: true}
 }
 
+// A poll publishes 7 computed topics plus the state topic: 8 messages.
+const wantMessagesPerPoll = 8
+
 // A failure partway through must not abandon the remaining topics.  Go
 // randomises map iteration order, so without this the set of lost topics would
 // differ from poll to poll.
 func TestPublishAll_ContinuesAfterFailure(t *testing.T) {
-	failing := "ups/cyberpower/ups/load"
+	failing := "ups/cyberpower/computed/load_watts"
 	fp := &publisher.FakePublisher{FailTopic: func(tp string) bool { return tp == failing }}
 	m := metrics.Compute(publishAllVars)
 
@@ -537,10 +563,9 @@ func TestPublishAll_ContinuesAfterFailure(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected the failed topic to be reported")
 	}
-
-	// 6 variables - 1 failed = 5, + 7 computed topics, + 1 state topic = 13.
-	if len(fp.Messages) != 13 {
-		t.Errorf("published %d messages, want 13 (everything except the one failure)", len(fp.Messages))
+	if len(fp.Messages) != wantMessagesPerPoll-1 {
+		t.Errorf("published %d messages, want %d (everything except the one failure)",
+			len(fp.Messages), wantMessagesPerPoll-1)
 	}
 	if len(fp.Failed) != 1 || fp.Failed[0] != failing {
 		t.Errorf("Failed = %v, want exactly [%s]", fp.Failed, failing)
@@ -551,7 +576,7 @@ func TestPublishAll_ContinuesAfterFailure(t *testing.T) {
 // message most at risk from an early return.
 func TestPublishAll_StatePublishedDespiteEarlierFailure(t *testing.T) {
 	fp := &publisher.FakePublisher{
-		FailTopic: func(tp string) bool { return tp == "ups/cyberpower/ups/status" },
+		FailTopic: func(tp string) bool { return strings.HasPrefix(tp, "ups/cyberpower/computed/") },
 	}
 	m := metrics.Compute(publishAllVars)
 
@@ -559,14 +584,14 @@ func TestPublishAll_StatePublishedDespiteEarlierFailure(t *testing.T) {
 		t.Fatal("expected an error")
 	}
 	if _, ok := fp.Find("ups/cyberpower/state"); !ok {
-		t.Error("state topic must still be published after an earlier variable failed")
+		t.Error("state topic must still be published after every computed topic failed")
 	}
 }
 
-// Computed topics must survive a failure among the variable topics.
-func TestPublishAll_ComputedPublishedDespiteVariableFailure(t *testing.T) {
+// One failing computed topic must not take the others with it.
+func TestPublishAll_ComputedSurviveOneFailure(t *testing.T) {
 	fp := &publisher.FakePublisher{
-		FailTopic: func(tp string) bool { return strings.HasPrefix(tp, "ups/cyberpower/input/") },
+		FailTopic: func(tp string) bool { return tp == "ups/cyberpower/computed/status_display" },
 	}
 	m := metrics.Compute(publishAllVars)
 
@@ -575,11 +600,11 @@ func TestPublishAll_ComputedPublishedDespiteVariableFailure(t *testing.T) {
 	}
 	for _, topic := range []string{
 		"ups/cyberpower/computed/load_watts",
-		"ups/cyberpower/computed/status_display",
+		"ups/cyberpower/computed/on_battery",
 		"ups/cyberpower/computed/battery_runtime_mins",
 	} {
 		if _, ok := fp.Find(topic); !ok {
-			t.Errorf("computed topic %q was dropped after a variable failure", topic)
+			t.Errorf("computed topic %q was dropped after a sibling failed", topic)
 		}
 	}
 }
@@ -593,13 +618,13 @@ func TestPublishAll_AllFailuresReported(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected an error when every publish fails")
 	}
-	// 6 variables + 7 computed + 1 state = 14 attempts, all failing.
-	if len(fp.Failed) != 14 {
-		t.Errorf("attempted %d publishes, want 14 — some were skipped", len(fp.Failed))
+	if len(fp.Failed) != wantMessagesPerPoll {
+		t.Errorf("attempted %d publishes, want %d — some were skipped",
+			len(fp.Failed), wantMessagesPerPoll)
 	}
 	// errors.Join separates with newlines; every failure should appear.
-	if got := strings.Count(err.Error(), "\n") + 1; got != 14 {
-		t.Errorf("error reports %d failures, want 14: %v", got, err)
+	if got := strings.Count(err.Error(), "\n") + 1; got != wantMessagesPerPoll {
+		t.Errorf("error reports %d failures, want %d: %v", got, wantMessagesPerPoll, err)
 	}
 }
 
@@ -610,10 +635,121 @@ func TestPublishAll_NoErrorWhenAllSucceed(t *testing.T) {
 	if err := publisher.PublishAll(publishAllVars, m, publishAllCfg(), fp); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(fp.Messages) != 14 {
-		t.Errorf("published %d messages, want 14", len(fp.Messages))
+	if len(fp.Messages) != wantMessagesPerPoll {
+		t.Errorf("published %d messages, want %d", len(fp.Messages), wantMessagesPerPoll)
 	}
 	if len(fp.Failed) != 0 {
 		t.Errorf("Failed = %v, want empty", fp.Failed)
+	}
+}
+
+// ── state.variables denylist ──────────────────────────────────────────────
+
+// noisyVars mirrors a real Riello poll, including the families we exclude.
+var noisyVars = map[string]string{
+	"ups.status":                  "OL",
+	"input.voltage":               "247",
+	"battery.charge":              "100",
+	"battery.voltage":             "13.5",
+	"output.L1.current":           "0",
+	"output.L2.current":           "0",
+	"output.L2.power":             "0",
+	"output.L2.realpower":         "0",
+	"output.L3.current":           "0",
+	"output.L3.power":             "0",
+	"output.L3.realpower":         "0",
+	"driver.name":                 "riello_usb",
+	"driver.state":                "quiet",
+	"driver.version":              "2.8.1",
+	"driver.parameter.vendorid":   "04B4",
+	"driver.version.usb":          "libusb-1.0.28",
+	"driver.flag.allow_killpower": "0",
+}
+
+func stateFrom(t *testing.T, vars map[string]string) publisher.StateMessage {
+	t.Helper()
+	fp := &publisher.FakePublisher{}
+	m := metrics.Compute(vars)
+	if err := publisher.PublishAll(vars, m, publishAllCfg(), fp); err != nil {
+		t.Fatalf("PublishAll: %v", err)
+	}
+	return decodeState(t, fp)
+}
+
+// driver.* is NUT's own metadata, not UPS telemetry, and driver.state is the
+// noisiest value in the system.
+func TestState_ExcludesDriverVariables(t *testing.T) {
+	state := stateFrom(t, noisyVars)
+	for name := range state.Variables {
+		if strings.HasPrefix(name, "driver.") {
+			t.Errorf("state.variables contains %q; driver.* must be excluded", name)
+		}
+	}
+}
+
+// L2/L3 are phantom phases on a single-phase UPS, permanently zero.
+func TestState_ExcludesPhantomPhases(t *testing.T) {
+	state := stateFrom(t, noisyVars)
+	for name := range state.Variables {
+		if strings.HasPrefix(name, "output.L2.") || strings.HasPrefix(name, "output.L3.") {
+			t.Errorf("state.variables contains %q; phantom phases must be excluded", name)
+		}
+	}
+	// The real phase must survive.
+	if _, ok := state.Variables["output.L1.current"]; !ok {
+		t.Error("output.L1.current was excluded; only L2/L3 are phantom")
+	}
+}
+
+// The statehouse adapter reads these two straight out of state.variables, so
+// they are a live contract and must never be filtered.
+func TestState_KeepsAdapterContractVariables(t *testing.T) {
+	state := stateFrom(t, noisyVars)
+	for _, name := range []string{"battery.charge", "input.voltage"} {
+		if _, ok := state.Variables[name]; !ok {
+			t.Errorf("state.variables is missing %q, which the statehouse adapter reads directly", name)
+		}
+	}
+}
+
+func TestState_KeepsEverythingElse(t *testing.T) {
+	state := stateFrom(t, noisyVars)
+	for _, name := range []string{"ups.status", "battery.voltage", "output.L1.current"} {
+		if _, ok := state.Variables[name]; !ok {
+			t.Errorf("state.variables is missing %q", name)
+		}
+	}
+	// 17 inputs - 6 driver.* - 6 phantom phases = 5.
+	if len(state.Variables) != 5 {
+		t.Errorf("state.variables has %d entries, want 5: %v", len(state.Variables), state.Variables)
+	}
+}
+
+// The denylist matches whole families by prefix, and must not catch variables
+// that merely look similar.
+func TestState_DenylistDoesNotOverreach(t *testing.T) {
+	state := stateFrom(t, map[string]string{
+		"ups.status":        "OL",
+		"driverless.thing":  "keep",
+		"output.L1.current": "0",
+		"output.L10.power":  "keep",
+	})
+	for _, name := range []string{"driverless.thing", "output.L10.power", "output.L1.current"} {
+		if _, ok := state.Variables[name]; !ok {
+			t.Errorf("state.variables is missing %q; the denylist over-matched", name)
+		}
+	}
+}
+
+// Filtering must not mutate the caller's map — metrics are computed from it.
+func TestState_DoesNotMutateInputVariables(t *testing.T) {
+	vars := map[string]string{"ups.status": "OL", "driver.state": "quiet"}
+	before := len(vars)
+	stateFrom(t, vars)
+	if len(vars) != before {
+		t.Errorf("input map now has %d entries, was %d — PublishAll mutated its argument", len(vars), before)
+	}
+	if _, ok := vars["driver.state"]; !ok {
+		t.Error("driver.state was removed from the caller's map")
 	}
 }

@@ -246,6 +246,20 @@ func pollOnce(t *testing.T, vars []nut.Variable) (metrics.Metrics, *publisher.Fa
 	return m, fpub
 }
 
+// requireState fetches and decodes the combined state payload.
+func requireState(t *testing.T, fpub *publisher.FakePublisher, topic string) publisher.StateMessage {
+	t.Helper()
+	msg, ok := fpub.Find(topic)
+	if !ok {
+		t.Fatalf("state topic %q not published", topic)
+	}
+	var state publisher.StateMessage
+	if err := json.Unmarshal([]byte(msg.Payload), &state); err != nil {
+		t.Fatalf("state payload invalid JSON: %v", err)
+	}
+	return state
+}
+
 func requireTopic(t *testing.T, fpub *publisher.FakePublisher, topic, wantPayload string) {
 	t.Helper()
 	msg, ok := fpub.Find(topic)
@@ -298,13 +312,25 @@ func TestScenario_Normal_ComputedMetrics(t *testing.T) {
 	requireTopic(t, fpub, "ups/cyberpower/computed/input_voltage_deviation_pct", "4.78")
 }
 
-func TestScenario_Normal_VariableTopics(t *testing.T) {
+// Raw variables are carried inside the state payload rather than as
+// individual topics.
+func TestScenario_Normal_VariablesInState(t *testing.T) {
 	_, fpub := pollOnce(t, snapshotNormal)
 
-	requireTopic(t, fpub, "ups/cyberpower/battery/charge", "100")
-	requireTopic(t, fpub, "ups/cyberpower/ups/status", "OL")
-	requireTopic(t, fpub, "ups/cyberpower/battery/runtime", "4890")
-	requireTopic(t, fpub, "ups/cyberpower/input/voltage", "241")
+	state := requireState(t, fpub, "ups/cyberpower/state")
+	for name, want := range map[string]string{
+		"battery.charge":  "100",
+		"ups.status":      "OL",
+		"battery.runtime": "4890",
+		"input.voltage":   "241",
+	} {
+		if got := state.Variables[name]; got != want {
+			t.Errorf("state.variables[%q] = %q, want %q", name, got, want)
+		}
+	}
+	if _, ok := fpub.Find("ups/cyberpower/battery/charge"); ok {
+		t.Error("raw variable topics should no longer be published")
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -609,13 +635,20 @@ func TestScenario_APC_ComputedMetrics(t *testing.T) {
 	requireTopic(t, fpub, "ups/cyberpower/computed/input_voltage_deviation_pct", "5.22")
 }
 
-func TestScenario_APC_VariableTopics(t *testing.T) {
+func TestScenario_APC_VariablesInState(t *testing.T) {
 	_, fpub := pollOnce(t, snapshotAPC)
 
-	requireTopic(t, fpub, "ups/cyberpower/battery/charge", "94")
-	requireTopic(t, fpub, "ups/cyberpower/ups/status", "OL CHRG")
-	requireTopic(t, fpub, "ups/cyberpower/ups/realpower/nominal", "700")
-	requireTopic(t, fpub, "ups/cyberpower/input/voltage", "242.0")
+	state := requireState(t, fpub, "ups/cyberpower/state")
+	for name, want := range map[string]string{
+		"battery.charge":        "94",
+		"ups.status":            "OL CHRG",
+		"ups.realpower.nominal": "700",
+		"input.voltage":         "242.0",
+	} {
+		if got := state.Variables[name]; got != want {
+			t.Errorf("state.variables[%q] = %q, want %q", name, got, want)
+		}
+	}
 }
 
 // TestPowerCutSequence_SequenceRepeatsLastElement verifies that once the
