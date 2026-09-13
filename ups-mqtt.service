@@ -1,7 +1,13 @@
 [Unit]
 Description=UPS MQTT Bridge (NUT)
-After=network-online.target
+After=network-online.target tailscaled.service
 Wants=network-online.target
+
+# tailscaled is listed only for ordering: where the broker is reached over
+# Tailscale, starting before the tunnel exists means the first connect fails
+# and the process exits. Restart=on-failure recovers either way, but this
+# avoids a restart cycle at every boot. On hosts without Tailscale the unit
+# does not exist and the ordering is simply ignored.
 
 [Service]
 Type=simple
