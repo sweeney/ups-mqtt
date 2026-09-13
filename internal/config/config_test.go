@@ -68,7 +68,7 @@ func TestLoad_MalformedFile(t *testing.T) {
 	}
 	defer os.Remove(f.Name())
 	f.WriteString("this is not valid toml ][") //nolint:errcheck
-	f.Close()                                   //nolint:errcheck
+	f.Close()                                  //nolint:errcheck
 
 	_, err = config.Load(f.Name())
 	if err == nil {
@@ -342,7 +342,7 @@ func TestLoad_Label_FromTOML(t *testing.T) {
 	}
 	defer os.Remove(f.Name())
 	f.WriteString("[nut]\nups_name = \"apc\"\nlabel = \"office-ups\"\n") //nolint:errcheck
-	f.Close()                                                              //nolint:errcheck
+	f.Close()                                                            //nolint:errcheck
 
 	cfg, err := config.Load(f.Name())
 	if err != nil {

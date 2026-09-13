@@ -7,6 +7,7 @@ package integration_test
 
 import (
 	"encoding/json"
+	"math"
 	"testing"
 
 	"github.com/sweeney/ups-mqtt/internal/metrics"
@@ -129,8 +130,8 @@ func TestEndToEnd_StateTopicJSON(t *testing.T) {
 	if state.UPSName != "cyberpower" {
 		t.Errorf("state.ups_name = %q, want %q", state.UPSName, "cyberpower")
 	}
-	if state.Computed.LoadWatts != 72 {
-		t.Errorf("state.computed.load_watts = %v, want 72", state.Computed.LoadWatts)
+	if val(state.Computed.LoadWatts) != 72 {
+		t.Errorf("state.computed.load_watts = %v, want 72", val(state.Computed.LoadWatts))
 	}
 }
 
@@ -163,4 +164,14 @@ func TestEndToEnd_AllMessagesRetained(t *testing.T) {
 			t.Errorf("message on topic %q should be retained", msg.Topic)
 		}
 	}
+}
+
+// val dereferences an optional metric for comparison in assertions.
+// A nil pointer means the UPS could not supply the value; tests that care
+// about absence assert on the pointer itself instead.
+func val(p *float64) float64 {
+	if p == nil {
+		return math.NaN()
+	}
+	return *p
 }

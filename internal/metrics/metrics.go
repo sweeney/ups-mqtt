@@ -11,36 +11,54 @@ import (
 
 // Metrics holds values derived from raw NUT variables.
 //
+// Numeric fields are pointers because "the UPS cannot tell us" and "the value
+// is zero" are different facts, and conflating them is dangerous: a Riello
+// iPlug reports no battery.runtime at all, and a flat 0 published to a
+// retained topic reads downstream as a battery with no runtime left rather
+// than as a UPS that does not measure runtime.  A nil field is omitted from
+// the JSON state and publishes no computed/ topic.
+//
 // JSON tags define the canonical field names used in both the MQTT state topic
 // and the per-metric computed/ topics — keeping the wire format in one place.
 // When adding a new field, update Compute, AsTopicMap, and the test table.
 type Metrics struct {
-	LoadWatts                float64 `json:"load_watts"`
-	BatteryRuntimeMins       float64 `json:"battery_runtime_mins"`
-	BatteryRuntimeHours      float64 `json:"battery_runtime_hours"`
-	OnBattery                bool    `json:"on_battery"`
-	LowBattery               bool    `json:"low_battery"`
-	StatusDisplay            string  `json:"status_display"`
-	InputVoltageDeviationPct float64 `json:"input_voltage_deviation_pct"`
+	LoadWatts                *float64 `json:"load_watts,omitempty"`
+	BatteryRuntimeMins       *float64 `json:"battery_runtime_mins,omitempty"`
+	BatteryRuntimeHours      *float64 `json:"battery_runtime_hours,omitempty"`
+	OnBattery                bool     `json:"on_battery"`
+	LowBattery               bool     `json:"low_battery"`
+	StatusDisplay            string   `json:"status_display"`
+	InputVoltageDeviationPct *float64 `json:"input_voltage_deviation_pct,omitempty"`
 }
 
-// AsTopicMap returns each metric as a topic-name → string-payload pair,
+// AsTopicMap returns each known metric as a topic-name → string-payload pair,
 // ready to publish as individual MQTT computed/ topics.
+//
+// Metrics the UPS cannot supply are omitted rather than published as zero, so
+// a device that reports no runtime simply has no battery_runtime_mins topic.
 //
 // This is the single authoritative source for metric names and their
 // string formatting.  Adding a new field to Metrics requires adding one
 // entry here; the JSON state topic picks it up automatically via the
 // struct tags above.
 func (m Metrics) AsTopicMap() map[string]string {
-	return map[string]string{
-		"load_watts":                  formatFloat(m.LoadWatts),
-		"battery_runtime_mins":        formatFloat(m.BatteryRuntimeMins),
-		"battery_runtime_hours":       formatFloat(m.BatteryRuntimeHours),
-		"on_battery":                  strconv.FormatBool(m.OnBattery),
-		"low_battery":                 strconv.FormatBool(m.LowBattery),
-		"status_display":              m.StatusDisplay,
-		"input_voltage_deviation_pct": formatFloat(m.InputVoltageDeviationPct),
+	topics := map[string]string{
+		"on_battery":     strconv.FormatBool(m.OnBattery),
+		"low_battery":    strconv.FormatBool(m.LowBattery),
+		"status_display": m.StatusDisplay,
 	}
+	optional := map[string]*float64{
+		"load_watts":                  m.LoadWatts,
+		"battery_runtime_mins":        m.BatteryRuntimeMins,
+		"battery_runtime_hours":       m.BatteryRuntimeHours,
+		"input_voltage_deviation_pct": m.InputVoltageDeviationPct,
+	}
+	for name, v := range optional {
+		if v != nil {
+			topics[name] = formatFloat(*v)
+		}
+	}
+	return topics
 }
 
 // statusTokens maps NUT status tokens to human-readable labels.
@@ -62,12 +80,12 @@ var statusTokens = map[string]string{
 }
 
 // Compute derives all metrics from vars, a map of NUT variable name → string value.
-// Missing or unparseable variables gracefully produce zero values rather than panics.
+// Missing or unparseable variables yield nil metrics rather than zeroes.
 func Compute(vars map[string]string) Metrics {
 	return Metrics{
 		LoadWatts:                computeLoadWatts(vars),
-		BatteryRuntimeMins:       computeBatteryRuntimeMins(vars),
-		BatteryRuntimeHours:      computeBatteryRuntimeHours(vars),
+		BatteryRuntimeMins:       computeBatteryRuntime(vars, 60),
+		BatteryRuntimeHours:      computeBatteryRuntime(vars, 3600),
 		OnBattery:                hasStatusToken(vars["ups.status"], "OB"),
 		LowBattery:               hasStatusToken(vars["ups.status"], "LB"),
 		StatusDisplay:            computeStatusDisplay(vars),
@@ -75,32 +93,26 @@ func Compute(vars map[string]string) Metrics {
 	}
 }
 
-func computeLoadWatts(vars map[string]string) float64 {
+func computeLoadWatts(vars map[string]string) *float64 {
 	load, ok := parseFloat(vars["ups.load"])
 	if !ok {
-		return 0
+		return nil
 	}
 	nominal, ok := parseFloat(vars["ups.realpower.nominal"])
 	if !ok {
-		return 0
+		return nil
 	}
-	return math.Round(load/100*nominal*100) / 100
+	return ptr(round2(load / 100 * nominal))
 }
 
-func computeBatteryRuntimeMins(vars map[string]string) float64 {
+// computeBatteryRuntime converts battery.runtime (seconds) into the unit given
+// by divisor — 60 for minutes, 3600 for hours.
+func computeBatteryRuntime(vars map[string]string, divisor float64) *float64 {
 	runtime, ok := parseFloat(vars["battery.runtime"])
 	if !ok {
-		return 0
+		return nil
 	}
-	return math.Round(runtime/60*100) / 100
-}
-
-func computeBatteryRuntimeHours(vars map[string]string) float64 {
-	runtime, ok := parseFloat(vars["battery.runtime"])
-	if !ok {
-		return 0
-	}
-	return math.Round(runtime/3600*100) / 100
+	return ptr(round2(runtime / divisor))
 }
 
 func computeStatusDisplay(vars map[string]string) string {
@@ -120,16 +132,26 @@ func computeStatusDisplay(vars map[string]string) string {
 	return strings.Join(decoded, ", ")
 }
 
-func computeInputVoltageDeviationPct(vars map[string]string) float64 {
+// computeInputVoltageDeviationPct expresses input.voltage as a percentage
+// deviation from nominal.
+//
+// Not every UPS publishes input.voltage.nominal — the Riello iPlug reports
+// only output.voltage.nominal — so that is used as the fallback reference.
+// On a line-interactive UPS both describe the same mains specification for
+// the region (230 V here), which makes the substitution sound.
+func computeInputVoltageDeviationPct(vars map[string]string) *float64 {
 	voltage, ok := parseFloat(vars["input.voltage"])
 	if !ok {
-		return 0
+		return nil
 	}
 	nominal, ok := parseFloat(vars["input.voltage.nominal"])
-	if !ok || nominal == 0 {
-		return 0
+	if !ok {
+		nominal, ok = parseFloat(vars["output.voltage.nominal"])
 	}
-	return math.Round((voltage-nominal)/nominal*100*100) / 100
+	if !ok || nominal == 0 {
+		return nil
+	}
+	return ptr(round2((voltage - nominal) / nominal * 100))
 }
 
 // hasStatusToken reports whether the space-separated status string contains token.
@@ -153,6 +175,16 @@ func parseFloat(s string) (float64, bool) {
 		return 0, false
 	}
 	return v, true
+}
+
+// round2 rounds v to two decimal places.
+func round2(v float64) float64 {
+	return math.Round(v*100) / 100
+}
+
+// ptr returns a pointer to v, marking the metric as known.
+func ptr(v float64) *float64 {
+	return &v
 }
 
 // formatFloat returns the shortest decimal representation of v with no

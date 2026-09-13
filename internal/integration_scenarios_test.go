@@ -274,20 +274,20 @@ func TestScenario_Normal_ComputedMetrics(t *testing.T) {
 	if m.LowBattery {
 		t.Error("LowBattery should be false")
 	}
-	if m.LoadWatts != 72 {
-		t.Errorf("LoadWatts = %v, want 72", m.LoadWatts)
+	if val(m.LoadWatts) != 72 {
+		t.Errorf("LoadWatts = %v, want 72", val(m.LoadWatts))
 	}
-	if m.BatteryRuntimeMins != 81.5 {
-		t.Errorf("BatteryRuntimeMins = %v, want 81.5", m.BatteryRuntimeMins)
+	if val(m.BatteryRuntimeMins) != 81.5 {
+		t.Errorf("BatteryRuntimeMins = %v, want 81.5", val(m.BatteryRuntimeMins))
 	}
-	if m.BatteryRuntimeHours != 1.36 {
-		t.Errorf("BatteryRuntimeHours = %v, want 1.36", m.BatteryRuntimeHours)
+	if val(m.BatteryRuntimeHours) != 1.36 {
+		t.Errorf("BatteryRuntimeHours = %v, want 1.36", val(m.BatteryRuntimeHours))
 	}
 	if m.StatusDisplay != "Online" {
 		t.Errorf("StatusDisplay = %q, want %q", m.StatusDisplay, "Online")
 	}
-	if m.InputVoltageDeviationPct != 4.78 {
-		t.Errorf("InputVoltageDeviationPct = %v, want 4.78", m.InputVoltageDeviationPct)
+	if val(m.InputVoltageDeviationPct) != 4.78 {
+		t.Errorf("InputVoltageDeviationPct = %v, want 4.78", val(m.InputVoltageDeviationPct))
 	}
 
 	requireTopic(t, fpub, "ups/cyberpower/computed/load_watts", "72")
@@ -337,14 +337,14 @@ func TestScenario_OnBattery_RuntimeMetrics(t *testing.T) {
 	// battery.runtime=4090 → 68.17 min / 1.14 hr
 	m, fpub := pollOnce(t, snapshotOnBattery)
 
-	if m.BatteryRuntimeMins != 68.17 {
-		t.Errorf("BatteryRuntimeMins = %v, want 68.17", m.BatteryRuntimeMins)
+	if val(m.BatteryRuntimeMins) != 68.17 {
+		t.Errorf("BatteryRuntimeMins = %v, want 68.17", val(m.BatteryRuntimeMins))
 	}
-	if m.BatteryRuntimeHours != 1.14 {
-		t.Errorf("BatteryRuntimeHours = %v, want 1.14", m.BatteryRuntimeHours)
+	if val(m.BatteryRuntimeHours) != 1.14 {
+		t.Errorf("BatteryRuntimeHours = %v, want 1.14", val(m.BatteryRuntimeHours))
 	}
-	if m.LoadWatts != 72 {
-		t.Errorf("LoadWatts = %v, want 72 (load unchanged during outage)", m.LoadWatts)
+	if val(m.LoadWatts) != 72 {
+		t.Errorf("LoadWatts = %v, want 72 (load unchanged during outage)", val(m.LoadWatts))
 	}
 	requireTopic(t, fpub, "ups/cyberpower/computed/battery_runtime_mins", "68.17")
 	requireTopic(t, fpub, "ups/cyberpower/computed/load_watts", "72")
@@ -398,8 +398,8 @@ func TestScenario_OLDischrg_ZeroInputVoltage(t *testing.T) {
 	// the mathematically correct (if transient) deviation of -100%.
 	m, _ := pollOnce(t, snapshotOLDischrg)
 
-	if m.InputVoltageDeviationPct != -100 {
-		t.Errorf("InputVoltageDeviationPct = %v with input.voltage=0, want -100", m.InputVoltageDeviationPct)
+	if val(m.InputVoltageDeviationPct) != -100 {
+		t.Errorf("InputVoltageDeviationPct = %v with input.voltage=0, want -100", val(m.InputVoltageDeviationPct))
 	}
 }
 
@@ -407,8 +407,8 @@ func TestScenario_OLDischrg_ReducedLoad(t *testing.T) {
 	// ups.load=7 during the transitional poll → 7% × 900W = 63W
 	m, fpub := pollOnce(t, snapshotOLDischrg)
 
-	if m.LoadWatts != 63 {
-		t.Errorf("LoadWatts = %v, want 63 (ups.load=7 during transition)", m.LoadWatts)
+	if val(m.LoadWatts) != 63 {
+		t.Errorf("LoadWatts = %v, want 63 (ups.load=7 during transition)", val(m.LoadWatts))
 	}
 	requireTopic(t, fpub, "ups/cyberpower/computed/load_watts", "63")
 }
@@ -435,8 +435,8 @@ func TestScenario_Charging_RestoredVoltage(t *testing.T) {
 	// → deviation should be 5.22% again
 	m, fpub := pollOnce(t, snapshotCharging)
 
-	if m.InputVoltageDeviationPct != 5.22 {
-		t.Errorf("InputVoltageDeviationPct = %v, want 5.22 (mains restored)", m.InputVoltageDeviationPct)
+	if val(m.InputVoltageDeviationPct) != 5.22 {
+		t.Errorf("InputVoltageDeviationPct = %v, want 5.22 (mains restored)", val(m.InputVoltageDeviationPct))
 	}
 	requireTopic(t, fpub, "ups/cyberpower/computed/input_voltage_deviation_pct", "5.22")
 }
@@ -445,8 +445,8 @@ func TestScenario_Charging_RuntimeMetrics(t *testing.T) {
 	// battery.runtime=3586 → 59.77 min
 	m, fpub := pollOnce(t, snapshotCharging)
 
-	if m.BatteryRuntimeMins != 59.77 {
-		t.Errorf("BatteryRuntimeMins = %v, want 59.77", m.BatteryRuntimeMins)
+	if val(m.BatteryRuntimeMins) != 59.77 {
+		t.Errorf("BatteryRuntimeMins = %v, want 59.77", val(m.BatteryRuntimeMins))
 	}
 	requireTopic(t, fpub, "ups/cyberpower/computed/battery_runtime_mins", "59.77")
 }
@@ -530,8 +530,8 @@ func TestPowerCutSequence(t *testing.T) {
 			if m.StatusDisplay != s.wantStatusLabel {
 				t.Errorf("StatusDisplay = %q, want %q", m.StatusDisplay, s.wantStatusLabel)
 			}
-			if m.LoadWatts != s.wantLoadWatts {
-				t.Errorf("LoadWatts = %v, want %v", m.LoadWatts, s.wantLoadWatts)
+			if val(m.LoadWatts) != s.wantLoadWatts {
+				t.Errorf("LoadWatts = %v, want %v", val(m.LoadWatts), s.wantLoadWatts)
 			}
 		})
 	}
@@ -585,20 +585,20 @@ func TestScenario_APC_ComputedMetrics(t *testing.T) {
 	if m.LowBattery {
 		t.Error("LowBattery should be false")
 	}
-	if m.LoadWatts != 0 {
-		t.Errorf("LoadWatts = %v, want 0 (ups.load=0)", m.LoadWatts)
+	if val(m.LoadWatts) != 0 {
+		t.Errorf("LoadWatts = %v, want 0 (ups.load=0)", val(m.LoadWatts))
 	}
-	if m.BatteryRuntimeMins != 310.2 {
-		t.Errorf("BatteryRuntimeMins = %v, want 310.2", m.BatteryRuntimeMins)
+	if val(m.BatteryRuntimeMins) != 310.2 {
+		t.Errorf("BatteryRuntimeMins = %v, want 310.2", val(m.BatteryRuntimeMins))
 	}
-	if m.BatteryRuntimeHours != 5.17 {
-		t.Errorf("BatteryRuntimeHours = %v, want 5.17", m.BatteryRuntimeHours)
+	if val(m.BatteryRuntimeHours) != 5.17 {
+		t.Errorf("BatteryRuntimeHours = %v, want 5.17", val(m.BatteryRuntimeHours))
 	}
 	if m.StatusDisplay != "Online, Charging" {
 		t.Errorf("StatusDisplay = %q, want %q", m.StatusDisplay, "Online, Charging")
 	}
-	if m.InputVoltageDeviationPct != 5.22 {
-		t.Errorf("InputVoltageDeviationPct = %v, want 5.22", m.InputVoltageDeviationPct)
+	if val(m.InputVoltageDeviationPct) != 5.22 {
+		t.Errorf("InputVoltageDeviationPct = %v, want 5.22", val(m.InputVoltageDeviationPct))
 	}
 
 	requireTopic(t, fpub, "ups/cyberpower/computed/load_watts", "0")

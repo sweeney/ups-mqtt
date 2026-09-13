@@ -4,13 +4,26 @@ import (
 	"testing"
 )
 
-// sampleVars mirrors the actual device output from upsc.txt.
+// sampleVars mirrors the actual device output from upsc.txt (CyberPower).
 var sampleVars = map[string]string{
-	"ups.load":               "8",
-	"ups.realpower.nominal":  "900",
-	"battery.runtime":        "4920",
-	"input.voltage":          "242.0",
-	"input.voltage.nominal":  "230",
+	"ups.load":              "8",
+	"ups.realpower.nominal": "900",
+	"battery.runtime":       "4920",
+	"input.voltage":         "242.0",
+	"input.voltage.nominal": "230",
+	"ups.status":            "OL",
+}
+
+// rielloVars mirrors a real poll of a Riello iPlug (RPS S.p.a. USV5).  It
+// reports neither battery.runtime nor battery.charge nor
+// input.voltage.nominal, which is exactly why the numeric metrics are
+// optional.
+var rielloVars = map[string]string{
+	"ups.load":               "0",
+	"ups.realpower.nominal":  "480",
+	"input.voltage":          "250",
+	"output.voltage.nominal": "230",
+	"battery.voltage":        "13.5",
 	"ups.status":             "OL",
 }
 
@@ -23,86 +36,93 @@ func nearlyEqual(a, b float64) bool {
 	return diff < 0.005
 }
 
+// wantValue asserts that got is present and carries the expected value.
+func wantValue(t *testing.T, name string, got *float64, want float64) {
+	t.Helper()
+	if got == nil {
+		t.Fatalf("%s = nil, want %v", name, want)
+	}
+	if !nearlyEqual(*got, want) {
+		t.Errorf("%s = %v, want %v", name, *got, want)
+	}
+}
+
+// wantAbsent asserts that a metric the UPS cannot supply is nil rather than 0.
+func wantAbsent(t *testing.T, name string, got *float64) {
+	t.Helper()
+	if got != nil {
+		t.Errorf("%s = %v, want nil (absent, not zero)", name, *got)
+	}
+}
+
 // ---- Compute / LoadWatts --------------------------------------------------
 
 func TestLoadWatts_Normal(t *testing.T) {
-	m := Compute(sampleVars)
-	if m.LoadWatts != 72 {
-		t.Errorf("LoadWatts = %v, want 72", m.LoadWatts)
-	}
+	wantValue(t, "LoadWatts", Compute(sampleVars).LoadWatts, 72)
+}
+
+func TestLoadWatts_ZeroLoadIsStillKnown(t *testing.T) {
+	// A real 0 % load must stay present — only unknowns become nil.
+	wantValue(t, "LoadWatts", Compute(rielloVars).LoadWatts, 0)
 }
 
 func TestLoadWatts_MissingLoad(t *testing.T) {
 	vars := map[string]string{"ups.realpower.nominal": "900"}
-	if m := Compute(vars); m.LoadWatts != 0 {
-		t.Errorf("LoadWatts = %v with missing ups.load, want 0", m.LoadWatts)
-	}
+	wantAbsent(t, "LoadWatts", Compute(vars).LoadWatts)
 }
 
 func TestLoadWatts_MissingNominal(t *testing.T) {
 	vars := map[string]string{"ups.load": "8"}
-	if m := Compute(vars); m.LoadWatts != 0 {
-		t.Errorf("LoadWatts = %v with missing ups.realpower.nominal, want 0", m.LoadWatts)
-	}
+	wantAbsent(t, "LoadWatts", Compute(vars).LoadWatts)
 }
 
 func TestLoadWatts_BadLoad(t *testing.T) {
 	vars := map[string]string{"ups.load": "bad", "ups.realpower.nominal": "900"}
-	if m := Compute(vars); m.LoadWatts != 0 {
-		t.Errorf("LoadWatts = %v with unparseable ups.load, want 0", m.LoadWatts)
-	}
+	wantAbsent(t, "LoadWatts", Compute(vars).LoadWatts)
 }
 
 func TestLoadWatts_BadNominal(t *testing.T) {
 	vars := map[string]string{"ups.load": "8", "ups.realpower.nominal": "bad"}
-	if m := Compute(vars); m.LoadWatts != 0 {
-		t.Errorf("LoadWatts = %v with unparseable ups.realpower.nominal, want 0", m.LoadWatts)
-	}
+	wantAbsent(t, "LoadWatts", Compute(vars).LoadWatts)
 }
 
 // ---- BatteryRuntimeMins --------------------------------------------------
 
 func TestBatteryRuntimeMins_Normal(t *testing.T) {
-	m := Compute(sampleVars)
-	if m.BatteryRuntimeMins != 82 {
-		t.Errorf("BatteryRuntimeMins = %v, want 82", m.BatteryRuntimeMins)
-	}
+	wantValue(t, "BatteryRuntimeMins", Compute(sampleVars).BatteryRuntimeMins, 82)
 }
 
 func TestBatteryRuntimeMins_Missing(t *testing.T) {
-	if m := Compute(map[string]string{}); m.BatteryRuntimeMins != 0 {
-		t.Errorf("BatteryRuntimeMins = %v with missing var, want 0", m.BatteryRuntimeMins)
-	}
+	wantAbsent(t, "BatteryRuntimeMins", Compute(map[string]string{}).BatteryRuntimeMins)
 }
 
 func TestBatteryRuntimeMins_Bad(t *testing.T) {
 	vars := map[string]string{"battery.runtime": "notanumber"}
-	if m := Compute(vars); m.BatteryRuntimeMins != 0 {
-		t.Errorf("BatteryRuntimeMins = %v with bad value, want 0", m.BatteryRuntimeMins)
-	}
+	wantAbsent(t, "BatteryRuntimeMins", Compute(vars).BatteryRuntimeMins)
 }
 
 // ---- BatteryRuntimeHours -------------------------------------------------
 
 func TestBatteryRuntimeHours_Normal(t *testing.T) {
-	m := Compute(sampleVars)
 	// 4920 / 3600 = 1.3666... → rounds to 1.37
-	if !nearlyEqual(m.BatteryRuntimeHours, 1.37) {
-		t.Errorf("BatteryRuntimeHours = %v, want ~1.37", m.BatteryRuntimeHours)
-	}
+	wantValue(t, "BatteryRuntimeHours", Compute(sampleVars).BatteryRuntimeHours, 1.37)
 }
 
 func TestBatteryRuntimeHours_Missing(t *testing.T) {
-	if m := Compute(map[string]string{}); m.BatteryRuntimeHours != 0 {
-		t.Errorf("BatteryRuntimeHours = %v with missing var, want 0", m.BatteryRuntimeHours)
-	}
+	wantAbsent(t, "BatteryRuntimeHours", Compute(map[string]string{}).BatteryRuntimeHours)
 }
 
 func TestBatteryRuntimeHours_Bad(t *testing.T) {
 	vars := map[string]string{"battery.runtime": "xyz"}
-	if m := Compute(vars); m.BatteryRuntimeHours != 0 {
-		t.Errorf("BatteryRuntimeHours = %v with bad value, want 0", m.BatteryRuntimeHours)
-	}
+	wantAbsent(t, "BatteryRuntimeHours", Compute(vars).BatteryRuntimeHours)
+}
+
+// A UPS that reports no runtime at all must yield no runtime metrics, rather
+// than claiming zero minutes remaining.
+func TestBatteryRuntime_AbsentOnRiello(t *testing.T) {
+	m := Compute(rielloVars)
+	wantAbsent(t, "BatteryRuntimeMins", m.BatteryRuntimeMins)
+	wantAbsent(t, "BatteryRuntimeHours", m.BatteryRuntimeHours)
 }
 
 // ---- OnBattery / LowBattery ----------------------------------------------
@@ -220,56 +240,86 @@ func TestStatusDisplay_AllKnownTokens(t *testing.T) {
 // ---- InputVoltageDeviationPct --------------------------------------------
 
 func TestInputVoltageDeviationPct_Normal(t *testing.T) {
-	m := Compute(sampleVars)
 	// (242 - 230) / 230 * 100 = 5.2173...% → rounds to 5.22
-	if !nearlyEqual(m.InputVoltageDeviationPct, 5.22) {
-		t.Errorf("InputVoltageDeviationPct = %v, want ~5.22", m.InputVoltageDeviationPct)
+	wantValue(t, "InputVoltageDeviationPct", Compute(sampleVars).InputVoltageDeviationPct, 5.22)
+}
+
+// The Riello publishes no input.voltage.nominal, so the output nominal stands
+// in for it: (250 - 230) / 230 * 100 = 8.6956...% → 8.7
+func TestInputVoltageDeviationPct_FallsBackToOutputNominal(t *testing.T) {
+	wantValue(t, "InputVoltageDeviationPct", Compute(rielloVars).InputVoltageDeviationPct, 8.7)
+}
+
+// An unparseable input nominal should still fall through to the output nominal.
+func TestInputVoltageDeviationPct_BadInputNominalUsesOutput(t *testing.T) {
+	vars := map[string]string{
+		"input.voltage":          "242.0",
+		"input.voltage.nominal":  "bad",
+		"output.voltage.nominal": "230",
 	}
+	wantValue(t, "InputVoltageDeviationPct", Compute(vars).InputVoltageDeviationPct, 5.22)
 }
 
 func TestInputVoltageDeviationPct_MissingVoltage(t *testing.T) {
 	vars := map[string]string{"input.voltage.nominal": "230"}
-	if m := Compute(vars); m.InputVoltageDeviationPct != 0 {
-		t.Errorf("InputVoltageDeviationPct = %v with missing voltage, want 0", m.InputVoltageDeviationPct)
-	}
+	wantAbsent(t, "InputVoltageDeviationPct", Compute(vars).InputVoltageDeviationPct)
 }
 
-func TestInputVoltageDeviationPct_MissingNominal(t *testing.T) {
+func TestInputVoltageDeviationPct_NoNominalAnywhere(t *testing.T) {
 	vars := map[string]string{"input.voltage": "242.0"}
-	if m := Compute(vars); m.InputVoltageDeviationPct != 0 {
-		t.Errorf("InputVoltageDeviationPct = %v with missing nominal, want 0", m.InputVoltageDeviationPct)
-	}
+	wantAbsent(t, "InputVoltageDeviationPct", Compute(vars).InputVoltageDeviationPct)
 }
 
 func TestInputVoltageDeviationPct_ZeroNominal(t *testing.T) {
 	vars := map[string]string{"input.voltage": "242.0", "input.voltage.nominal": "0"}
-	if m := Compute(vars); m.InputVoltageDeviationPct != 0 {
-		t.Errorf("InputVoltageDeviationPct = %v with zero nominal, want 0 (guard against div-by-zero)", m.InputVoltageDeviationPct)
-	}
+	wantAbsent(t, "InputVoltageDeviationPct", Compute(vars).InputVoltageDeviationPct)
+}
+
+func TestInputVoltageDeviationPct_ZeroFallbackNominal(t *testing.T) {
+	vars := map[string]string{"input.voltage": "242.0", "output.voltage.nominal": "0"}
+	wantAbsent(t, "InputVoltageDeviationPct", Compute(vars).InputVoltageDeviationPct)
 }
 
 func TestInputVoltageDeviationPct_BadVoltage(t *testing.T) {
 	vars := map[string]string{"input.voltage": "bad", "input.voltage.nominal": "230"}
-	if m := Compute(vars); m.InputVoltageDeviationPct != 0 {
-		t.Errorf("InputVoltageDeviationPct = %v with bad voltage, want 0", m.InputVoltageDeviationPct)
-	}
+	wantAbsent(t, "InputVoltageDeviationPct", Compute(vars).InputVoltageDeviationPct)
 }
 
-func TestInputVoltageDeviationPct_BadNominal(t *testing.T) {
+func TestInputVoltageDeviationPct_BadNominalNoFallback(t *testing.T) {
 	vars := map[string]string{"input.voltage": "242.0", "input.voltage.nominal": "bad"}
-	if m := Compute(vars); m.InputVoltageDeviationPct != 0 {
-		t.Errorf("InputVoltageDeviationPct = %v with bad nominal, want 0", m.InputVoltageDeviationPct)
-	}
+	wantAbsent(t, "InputVoltageDeviationPct", Compute(vars).InputVoltageDeviationPct)
+}
+
+// On battery the Riello reports input.voltage as a near-zero residual (4 V),
+// which is a real reading and must survive as a large negative deviation.
+func TestInputVoltageDeviationPct_OnBatteryResidual(t *testing.T) {
+	vars := map[string]string{"input.voltage": "4", "output.voltage.nominal": "230"}
+	wantValue(t, "InputVoltageDeviationPct", Compute(vars).InputVoltageDeviationPct, -98.26)
 }
 
 // ---- parseFloat (via Compute) -------------------------------------------
 
 func TestParseFloat_EmptyString(t *testing.T) {
-	// parseFloat("") is covered by the "missing variable" tests above,
-	// but add an explicit case to make the intent obvious.
 	vars := map[string]string{"ups.load": "", "ups.realpower.nominal": "900"}
-	if m := Compute(vars); m.LoadWatts != 0 {
-		t.Errorf("LoadWatts = %v with empty ups.load, want 0", m.LoadWatts)
+	wantAbsent(t, "LoadWatts", Compute(vars).LoadWatts)
+}
+
+// ---- formatFloat ---------------------------------------------------------
+
+func TestFormatFloat_NoTrailingZeros(t *testing.T) {
+	cases := []struct {
+		in   float64
+		want string
+	}{
+		{72.0, "72"},
+		{1.37, "1.37"},
+		{0, "0"},
+		{-98.26, "-98.26"},
+	}
+	for _, tc := range cases {
+		if got := formatFloat(tc.in); got != tc.want {
+			t.Errorf("formatFloat(%v) = %q, want %q", tc.in, got, tc.want)
+		}
 	}
 }
 
@@ -306,5 +356,33 @@ func TestAsTopicMap(t *testing.T) {
 	// Verify key count matches struct field count to catch any future drift.
 	if len(tm) != 7 {
 		t.Errorf("AsTopicMap() returned %d keys, want 7", len(tm))
+	}
+}
+
+// Unknown metrics must publish no topic at all, so a stale retained value is
+// never confused for a fresh reading.
+func TestAsTopicMap_OmitsAbsentMetrics(t *testing.T) {
+	tm := Compute(rielloVars).AsTopicMap()
+
+	for _, absent := range []string{"battery_runtime_mins", "battery_runtime_hours"} {
+		if v, ok := tm[absent]; ok {
+			t.Errorf("AsTopicMap() should omit %q for a UPS that cannot report it, got %q", absent, v)
+		}
+	}
+	for _, present := range []string{"load_watts", "input_voltage_deviation_pct", "on_battery", "low_battery", "status_display"} {
+		if _, ok := tm[present]; !ok {
+			t.Errorf("AsTopicMap() should include %q", present)
+		}
+	}
+	if len(tm) != 5 {
+		t.Errorf("AsTopicMap() returned %d keys for Riello vars, want 5", len(tm))
+	}
+}
+
+func TestAsTopicMap_AllAbsent(t *testing.T) {
+	tm := Compute(map[string]string{}).AsTopicMap()
+	// Only the three always-present fields survive.
+	if len(tm) != 3 {
+		t.Errorf("AsTopicMap() with no vars returned %d keys, want 3", len(tm))
 	}
 }

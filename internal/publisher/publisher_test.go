@@ -3,6 +3,7 @@ package publisher_test
 import (
 	"encoding/json"
 	"errors"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -173,8 +174,8 @@ func TestPublishAll_StateTopic_Structure(t *testing.T) {
 	if state.Variables["battery.charge"] != "100" {
 		t.Errorf("variables[battery.charge] = %q, want %q", state.Variables["battery.charge"], "100")
 	}
-	if state.Computed.LoadWatts != 72 {
-		t.Errorf("computed.load_watts = %v, want 72", state.Computed.LoadWatts)
+	if val(state.Computed.LoadWatts) != 72 {
+		t.Errorf("computed.load_watts = %v, want 72", val(state.Computed.LoadWatts))
 	}
 	if state.Computed.StatusDisplay != "Online" {
 		t.Errorf("computed.status_display = %q, want %q", state.Computed.StatusDisplay, "Online")
@@ -209,8 +210,8 @@ func TestFormatOffline(t *testing.T) {
 
 func TestFakePublisher_Find(t *testing.T) {
 	fp := &publisher.FakePublisher{}
-	fp.Publish(publisher.Message{Topic: "a/b", Payload: "v1"})  //nolint:errcheck
-	fp.Publish(publisher.Message{Topic: "c/d", Payload: "v2"})  //nolint:errcheck
+	fp.Publish(publisher.Message{Topic: "a/b", Payload: "v1"}) //nolint:errcheck
+	fp.Publish(publisher.Message{Topic: "c/d", Payload: "v2"}) //nolint:errcheck
 
 	msg, ok := fp.Find("c/d")
 	if !ok {
@@ -326,22 +327,22 @@ func TestPublishOutage_Status(t *testing.T) {
 
 func TestPublishOutage_BatteryFields(t *testing.T) {
 	_, out := runPublishOutage(t, time.Now().Add(-30*time.Second))
-	if out.BatteryChargePct != 95 {
-		t.Errorf("battery_charge_pct = %v, want 95", out.BatteryChargePct)
+	if val(out.BatteryChargePct) != 95 {
+		t.Errorf("battery_charge_pct = %v, want 95", val(out.BatteryChargePct))
 	}
-	if out.BatteryRuntimeSecs != 4090 {
-		t.Errorf("battery_runtime_secs = %v, want 4090", out.BatteryRuntimeSecs)
+	if val(out.BatteryRuntimeSecs) != 4090 {
+		t.Errorf("battery_runtime_secs = %v, want 4090", val(out.BatteryRuntimeSecs))
 	}
-	if out.BatteryRuntimeMins != 68.17 {
-		t.Errorf("battery_runtime_mins = %v, want 68.17", out.BatteryRuntimeMins)
+	if val(out.BatteryRuntimeMins) != 68.17 {
+		t.Errorf("battery_runtime_mins = %v, want 68.17", val(out.BatteryRuntimeMins))
 	}
 }
 
 func TestPublishOutage_LoadWatts(t *testing.T) {
 	_, out := runPublishOutage(t, time.Now().Add(-30*time.Second))
 	// 8% × 900W = 72W
-	if out.LoadWatts != 72 {
-		t.Errorf("load_watts = %v, want 72", out.LoadWatts)
+	if val(out.LoadWatts) != 72 {
+		t.Errorf("load_watts = %v, want 72", val(out.LoadWatts))
 	}
 }
 
@@ -398,5 +399,112 @@ func TestPublishAll_VarsPublishError(t *testing.T) {
 	err := publisher.PublishAll(sampleVars, m, cfg, fp)
 	if err == nil {
 		t.Fatal("expected error when vars publish fails")
+	}
+}
+
+// val dereferences an optional metric for comparison in assertions.
+// A nil pointer means the UPS could not supply the value; tests that care
+// about absence assert on the pointer itself instead.
+func val(p *float64) float64 {
+	if p == nil {
+		return math.NaN()
+	}
+	return *p
+}
+
+// ── Riello iPlug: a UPS that reports no battery runtime or charge ───────────
+
+// rielloOnBatteryVars is a real poll of a Riello iPlug taken during a mains
+// cut.  It reports no battery.runtime and no battery.charge — those variables
+// simply do not exist on this device.
+var rielloOnBatteryVars = map[string]string{
+	"ups.status":             "OB",
+	"ups.load":               "0",
+	"ups.realpower.nominal":  "480",
+	"input.voltage":          "4",
+	"input.frequency":        "0.00",
+	"output.voltage":         "230",
+	"output.voltage.nominal": "230",
+	"battery.voltage":        "13.1",
+}
+
+func runRielloOutage(t *testing.T) (publisher.OutageMessage, string) {
+	t.Helper()
+	m := metrics.Compute(rielloOnBatteryVars)
+	fp := &publisher.FakePublisher{}
+	cfg := publisher.PublishConfig{Prefix: "ups", UPSName: "iplug", Retained: true}
+	if err := publisher.PublishOutage(rielloOnBatteryVars, m, time.Now().Add(-30*time.Second), cfg, fp); err != nil {
+		t.Fatalf("PublishOutage: %v", err)
+	}
+	msg, ok := fp.Find("ups/iplug/outage")
+	if !ok {
+		t.Fatal("outage topic not published")
+	}
+	var out publisher.OutageMessage
+	if err := json.Unmarshal([]byte(msg.Payload), &out); err != nil {
+		t.Fatalf("outage payload invalid JSON: %v\npayload: %s", err, msg.Payload)
+	}
+	return out, msg.Payload
+}
+
+// The critical regression: with no runtime reported, the old code dated
+// estimated_depletion_at to the current instant, announcing mid-outage that
+// the battery was about to die.  It must now be omitted entirely.
+func TestPublishOutage_NoRuntime_OmitsDepletionEstimate(t *testing.T) {
+	out, payload := runRielloOutage(t)
+
+	if out.EstimatedDepletionAt != "" {
+		t.Errorf("estimated_depletion_at = %q, want empty when runtime is unknown", out.EstimatedDepletionAt)
+	}
+	if strings.Contains(payload, "estimated_depletion_at") {
+		t.Errorf("estimated_depletion_at should be absent from the JSON entirely:\n%s", payload)
+	}
+}
+
+func TestPublishOutage_NoRuntime_OmitsBatteryFields(t *testing.T) {
+	out, payload := runRielloOutage(t)
+
+	if out.BatteryRuntimeSecs != nil {
+		t.Errorf("battery_runtime_secs = %v, want nil", *out.BatteryRuntimeSecs)
+	}
+	if out.BatteryRuntimeMins != nil {
+		t.Errorf("battery_runtime_mins = %v, want nil", *out.BatteryRuntimeMins)
+	}
+	if out.BatteryChargePct != nil {
+		t.Errorf("battery_charge_pct = %v, want nil", *out.BatteryChargePct)
+	}
+	for _, key := range []string{"battery_runtime_secs", "battery_runtime_mins", "battery_charge_pct"} {
+		if strings.Contains(payload, key) {
+			t.Errorf("%s should be absent from the JSON:\n%s", key, payload)
+		}
+	}
+}
+
+// battery.voltage is the only battery signal this UPS gives, so it is carried
+// through as a coarse substitute for a charge percentage.
+func TestPublishOutage_CarriesBatteryVoltage(t *testing.T) {
+	out, _ := runRielloOutage(t)
+	if out.BatteryVoltage == nil {
+		t.Fatal("battery_voltage = nil, want 13.1")
+	}
+	if *out.BatteryVoltage != 13.1 {
+		t.Errorf("battery_voltage = %v, want 13.1", *out.BatteryVoltage)
+	}
+}
+
+// Facts the UPS does report must still be present.
+func TestPublishOutage_NoRuntime_KeepsKnownFields(t *testing.T) {
+	out, _ := runRielloOutage(t)
+	if out.Status != "OB" {
+		t.Errorf("status = %q, want OB", out.Status)
+	}
+	if out.StatusDisplay != "On Battery" {
+		t.Errorf("status_display = %q, want %q", out.StatusDisplay, "On Battery")
+	}
+	if val(out.LoadWatts) != 0 {
+		t.Errorf("load_watts = %v, want 0 (a real zero-load reading)", val(out.LoadWatts))
+	}
+	if out.OutageDurationSecs < 29 || out.OutageDurationSecs > 31 {
+		t.Errorf("outage_duration_secs = %d, want ~30", out.OutageDurationSecs)
 	}
 }

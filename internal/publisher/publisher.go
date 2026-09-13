@@ -51,19 +51,24 @@ type OnlineState struct {
 // OutageMessage is published to {prefix}/{ups_name}/outage whenever the UPS is
 // running on battery.  It is always retained so late subscribers receive it,
 // and cleared (empty retained payload) when mains power is restored.
+// Fields the UPS cannot supply are omitted rather than sent as zero.  This
+// matters most for EstimatedDepletionAt: with an unknown runtime the old
+// behaviour dated it to the current instant, announcing mid-outage that the
+// battery was about to die.  Silence is the correct answer there.
 type OutageMessage struct {
-	Timestamp            string  `json:"timestamp"`
-	UPSName              string  `json:"ups_name"`
-	OutageStartedAt      string  `json:"outage_started_at"`
-	OutageDurationSecs   int64   `json:"outage_duration_secs"`
-	Status               string  `json:"status"`
-	StatusDisplay        string  `json:"status_display"`
-	BatteryChargePct     float64 `json:"battery_charge_pct"`
-	BatteryRuntimeSecs   float64 `json:"battery_runtime_secs"`
-	BatteryRuntimeMins   float64 `json:"battery_runtime_mins"`
-	EstimatedDepletionAt string  `json:"estimated_depletion_at"`
-	LoadWatts            float64 `json:"load_watts"`
-	LowBattery           bool    `json:"low_battery"`
+	Timestamp            string   `json:"timestamp"`
+	UPSName              string   `json:"ups_name"`
+	OutageStartedAt      string   `json:"outage_started_at"`
+	OutageDurationSecs   int64    `json:"outage_duration_secs"`
+	Status               string   `json:"status"`
+	StatusDisplay        string   `json:"status_display"`
+	BatteryChargePct     *float64 `json:"battery_charge_pct,omitempty"`
+	BatteryVoltage       *float64 `json:"battery_voltage,omitempty"`
+	BatteryRuntimeSecs   *float64 `json:"battery_runtime_secs,omitempty"`
+	BatteryRuntimeMins   *float64 `json:"battery_runtime_mins,omitempty"`
+	EstimatedDepletionAt string   `json:"estimated_depletion_at,omitempty"`
+	LoadWatts            *float64 `json:"load_watts,omitempty"`
+	LowBattery           bool     `json:"low_battery"`
 }
 
 // OutageTopic returns the MQTT topic used for the outage message.
@@ -83,14 +88,14 @@ func PublishOutage(
 ) error {
 	now := time.Now().UTC()
 
-	var runtimeSecs, chargePct float64
-	if v, err := strconv.ParseFloat(vars["battery.runtime"], 64); err == nil {
-		runtimeSecs = v
+	runtimeSecs := optionalVar(vars, "battery.runtime")
+	chargePct := optionalVar(vars, "battery.charge")
+
+	// Only date a depletion estimate when the UPS actually reports runtime.
+	var depletionAt string
+	if runtimeSecs != nil {
+		depletionAt = now.Add(time.Duration(*runtimeSecs) * time.Second).Format(time.RFC3339)
 	}
-	if v, err := strconv.ParseFloat(vars["battery.charge"], 64); err == nil {
-		chargePct = v
-	}
-	depletionAt := now.Add(time.Duration(runtimeSecs) * time.Second)
 
 	msg := OutageMessage{
 		Timestamp:            now.Format(time.RFC3339),
@@ -100,9 +105,10 @@ func PublishOutage(
 		Status:               vars["ups.status"],
 		StatusDisplay:        m.StatusDisplay,
 		BatteryChargePct:     chargePct,
+		BatteryVoltage:       optionalVar(vars, "battery.voltage"),
 		BatteryRuntimeSecs:   runtimeSecs,
 		BatteryRuntimeMins:   m.BatteryRuntimeMins,
-		EstimatedDepletionAt: depletionAt.Format(time.RFC3339),
+		EstimatedDepletionAt: depletionAt,
 		LoadWatts:            m.LoadWatts,
 		LowBattery:           m.LowBattery,
 	}
@@ -126,6 +132,16 @@ func ClearOutage(cfg PublishConfig, pub Publisher) error {
 		Payload:  "",
 		Retained: true,
 	})
+}
+
+// optionalVar parses a NUT variable into a float64 pointer, yielding nil when
+// the variable is absent or unparseable so the caller can omit it entirely.
+func optionalVar(vars map[string]string, name string) *float64 {
+	v, err := strconv.ParseFloat(vars[name], 64)
+	if err != nil {
+		return nil
+	}
+	return &v
 }
 
 // PublishAll publishes every NUT variable as an individual topic, every
