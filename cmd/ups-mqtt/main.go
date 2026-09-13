@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -117,9 +118,14 @@ func connectNUT(ctx context.Context, cfg config.NUTConfig) (*nut.Client, error) 
 }
 
 // doPoll fetches NUT variables, computes metrics, and publishes everything.
-// outageStart tracks when the current OB condition began; it is set on the
-// first on-battery poll, cleared when mains are restored, and used to compute
-// the outage duration and to clear the retained outage message.
+//
+// The outage message goes out FIRST, before the ~50 telemetry topics, and a
+// telemetry failure never suppresses it.  Reporting a power cut is the job
+// this daemon exists to do; queueing that message behind bulk telemetry on a
+// link that is itself degraded by the outage is precisely backwards.
+//
+// Both halves are attempted on every poll and their errors returned together,
+// so a failure in one is never hidden by the other.
 func doPoll(poller nut.Poller, pub publisher.Publisher, cfg *config.Config, outageStart **time.Time) error {
 	vars, err := poller.Poll()
 	if err != nil {
@@ -134,26 +140,46 @@ func doPoll(poller nut.Poller, pub publisher.Publisher, cfg *config.Config, outa
 		UPSName:  cfg.NUT.EffectiveLabel(),
 		Retained: cfg.MQTT.Retained,
 	}
-	if err := publisher.PublishAll(varMap, m, pubCfg, pub); err != nil {
-		return fmt.Errorf("publishing: %w", err)
-	}
 
+	outageErr := publishOutageState(varMap, m, pubCfg, pub, outageStart)
+	telemetryErr := publisher.PublishAll(varMap, m, pubCfg, pub)
+
+	return errors.Join(outageErr, telemetryErr)
+}
+
+// publishOutageState publishes the outage message while the UPS is on battery,
+// and clears the retained topic once mains are restored.
+//
+// outageStart tracks when the current OB condition began; it is set on the
+// first on-battery poll and used to compute the outage duration.  It is
+// cleared only after the retained message has actually been cleared, so a
+// failed clear is retried on the next poll rather than leaving a stale
+// retained message asserting an outage that has already ended.
+func publishOutageState(
+	vars map[string]string,
+	m metrics.Metrics,
+	pubCfg publisher.PublishConfig,
+	pub publisher.Publisher,
+	outageStart **time.Time,
+) error {
 	if m.OnBattery {
 		if *outageStart == nil {
 			now := time.Now()
 			*outageStart = &now
 			log.Printf("power outage detected — UPS on battery")
 		}
-		if err := publisher.PublishOutage(varMap, m, **outageStart, pubCfg, pub); err != nil {
+		if err := publisher.PublishOutage(vars, m, **outageStart, pubCfg, pub); err != nil {
 			return fmt.Errorf("publishing outage: %w", err)
 		}
-	} else if *outageStart != nil {
-		log.Printf("power restored — clearing outage topic")
-		*outageStart = nil
+		return nil
+	}
+
+	if *outageStart != nil {
 		if err := publisher.ClearOutage(pubCfg, pub); err != nil {
 			return fmt.Errorf("clearing outage: %w", err)
 		}
+		*outageStart = nil
+		log.Printf("power restored — outage topic cleared")
 	}
-
 	return nil
 }

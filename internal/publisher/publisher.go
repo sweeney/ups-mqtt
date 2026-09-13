@@ -3,6 +3,7 @@ package publisher
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -146,18 +147,26 @@ func optionalVar(vars map[string]string, name string) *float64 {
 
 // PublishAll publishes every NUT variable as an individual topic, every
 // computed metric under the "computed/" sub-tree, and the combined JSON
-// state topic.  It returns the first publish error encountered.
+// state topic.
+//
+// Every message is attempted even when earlier ones fail, and the failures are
+// returned joined.  Stopping at the first error would let one unlucky variable
+// topic suppress every message after it — including the combined state topic,
+// which is also the LWT topic.  Go randomises map iteration order, so which
+// topics were lost would vary from poll to poll.
 func PublishAll(
 	vars map[string]string,
 	m metrics.Metrics,
 	cfg PublishConfig,
 	pub Publisher,
 ) error {
+	var errs []error
+
 	// --- individual NUT variable topics ---
 	for name, value := range vars {
 		topic := fmt.Sprintf("%s/%s/%s", cfg.Prefix, cfg.UPSName, strings.ReplaceAll(name, ".", "/"))
 		if err := pub.Publish(Message{Topic: topic, Payload: value, Retained: cfg.Retained}); err != nil {
-			return err
+			errs = append(errs, fmt.Errorf("publishing %q: %w", topic, err))
 		}
 	}
 
@@ -165,12 +174,16 @@ func PublishAll(
 	for name, payload := range m.AsTopicMap() {
 		topic := fmt.Sprintf("%s/%s/computed/%s", cfg.Prefix, cfg.UPSName, name)
 		if err := pub.Publish(Message{Topic: topic, Payload: payload, Retained: cfg.Retained}); err != nil {
-			return err
+			errs = append(errs, fmt.Errorf("publishing %q: %w", topic, err))
 		}
 	}
 
 	// --- combined JSON state topic ---
-	return publishState(vars, m, cfg, pub)
+	if err := publishState(vars, m, cfg, pub); err != nil {
+		errs = append(errs, err)
+	}
+
+	return errors.Join(errs...)
 }
 
 // FormatOffline returns the JSON payload for the offline announcement.

@@ -508,3 +508,112 @@ func TestPublishOutage_NoRuntime_KeepsKnownFields(t *testing.T) {
 		t.Errorf("outage_duration_secs = %d, want ~30", out.OutageDurationSecs)
 	}
 }
+
+// ── PublishAll must attempt every message, not stop at the first failure ───
+
+// publishAllVars is a small, fixed variable set so message counts are exact.
+var publishAllVars = map[string]string{
+	"ups.status":            "OL",
+	"ups.load":              "8",
+	"ups.realpower.nominal": "900",
+	"battery.runtime":       "4920",
+	"input.voltage":         "242.0",
+	"input.voltage.nominal": "230",
+}
+
+func publishAllCfg() publisher.PublishConfig {
+	return publisher.PublishConfig{Prefix: "ups", UPSName: "cyberpower", Retained: true}
+}
+
+// A failure partway through must not abandon the remaining topics.  Go
+// randomises map iteration order, so without this the set of lost topics would
+// differ from poll to poll.
+func TestPublishAll_ContinuesAfterFailure(t *testing.T) {
+	failing := "ups/cyberpower/ups/load"
+	fp := &publisher.FakePublisher{FailTopic: func(tp string) bool { return tp == failing }}
+	m := metrics.Compute(publishAllVars)
+
+	err := publisher.PublishAll(publishAllVars, m, publishAllCfg(), fp)
+	if err == nil {
+		t.Fatal("expected the failed topic to be reported")
+	}
+
+	// 6 variables - 1 failed = 5, + 7 computed topics, + 1 state topic = 13.
+	if len(fp.Messages) != 13 {
+		t.Errorf("published %d messages, want 13 (everything except the one failure)", len(fp.Messages))
+	}
+	if len(fp.Failed) != 1 || fp.Failed[0] != failing {
+		t.Errorf("Failed = %v, want exactly [%s]", fp.Failed, failing)
+	}
+}
+
+// The state topic is published last and is also the LWT topic, so it is the
+// message most at risk from an early return.
+func TestPublishAll_StatePublishedDespiteEarlierFailure(t *testing.T) {
+	fp := &publisher.FakePublisher{
+		FailTopic: func(tp string) bool { return tp == "ups/cyberpower/ups/status" },
+	}
+	m := metrics.Compute(publishAllVars)
+
+	if err := publisher.PublishAll(publishAllVars, m, publishAllCfg(), fp); err == nil {
+		t.Fatal("expected an error")
+	}
+	if _, ok := fp.Find("ups/cyberpower/state"); !ok {
+		t.Error("state topic must still be published after an earlier variable failed")
+	}
+}
+
+// Computed topics must survive a failure among the variable topics.
+func TestPublishAll_ComputedPublishedDespiteVariableFailure(t *testing.T) {
+	fp := &publisher.FakePublisher{
+		FailTopic: func(tp string) bool { return strings.HasPrefix(tp, "ups/cyberpower/input/") },
+	}
+	m := metrics.Compute(publishAllVars)
+
+	if err := publisher.PublishAll(publishAllVars, m, publishAllCfg(), fp); err == nil {
+		t.Fatal("expected an error")
+	}
+	for _, topic := range []string{
+		"ups/cyberpower/computed/load_watts",
+		"ups/cyberpower/computed/status_display",
+		"ups/cyberpower/computed/battery_runtime_mins",
+	} {
+		if _, ok := fp.Find(topic); !ok {
+			t.Errorf("computed topic %q was dropped after a variable failure", topic)
+		}
+	}
+}
+
+// Every failure must be reported, not just the first.
+func TestPublishAll_AllFailuresReported(t *testing.T) {
+	fp := &publisher.FakePublisher{FailTopic: func(string) bool { return true }}
+	m := metrics.Compute(publishAllVars)
+
+	err := publisher.PublishAll(publishAllVars, m, publishAllCfg(), fp)
+	if err == nil {
+		t.Fatal("expected an error when every publish fails")
+	}
+	// 6 variables + 7 computed + 1 state = 14 attempts, all failing.
+	if len(fp.Failed) != 14 {
+		t.Errorf("attempted %d publishes, want 14 — some were skipped", len(fp.Failed))
+	}
+	// errors.Join separates with newlines; every failure should appear.
+	if got := strings.Count(err.Error(), "\n") + 1; got != 14 {
+		t.Errorf("error reports %d failures, want 14: %v", got, err)
+	}
+}
+
+func TestPublishAll_NoErrorWhenAllSucceed(t *testing.T) {
+	fp := &publisher.FakePublisher{}
+	m := metrics.Compute(publishAllVars)
+
+	if err := publisher.PublishAll(publishAllVars, m, publishAllCfg(), fp); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(fp.Messages) != 14 {
+		t.Errorf("published %d messages, want 14", len(fp.Messages))
+	}
+	if len(fp.Failed) != 0 {
+		t.Errorf("Failed = %v, want empty", fp.Failed)
+	}
+}
