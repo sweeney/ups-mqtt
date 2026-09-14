@@ -3,6 +3,7 @@
 #
 # Usage:
 #   ./install-macos.sh          # install / update
+#   ./install-macos.sh rollback # restore the previously installed binary
 #
 # Re-running this script is safe: it replaces the binary and reloads the
 # service.  Config is never overwritten if it already exists.
@@ -30,6 +31,37 @@ APP_BUNDLE="${HOME_DIR}/Applications/ups-mqtt.app"
 APP_BIN="${APP_BUNDLE}/Contents/MacOS/${SERVICE}"
 CONFIG_DST="/etc/${SERVICE}/config.toml"
 
+# Previous binaries are archived here so a bad deploy can be undone.
+# deploy.sh (Linux) gets this for free by symlinking a versioned binary; the
+# macOS bundle cannot, because codesign and TCC identify the app by the real
+# executable at Contents/MacOS/, and pointing that at a symlink breaks the
+# Local Network grant. So the outgoing binary is copied aside instead.
+VERSIONS_DIR="${HOME_DIR}/Applications/ups-mqtt-versions"
+KEEP_VERSIONS=3
+
+# ---------------------------------------------------------------------------
+# 0. Rollback — restore the most recent archived binary and reload
+# ---------------------------------------------------------------------------
+if [ "${1:-}" = "rollback" ]; then
+    previous=$(ls -t "${VERSIONS_DIR}"/${SERVICE}-* 2>/dev/null | head -1 || true)
+    if [ -z "${previous}" ]; then
+        echo "No archived versions in ${VERSIONS_DIR} — nothing to roll back to."
+        exit 1
+    fi
+    echo "==> Rolling back to $(basename "${previous}")..."
+    cp "${previous}" "${APP_BIN}"
+    chmod +x "${APP_BIN}"
+    # Re-signing changes the code hash, so the Local Network grant is reissued
+    # against this binary. Harmless where the broker is reached over Tailscale
+    # (which macOS does not treat as local network); otherwise the grant may
+    # need re-approving in System Settings.
+    codesign --force --sign - --identifier "${BUNDLE_ID}" "${APP_BUNDLE}"
+    launchctl kickstart -k "gui/$(id -u)/${PLIST_LABEL}" 2>/dev/null \
+        || echo "  (service not loaded; run ./install-macos.sh to load it)"
+    echo "    Rolled back and restarted. Check: tail -f ${HOME_DIR}/Library/Logs/${SERVICE}.log"
+    exit 0
+fi
+
 # ---------------------------------------------------------------------------
 # 1. Detect architecture and build
 # ---------------------------------------------------------------------------
@@ -47,6 +79,21 @@ trap 'rm -f "./${SERVICE}"' EXIT
 # 2. App bundle (no sudo — ~/Applications is user-owned)
 # ---------------------------------------------------------------------------
 mkdir -p "${APP_BUNDLE}/Contents/MacOS"
+
+# Archive the outgoing binary first. The bundle executable is overwritten in
+# place, so without this a bad deploy is irreversible without a rebuild — and
+# rebuilding an older commit is not always possible in a hurry.
+if [ -f "${APP_BIN}" ]; then
+    mkdir -p "${VERSIONS_DIR}"
+    archived="${VERSIONS_DIR}/${SERVICE}-$(date -r "${APP_BIN}" +%Y%m%d-%H%M%S 2>/dev/null || date +%Y%m%d-%H%M%S)"
+    cp "${APP_BIN}" "${archived}"
+    echo "    Archived  → ${archived}"
+    # Keep only the most recent few; these are ~6 MB each.
+    ls -t "${VERSIONS_DIR}"/${SERVICE}-* 2>/dev/null \
+        | tail -n +$((KEEP_VERSIONS + 1)) \
+        | xargs -r rm -f 2>/dev/null || true
+fi
+
 cp "./${SERVICE}" "${APP_BIN}"
 chmod +x "${APP_BIN}"
 
@@ -152,5 +199,6 @@ echo "    ${APP_BIN} --config ${CONFIG_DST}"
 echo ""
 echo "    Stop:    launchctl bootout gui/\$(id -u)/${PLIST_LABEL}"
 echo "    Start:   launchctl bootstrap gui/\$(id -u) ${PLIST_DST}"
-echo "    Update:  ./install-macos.sh"
+echo "    Update:  ./install-macos.sh
+    Undo:    ./install-macos.sh rollback"
 echo ""

@@ -246,13 +246,51 @@ The script:
 4. Copies config to `/etc/ups-mqtt/config.toml` (sudo, first install only)
 5. Installs and loads a LaunchAgent at `~/Library/LaunchAgents/net.swee.ups-mqtt.plist`
 
+##### Local Network permission
+
 ups-mqtt runs as a **LaunchAgent** (user session), not a LaunchDaemon. macOS enforces Local Network privacy (TCC) per-user session — a system daemon has no user context to prompt against, so the network connection is silently blocked.
 
-On first install, run the binary once from the terminal to trigger the macOS Local Network permission prompt:
+On first install, run the binary once from the terminal to trigger the permission prompt:
 
 ```bash
 ~/Applications/ups-mqtt.app/Contents/MacOS/ups-mqtt --config /etc/ups-mqtt/config.toml
 ```
+
+**The grant is tied to the binary's code hash, which changes on every build.**
+An ad-hoc signature has no stable identity, so after each update macOS treats
+the app as a different program. The toggle in System Settings can still *appear*
+enabled while the new binary is denied — it belongs to the previous hash.
+
+Symptoms, from a real occurrence:
+
+```
+connecting to MQTT broker "tcp://192.168.1.x:1883": no route to host
+```
+
+despite the broker being reachable from a shell, and the same binary working
+when run from a terminal (which inherits the terminal's own grant). Confirmed
+in the system log as a policy block rather than a routing failure — the flow is
+killed at `SYN_SENT` with `reason: NECP`, and `errno 65` is `EHOSTUNREACH`:
+
+```
+process: ups-mqtt  t_state: SYN_SENT  error: 65  reason: NECP
+UserEventAgent [com.apple.networkextension:] LocalNetwork: found bundle id net.swee.ups-mqtt
+```
+
+The fix is to toggle the permission off and on in **System Settings → Privacy &
+Security → Local Network**, which re-keys it to the current binary.
+
+**Better: avoid the gate entirely.** Point the broker at a Tailscale name rather
+than a LAN address:
+
+```toml
+broker = "tcp://<host>:1883"    # a MagicDNS name, not 192.168.x.x
+```
+
+macOS does not classify a `utun` route as local network, so the permission never
+applies. Verified: a fresh build connected immediately over Tailscale where the
+same build was blocked on a LAN address. This removes the problem from every
+future macOS deploy.
 
 Re-running `install-macos.sh` is safe: it replaces the binary and reloads the service without touching the config.
 
@@ -264,6 +302,32 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/net.swee.ups-mqtt.plist
 # Logs
 tail -f ~/Library/Logs/ups-mqtt.log
 ```
+
+##### Rolling back a macOS deploy
+
+Each update archives the outgoing binary to `~/Applications/ups-mqtt-versions/`,
+keeping the last three. To undo the most recent one:
+
+```bash
+./install-macos.sh rollback
+```
+
+That restores the newest archived binary into the bundle, re-signs it, and
+restarts the service.
+
+The Linux path gets versioning for free — `deploy.sh` uploads a timestamped
+binary and repoints a symlink, so rolling back is just moving the symlink. The
+bundle cannot work that way: `codesign` and macOS's privacy database identify
+the app by the real executable at `Contents/MacOS/`, and pointing that at a
+symlink breaks the Local Network grant. So the outgoing binary is copied aside
+before being overwritten instead.
+
+> **Re-signing always reissues the Local Network grant**, on both update and
+> rollback, because the ad-hoc signature's code hash changes with every build.
+> That is invisible when the broker is reached over Tailscale — macOS does not
+> classify a `utun` route as local network — but with a LAN broker address the
+> daemon will fail with `no route to host` until the permission is re-approved
+> in System Settings. See [Local Network permission](#local-network-permission).
 
 #### USB HID driver staleness
 
@@ -314,7 +378,7 @@ ssh user@host 'sudo mkdir -p /etc/ups-mqtt && sudo mv /tmp/ups-mqtt.toml /etc/up
 Subsequent deployments:
 
 ```bash
-./deploy.sh              # default host (sweeney@garibaldi)
+./deploy.sh              # default host (TARGET in deploy.sh)
 ./deploy.sh user@host    # specific host
 ```
 
