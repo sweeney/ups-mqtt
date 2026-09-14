@@ -465,6 +465,12 @@ The client now keeps upsd's bytes verbatim, so `"409.50"` arrives as `"409.50"`
 — but the numeric comparison stays, because drivers and NUT versions differ in
 how many decimal places they emit.
 
+Trailing zeros were the mild case. The same coercion turned `ups.beeper.status`
+— a NUT enum of `enabled` / `disabled` / `muted` — into `"true"`, `"false"` or
+`"muted"` depending on the reading. Raw values are now passed through exactly as
+upsd sends them; `computed/` values remain normalised, because those are ours to
+define rather than the device's.
+
 ### Dependency injection via interfaces
 
 Two interfaces act as seams between business logic and infrastructure:

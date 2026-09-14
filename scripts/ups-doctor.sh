@@ -159,23 +159,22 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 4. ups-mqtt — will not recover on its own from a dead upsd connection
+# 4. ups-mqtt — recovers by itself; only report, do not restart
 # ---------------------------------------------------------------------------
+# Poll closes and re-dials a dead connection inside a single poll, so the
+# daemon picks NUT back up on its own within one interval. Restarting it would
+# fire the Last Will and briefly mark the device offline to subscribers, for no
+# gain. (Before 2026-09-15 this was not true — the go.nut-based client could
+# not close a socket and a repair did need a manual kick.)
 step "ups-mqtt"
 if [ -z "$GUI_UID" ]; then
-    note "cannot reach the user LaunchAgent domain (no SUDO_USER); skipping."
-    note "restart it yourself with:"
-    note "  launchctl kickstart -k gui/\$(id -u)/${MQTT_LABEL}"
-elif [ "$DRY" -eq 1 ]; then
-    note "would restart ${MQTT_LABEL} (it reuses a dead upsd connection)"
+    note "cannot reach the user LaunchAgent domain (no SUDO_USER); not checked."
+elif launchctl print "gui/${GUI_UID}/${MQTT_LABEL}" >/dev/null 2>&1; then
+    ok "running — it will reconnect to upsd within one poll interval"
 else
-    # The daemon retries NUT only at startup; after a poll failure it keeps
-    # using the same dead TCP connection, so it needs an explicit kick.
-    say "   restarting ${MQTT_LABEL}..."
-    launchctl kickstart -k "gui/${GUI_UID}/${MQTT_LABEL}" 2>/dev/null \
-        || note "kickstart failed — start it from a user shell instead"
-    sleep 3
-    ok "restarted"
+    bad "${MQTT_LABEL} is not loaded"
+    note "start it from a user shell (not via sudo):"
+    note "  launchctl kickstart -k gui/\$(id -u)/${MQTT_LABEL}"
 fi
 
 step "Result"

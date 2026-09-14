@@ -86,8 +86,17 @@ unreachable.
   `GetUPSList` built a full UPS object and fetched a description and type for
   every variable.
 - Values are kept **verbatim** as upsd sends them, so `"50.10"` stays
-  `"50.10"`. Only `VarsToMap` normalises, by trimming and dropping sentinels.
-  The old client re-rendered values through `%v` and lost trailing zeros.
+  `"50.10"`. Only `VarsToMap` normalises, by trimming and dropping sentinels —
+  both remove transport artefacts rather than changing what a value means.
+  Do not "tidy" raw values: the old client coerced `"enabled"`/`"disabled"` to
+  booleans and numeric-looking strings through ParseFloat, so
+  `ups.beeper.status` published as `"true"`, `"false"` or `"muted"` depending
+  on the reading — three type universes for one enum — and a version string
+  like `"0.10"` would have become `"0.1"`.
+- The split is deliberate: `state.variables` is what the device said,
+  `computed` is what we calculated. Computed values are ours to define and
+  **are** normalised, via `formatFloat`. Interpretation belongs in `computed`,
+  where it is explicit and typed, never applied invisibly to raw data.
 - Every network operation has a deadline (`Client.Timeout`, default
   `DefaultTimeout`), so nothing can block the poll loop indefinitely.
 - `Poll` re-dials once on failure before giving up, so a upsd restart or a

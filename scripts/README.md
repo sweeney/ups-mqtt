@@ -76,15 +76,24 @@ without rebooting. Testing on 2026-07-01 showed that a confirmed deep sleep does
 partially powered. Kept because the scheduling and verification logic is useful,
 but try `ups-doctor.sh` first.
 
-## After any repair, restart ups-mqtt
+## ups-mqtt recovers on its own
 
-The daemon retries its NUT connection only at startup. After a poll failure it
-keeps using the same dead connection indefinitely, so it needs an explicit kick
-even once NUT is healthy:
+Once NUT is healthy again the daemon reconnects by itself, within one poll
+interval, without a restart and without logging anything: `Poll` notices the
+dead connection, closes it, re-dials and retries inside a single poll.
+
+This was **not** true before 2026-09-15. The old go.nut-based client could not
+close a socket, and a repair therefore had to be followed by restarting the
+daemon by hand. If you find that instruction elsewhere, it is stale.
+
+So do not restart it reflexively — a restart fires the Last Will, briefly
+marking the device offline to subscribers, for no gain. Only intervene if the
+daemon is not running at all:
 
 ```bash
 launchctl kickstart -k gui/$(id -u)/net.swee.ups-mqtt   # macOS
 sudo systemctl restart ups-mqtt                          # Linux
 ```
 
-`ups-doctor.sh` does this as its final step.
+Verified across a `upsd` restart on all three hosts: the process ID was
+unchanged, nothing was logged, and publishing never missed its cadence.
