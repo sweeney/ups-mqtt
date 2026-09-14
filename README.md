@@ -273,17 +273,31 @@ This is a macOS-specific issue with the `usbhid-ups` driver, not specific to any
 
 This setting is already present in `nut/ups.conf.example`. Without it, the driver will silently stall and the only recovery is a manual restart.
 
-#### Restarting the NUT driver
+#### When the UPS stops reporting
 
-If the driver does need a manual restart:
+Start with the doctor script — it identifies which link in the chain has failed
+before changing anything:
 
 ```bash
-sudo ./restart-nut-driver.sh
+sudo ./scripts/ups-doctor.sh diagnose   # report only
+sudo ./scripts/ups-doctor.sh            # diagnose, then repair what is safe
 ```
 
-This does a clean `launchctl bootout` / `bootstrap` cycle and waits 5 s before checking `upsc`. **Do not** just kill the driver process — launchd will restart it, but if it was stopped via `bootout` first, macOS will have reclaimed the USB HID device and the driver will fail with `No matching HID UPS found`.
+`Error: Data stale` has more than one cause and they need opposite remedies — a
+device that has vanished from the USB bus needs a reboot, while one that is
+present but has hung its USB interface needs the lead unplugged and replugged,
+and will *not* be fixed by rebooting. See [`scripts/README.md`](scripts/README.md)
+for how to tell them apart.
 
-If you see `No matching HID UPS found` after a restart, unplug and replug the USB cable. This releases the macOS kernel HID driver's claim on the device so libusb can reclaim it.
+Restarting the driver is not free: while it holds the USB device nothing else can
+claim it, so a restart releases the device and a wedged device may not be
+reclaimable afterwards — leaving the driver down rather than merely stale. Check
+the USB layer first. And **do not** kill the driver process directly; launchd
+respawns it before macOS has released the device and it fails with `No matching
+HID UPS found`.
+
+`scripts/restart-nut-driver.sh` remains available if you only want to bounce the
+driver.
 
 ### Linux (systemd)
 
