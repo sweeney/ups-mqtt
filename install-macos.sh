@@ -101,11 +101,39 @@ PATCHED_PLIST="$(mktemp /tmp/net.swee.ups-mqtt.XXXXXX.plist)"
 trap 'rm -f "./${SERVICE}" "${PATCHED_PLIST}"' EXIT
 sed "s|HOME_DIR|${HOME_DIR}|g" "${PLIST_TEMPLATE}" > "${PATCHED_PLIST}"
 
-launchctl bootout "gui/$(id -u)/${OLD_PLIST_LABEL}" 2>/dev/null || true
+GUI_DOMAIN="gui/$(id -u)"
+
+launchctl bootout "${GUI_DOMAIN}/${OLD_PLIST_LABEL}" 2>/dev/null || true
 rm -f "${OLD_PLIST_DST}"
-launchctl bootout "gui/$(id -u)/${PLIST_LABEL}" 2>/dev/null || true
+launchctl bootout "${GUI_DOMAIN}/${PLIST_LABEL}" 2>/dev/null || true
 cp "${PATCHED_PLIST}" "${PLIST_DST}"
-launchctl bootstrap "gui/$(id -u)" "${PLIST_DST}"
+
+# launchd tears a job down asynchronously. Bootstrapping while the old job is
+# still going away fails with "Bootstrap failed: 5: Input/Output error", and
+# because bootout has already succeeded the service is left DOWN. Wait for the
+# label to disappear, then retry a few times regardless — the same guard
+# scripts/restart-nut-driver.sh uses for the NUT driver.
+for _ in $(seq 1 10); do
+    launchctl print "${GUI_DOMAIN}/${PLIST_LABEL}" >/dev/null 2>&1 || break
+    sleep 1
+done
+
+loaded=0
+for attempt in 1 2 3; do
+    if launchctl bootstrap "${GUI_DOMAIN}" "${PLIST_DST}" 2>/dev/null; then
+        loaded=1
+        break
+    fi
+    echo "    bootstrap attempt ${attempt} failed; retrying..."
+    sleep 2
+done
+if [ "${loaded}" -ne 1 ]; then
+    echo ""
+    echo "  ERROR: could not load ${PLIST_LABEL} — the service is NOT running."
+    echo "  Recover with:"
+    echo "    launchctl bootstrap ${GUI_DOMAIN} ${PLIST_DST}"
+    exit 1
+fi
 echo "    Plist     → ${PLIST_DST}"
 echo "    Service loaded."
 
