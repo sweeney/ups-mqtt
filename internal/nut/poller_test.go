@@ -91,10 +91,11 @@ func TestVarsToMap_TrimsBeforeSentinelCheck(t *testing.T) {
 	}
 }
 
-// Regression: upsd sends "409.50", but go.nut decodes values into interface{}
-// and the client renders them with %v, so the driver actually hands us
-// "409.5".  A textual match missed it on the real device; every spelling of
-// the same number must be caught.
+// Regression: a textual match on "409.50" missed the sentinel on a real
+// device, because the go.nut-based client decoded values and re-rendered them
+// with %v, handing us "409.5".  The current client keeps upsd's bytes
+// verbatim, but drivers and NUT versions still differ in how many decimals
+// they emit, so every spelling of the same number must be caught.
 func TestVarsToMap_SentinelMatchesNumerically(t *testing.T) {
 	for _, spelling := range []string{"409.50", "409.5", "409.500", "4.095e2"} {
 		m := VarsToMap([]Variable{{Name: "input.bypass.frequency", Value: spelling}})

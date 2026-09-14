@@ -5,7 +5,6 @@ go 1.23
 require (
 	github.com/BurntSushi/toml v1.3.2
 	github.com/eclipse/paho.mqtt.golang v1.4.3
-	github.com/robbiet480/go.nut v0.0.0-20240622015809-60e196249c53
 )
 
 require (

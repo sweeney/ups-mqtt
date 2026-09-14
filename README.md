@@ -455,12 +455,15 @@ publish all seven metrics, while the Riello publishes five.
 12-bit ADC word) and `409.50` (the same word scaled by ten). Published raw they
 look like a 4 kV supply at 409 Hz, so `nut.VarsToMap` drops them.
 
-The comparison is numeric, not textual, and that distinction is load-bearing:
-upsd sends `"409.50"`, but go.nut decodes values into `interface{}` and the
-client renders them back with `%v`, which drops the trailing zero to `"409.5"`.
-A string match passed every unit test written against `upsc` output and failed
-silently against real hardware. Fixtures copied from `upsc` are not byte-faithful
-to what the Go code receives.
+The comparison is numeric, not textual, and that distinction is load-bearing.
+The textual form is not stable: upsd sends `"409.50"`, and the previous
+go.nut-based client decoded and re-rendered values through `%v`, turning it into
+`"409.5"`. A string match passed every unit test written against `upsc` output
+and failed silently against real hardware.
+
+The client now keeps upsd's bytes verbatim, so `"409.50"` arrives as `"409.50"`
+— but the numeric comparison stays, because drivers and NUT versions differ in
+how many decimal places they emit.
 
 ### Dependency injection via interfaces
 

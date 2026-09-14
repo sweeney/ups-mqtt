@@ -27,10 +27,11 @@ type Poller interface {
 // scaled by ten, which is how the riello_usb driver reports frequency.  Both
 // sit far outside any real mains reading, so a genuine value can never collide.
 //
-// Comparison is numeric, not textual.  upsd sends "409.50" but go.nut decodes
-// values into interface{} and the client renders them back with %v, which
-// drops the trailing zero to "409.5"; matching on the string would silently
-// stop working depending on which side of that conversion the check runs.
+// Comparison is numeric, not textual.  The textual form is not stable: upsd
+// sends "409.50", and a client that decodes and re-renders the value (as the
+// previous go.nut-based one did, via %v) turns it into "409.5".  Drivers and
+// NUT versions also differ in how many decimal places they emit.  Matching on
+// the string silently stopped working once, which is how this was found.
 var sentinelValues = map[string][]float64{
 	"input.bypass.voltage":   {4095},
 	"input.bypass.frequency": {409.5},

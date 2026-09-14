@@ -13,7 +13,6 @@ github.com/sweeney/ups-mqtt
 
 | Package | Role |
 |---------|------|
-| `github.com/robbiet480/go.nut` | NUT TCP client — `Connect(host, port)` returns `Client` (value type); `GetUPSList()` returns `[]UPS` |
 | `github.com/eclipse/paho.mqtt.golang` | MQTT client |
 | `github.com/BurntSushi/toml` | TOML config parsing |
 
@@ -68,15 +67,31 @@ go build ./...                                  # clean compile
   `*float64`, and nil means the UPS cannot report it. A nil metric publishes no
   `computed/` topic and is omitted from the JSON. Never substitute 0 — a
   retained `battery_runtime_mins: 0` reads downstream as a flat battery.
-- Any comparison against a numeric NUT value must parse to float first. go.nut
-  decodes values into `interface{}` and renders them with `%v`, so upsd's
-  `"409.50"` reaches the code as `"409.5"`; string matching silently fails
-  against real hardware while passing fixtures copied from `upsc`.
+- Any comparison against a numeric NUT value must parse to float first. The
+  textual form is not stable across drivers, NUT versions and client
+  implementations; string matching silently failed against real hardware once
+  while passing fixtures copied from `upsc`.
 - `formatFloat` uses `strconv.FormatFloat(v, 'f', -1, 64)` — no trailing zeros.
 
-## go.nut API notes
+## NUT protocol client
 
-- `gonut.Connect(host string, port ...int) (Client, error)` — port is variadic int
-- `client.GetUPSList() ([]UPS, error)` — iterate to find by `UPS.Name`
-- `UPS.GetVariables() ([]Variable, error)` — `Variable.Value` is `interface{}`; use `fmt.Sprintf("%v", v.Value)`
-- `client.Disconnect() (bool, error)`
+`internal/nut/client.go` speaks the upsd protocol directly; there is no third
+party NUT library. It replaced `github.com/robbiet480/go.nut`, which has no way
+to close a socket — no `Close` method, an unexported connection field, and a
+`Disconnect` that only sends `LOGOUT`. Since `Poll` re-dials when a connection
+goes stale, every failed poll leaked one socket for as long as the UPS was
+unreachable.
+
+- A poll is one round trip: `LIST VAR <ups>`. go.nut issued ~96, because
+  `GetUPSList` built a full UPS object and fetched a description and type for
+  every variable.
+- Values are kept **verbatim** as upsd sends them, so `"50.10"` stays
+  `"50.10"`. Only `VarsToMap` normalises, by trimming and dropping sentinels.
+  The old client re-rendered values through `%v` and lost trailing zeros.
+- Every network operation has a deadline (`Client.Timeout`, default
+  `DefaultTimeout`), so nothing can block the poll loop indefinitely.
+- `Poll` re-dials once on failure before giving up, so a upsd restart or a
+  dropped connection heals on the next poll.
+- Tests run against `fakeUPSD`, an in-process server speaking the real
+  protocol, plus captured wire-format fixtures from every real device in
+  `internal/nut/testdata/`. Add a fixture when a new device appears.
