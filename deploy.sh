@@ -72,10 +72,26 @@ ssh "${TARGET}" "
 "
 
 # ---------------------------------------------------------------------------
-# 6. Upload config
+# 6. Config — install only if the host has none
 # ---------------------------------------------------------------------------
-echo "==> Uploading config.toml to ${TARGET}:/etc/${SERVICE}/config.toml..."
-< config.toml ssh "${TARGET}" "sudo tee /etc/${SERVICE}/config.toml > /dev/null"
+# Config is host-local state: each host names its own UPS and label, and two
+# hosts sharing a client_id will evict each other from the broker. Overwriting
+# it on every deploy meant shipping whichever config.toml happened to be in the
+# local checkout, so deploying from one host's working copy would silently
+# repoint another host's UPS. This matches first-install.sh, which has always
+# only staged a config when the target lacked one.
+#
+# To change a deployed host's config, edit it on that host.
+if ssh "${TARGET}" "[ -f /etc/${SERVICE}/config.toml ]" 2>/dev/null; then
+  echo "==> Config present on ${TARGET} — leaving it untouched."
+else
+  if [ -f "config.toml" ]; then
+    echo "==> No config on ${TARGET}; installing local config.toml..."
+    < config.toml ssh "${TARGET}" "sudo tee /etc/${SERVICE}/config.toml > /dev/null"
+  else
+    echo "  ⚠  No config on ${TARGET} and no local config.toml — the service will not start."
+  fi
+fi
 
 # ---------------------------------------------------------------------------
 # 7. Restart

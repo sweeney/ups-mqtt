@@ -41,11 +41,37 @@ go build ./...                                  # clean compile
 
 - `internal/metrics` coverage must remain **100%** — CI enforces this.
 - `FakePoller` and `FakePublisher` follow boiler-sensor conventions: exported
-  fields (`Variables`, `Err`, `CallCount`, `Closed`, `Messages`, `PublishError`),
-  plus a `Reset()` method and a `Find(topic)` helper on FakePublisher.
-- NUT variable → MQTT topic: dots become slashes, prefixed with `{prefix}/{ups_name}/`.
-- Computed metrics live under `{prefix}/{ups_name}/computed/`.
-- Combined state JSON on `{prefix}/{ups_name}/state`.
+  fields (`Variables`, `Err`, `CallCount`, `Closed`, `Messages`, `PublishError`,
+  plus `FailTopic`/`Failed` on FakePublisher for simulating a partially degraded
+  link), a `Reset()` method, and `Find(topic)` / `IndexOf(topic)` helpers on
+  FakePublisher — `IndexOf` is how publish ordering is asserted.
+- The middle topic segment is the **label** (`NUTConfig.EffectiveLabel()`), which
+  falls back to `ups_name`. Use it for topic routing; `ups_name` is only for the
+  NUT device lookup.
+- Only two things are published per poll: computed metrics under
+  `{prefix}/{label}/computed/`, and the combined state JSON on
+  `{prefix}/{label}/state`. Raw NUT variables are **not** published as
+  individual topics — they duplicated the state payload and nothing read them.
+  They travel inside `state.variables`.
+- `{prefix}/{label}/outage` is published while on battery and cleared with an
+  empty retained payload on recovery. It goes out **before** the telemetry on
+  every poll and is never suppressed by a telemetry failure; a power cut is the
+  one event this daemon exists to report.
+- `state` is published every poll regardless of change, so it doubles as a
+  heartbeat. It is also the LWT topic, so it carries two shapes: a full snapshot
+  while alive, `{"online":false,…}` when the broker declares the client dead.
+- `publisher.noisyVariableFamilies` denylists `driver.*` and
+  `output.L2.*`/`output.L3.*` from `state.variables`. Never filter
+  `battery.charge` or `input.voltage` — statehouse's ups adapter reads both
+  straight out of the payload.
+- Unknown values are **absent, not zero**: numeric `metrics.Metrics` fields are
+  `*float64`, and nil means the UPS cannot report it. A nil metric publishes no
+  `computed/` topic and is omitted from the JSON. Never substitute 0 — a
+  retained `battery_runtime_mins: 0` reads downstream as a flat battery.
+- Any comparison against a numeric NUT value must parse to float first. go.nut
+  decodes values into `interface{}` and renders them with `%v`, so upsd's
+  `"409.50"` reaches the code as `"409.5"`; string matching silently fails
+  against real hardware while passing fixtures copied from `upsc`.
 - `formatFloat` uses `strconv.FormatFloat(v, 'f', -1, 64)` — no trailing zeros.
 
 ## go.nut API notes
