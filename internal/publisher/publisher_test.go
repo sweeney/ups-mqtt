@@ -250,6 +250,31 @@ func TestFakePublisher_Find(t *testing.T) {
 	}
 }
 
+func TestFakePublisher_Retained(t *testing.T) {
+	fp := &publisher.FakePublisher{}
+	if _, ok := fp.Retained("t"); ok {
+		t.Fatal("nothing published: Retained should report false")
+	}
+
+	fp.Publish(publisher.Message{Topic: "t", Payload: "v1", Retained: true})    //nolint:errcheck
+	fp.Publish(publisher.Message{Topic: "t", Payload: "v2", Retained: true})    //nolint:errcheck
+	fp.Publish(publisher.Message{Topic: "t", Payload: "live"})                  //nolint:errcheck
+	fp.Publish(publisher.Message{Topic: "u", Payload: "other", Retained: true}) //nolint:errcheck
+	msg, ok := fp.Retained("t")
+	if !ok || msg.Payload != "v2" {
+		t.Errorf("Retained = %q, %v; want the last retained payload %q", msg.Payload, ok, "v2")
+	}
+
+	// An empty retained payload deletes the retained message.
+	fp.Publish(publisher.Message{Topic: "t", Payload: "", Retained: true}) //nolint:errcheck
+	if msg, ok := fp.Retained("t"); ok {
+		t.Errorf("empty retained payload should delete the retained message, got %q", msg.Payload)
+	}
+	if _, ok := fp.Retained("u"); !ok {
+		t.Error("deleting one topic must not affect another")
+	}
+}
+
 func TestFakePublisher_PublishError(t *testing.T) {
 	fp := &publisher.FakePublisher{PublishError: errors.New("broker down")}
 	m := metrics.Compute(map[string]string{})

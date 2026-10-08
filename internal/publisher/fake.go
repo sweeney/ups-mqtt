@@ -71,6 +71,25 @@ func (f *FakePublisher) IndexOf(topic string) int {
 	return -1
 }
 
+// Retained returns the message a broker would deliver to a new subscriber of
+// topic: the last retained message published to it, or false if there is
+// none.  As on a real broker, a retained message with an empty payload
+// deletes the retained message rather than replacing it.
+//
+// A single FakePublisher shared across several daemon lifetimes therefore
+// models the broker's memory, which outlives any one process.
+func (f *FakePublisher) Retained(topic string) (Message, bool) {
+	var last Message
+	found := false
+	for _, m := range f.Messages {
+		if m.Topic != topic || !m.Retained {
+			continue
+		}
+		last, found = m, m.Payload != ""
+	}
+	return last, found
+}
+
 // Reset clears all recorded state so the fake can be reused between sub-tests.
 func (f *FakePublisher) Reset() {
 	f.Messages = nil
