@@ -87,7 +87,7 @@ func TestRestartAfterOutage_ClearsStaleRetainedOutage(t *testing.T) {
 	broker := &publisher.FakePublisher{}
 
 	// ── Process 1: mains fail; one on-battery poll, then the host dies ──
-	first := newOutageStart()
+	first := newOutageState()
 	poller := &nut.FakePoller{Variables: onBattery}
 	if err := doPoll(poller, broker, rielloCfg, first); err != nil {
 		t.Fatalf("process 1 poll: %v", err)
@@ -114,7 +114,7 @@ func TestRestartAfterOutage_ClearsStaleRetainedOutage(t *testing.T) {
 	})
 
 	// ── Process 2: host boots on restored mains; a fresh daemon starts ──
-	second := newOutageStart()
+	second := newOutageState()
 	poller = &nut.FakePoller{Variables: online}
 	for i := range 3 {
 		if err := doPoll(poller, broker, rielloCfg, second); err != nil {
@@ -148,12 +148,12 @@ func TestRestartDuringOutage_KeepsOutageAsserted(t *testing.T) {
 	onBattery := withOverrides(online, map[string]string{"ups.status": "OB"})
 	broker := &publisher.FakePublisher{}
 
-	if err := doPoll(&nut.FakePoller{Variables: onBattery}, broker, rielloCfg, newOutageStart()); err != nil {
+	if err := doPoll(&nut.FakePoller{Variables: onBattery}, broker, rielloCfg, newOutageState()); err != nil {
 		t.Fatalf("process 1 poll: %v", err)
 	}
 
 	// Process 2 starts while still on battery.
-	if err := doPoll(&nut.FakePoller{Variables: onBattery}, broker, rielloCfg, newOutageStart()); err != nil {
+	if err := doPoll(&nut.FakePoller{Variables: onBattery}, broker, rielloCfg, newOutageState()); err != nil {
 		t.Fatalf("process 2 poll: %v", err)
 	}
 	for _, m := range broker.Messages {

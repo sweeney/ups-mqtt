@@ -56,13 +56,13 @@ func main() {
 
 	log.Printf("polling every %s", cfg.NUT.PollInterval)
 
-	var outageStart *time.Time
+	var outage outageState
 
 loop:
 	for {
 		select {
 		case <-ticker.C:
-			if err := doPoll(nutClient, pub, cfg, &outageStart); err != nil {
+			if err := doPoll(nutClient, pub, cfg, &outage); err != nil {
 				log.Printf("poll error: %v", err)
 			}
 		case <-ctx.Done():
@@ -74,7 +74,7 @@ loop:
 	ticker.Stop()
 
 	// Attempt a final poll so subscribers see fresh state on exit.
-	if err := doPoll(nutClient, pub, cfg, &outageStart); err != nil {
+	if err := doPoll(nutClient, pub, cfg, &outage); err != nil {
 		log.Printf("final poll failed (%v); skipping final state snapshot", err)
 	}
 
@@ -126,7 +126,7 @@ func connectNUT(ctx context.Context, cfg config.NUTConfig) (*nut.Client, error) 
 //
 // Both halves are attempted on every poll and their errors returned together,
 // so a failure in one is never hidden by the other.
-func doPoll(poller nut.Poller, pub publisher.Publisher, cfg *config.Config, outageStart **time.Time) error {
+func doPoll(poller nut.Poller, pub publisher.Publisher, cfg *config.Config, outage *outageState) error {
 	vars, err := poller.Poll()
 	if err != nil {
 		return fmt.Errorf("polling NUT: %w", err)
@@ -141,45 +141,63 @@ func doPoll(poller nut.Poller, pub publisher.Publisher, cfg *config.Config, outa
 		Retained: cfg.MQTT.Retained,
 	}
 
-	outageErr := publishOutageState(varMap, m, pubCfg, pub, outageStart)
+	outageErr := publishOutageState(varMap, m, pubCfg, pub, outage)
 	telemetryErr := publisher.PublishAll(varMap, m, pubCfg, pub)
 
 	return errors.Join(outageErr, telemetryErr)
 }
 
+// outageState is what this process knows about the retained outage topic.
+// Its zero value is the state at startup.
+type outageState struct {
+	// start is when the current on-battery condition began, or nil while on
+	// mains.  It is used to compute the outage duration.
+	start *time.Time
+
+	// clear is true once this process has confirmed the retained outage
+	// topic empty.  It starts false: a previous process may have died
+	// mid-outage — the host losing power is exactly how that happens — and
+	// left its outage message retained on the broker, so the first poll on
+	// mains clears it whether or not this process ever saw the outage.
+	clear bool
+}
+
 // publishOutageState publishes the outage message while the UPS is on battery,
 // and clears the retained topic once mains are restored.
 //
-// outageStart tracks when the current OB condition began; it is set on the
-// first on-battery poll and used to compute the outage duration.  It is
-// cleared only after the retained message has actually been cleared, so a
-// failed clear is retried on the next poll rather than leaving a stale
-// retained message asserting an outage that has already ended.
+// The outage is marked clear only after the retained message has actually
+// been cleared, so a failed clear is retried on the next poll rather than
+// leaving a stale retained message asserting an outage that has already
+// ended.
 func publishOutageState(
 	vars map[string]string,
 	m metrics.Metrics,
 	pubCfg publisher.PublishConfig,
 	pub publisher.Publisher,
-	outageStart **time.Time,
+	outage *outageState,
 ) error {
 	if m.OnBattery {
-		if *outageStart == nil {
+		outage.clear = false
+		if outage.start == nil {
 			now := time.Now()
-			*outageStart = &now
+			outage.start = &now
 			log.Printf("power outage detected — UPS on battery")
 		}
-		if err := publisher.PublishOutage(vars, m, **outageStart, pubCfg, pub); err != nil {
+		if err := publisher.PublishOutage(vars, m, *outage.start, pubCfg, pub); err != nil {
 			return fmt.Errorf("publishing outage: %w", err)
 		}
 		return nil
 	}
 
-	if *outageStart != nil {
+	if !outage.clear {
 		if err := publisher.ClearOutage(pubCfg, pub); err != nil {
 			return fmt.Errorf("clearing outage: %w", err)
 		}
-		*outageStart = nil
-		log.Printf("power restored — outage topic cleared")
+		if outage.start != nil {
+			log.Printf("power restored — outage topic cleared")
+		}
+		outage.start = nil
+		outage.clear = true
 	}
 	return nil
 }

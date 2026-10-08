@@ -125,7 +125,7 @@ When the UPS switches to battery (`ups.status` contains `OB`), a call-to-action 
 | `estimated_depletion_at` | `timestamp` + `battery_runtime_secs` — the key field for graceful-shutdown decisions |
 | `low_battery` | `true` when `ups.status` contains `LB` |
 
-The message is always published **retained** so a subscriber that connects mid-outage receives it immediately. When mains power is restored, an empty retained payload is published to the same topic, clearing the retained copy from the broker. Subscribers should treat an empty or absent payload as "no active outage".
+The message is always published **retained** so a subscriber that connects mid-outage receives it immediately. When mains power is restored, an empty retained payload is published to the same topic, clearing the retained copy from the broker. The same clear is sent on the first poll on mains after the daemon starts, so an outage left retained by a process that died mid-outage (for example because its host lost power too) does not outlive the outage. Subscribers should treat an empty or absent payload as "no active outage".
 
 All other messages are published with configurable QoS and retain flag. An LWT (last will and testament) of `{"online":false,"timestamp":"…"}` is registered at startup so MQTT subscribers see the device go offline immediately if the daemon dies unexpectedly.
 

@@ -55,7 +55,11 @@ go build ./...                                  # clean compile
 - `{prefix}/{label}/outage` is published while on battery and cleared with an
   empty retained payload on recovery. It goes out **before** the telemetry on
   every poll and is never suppressed by a telemetry failure; a power cut is the
-  one event this daemon exists to report.
+  one event this daemon exists to report. A fresh process does not know
+  whether the topic is clear (a predecessor may have died mid-outage, e.g. the
+  host lost power), so the first poll on mains clears it unconditionally.
+  `TestRestartAfterOutage_*` replays that against the Riello fixture with
+  `FakePublisher.Retained` standing in for the broker.
 - `state` is published every poll regardless of change, so it doubles as a
   heartbeat. It is also the LWT topic, so it carries two shapes: a full snapshot
   while alive, `{"online":false,…}` when the broker declares the client dead.

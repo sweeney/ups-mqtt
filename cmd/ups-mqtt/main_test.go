@@ -39,9 +39,8 @@ var onBatteryVars = []nut.Variable{
 	{Name: "battery.runtime", Value: "4090"},
 }
 
-func newOutageStart() **time.Time {
-	var p *time.Time
-	return &p
+func newOutageState() *outageState {
+	return &outageState{}
 }
 
 // topicFailPublisher succeeds for every topic except failTopic, where it
@@ -62,9 +61,9 @@ func (t *topicFailPublisher) Publish(msg publisher.Message) error {
 func TestDoPoll_Success(t *testing.T) {
 	fp := &nut.FakePoller{Variables: sampleVars}
 	fpub := &publisher.FakePublisher{}
-	outageStart := newOutageStart()
+	outage := newOutageState()
 
-	if err := doPoll(fp, fpub, testCfg, outageStart); err != nil {
+	if err := doPoll(fp, fpub, testCfg, outage); err != nil {
 		t.Fatalf("doPoll: %v", err)
 	}
 	if fp.CallCount != 1 {
@@ -85,9 +84,9 @@ func TestDoPoll_Success(t *testing.T) {
 func TestDoPoll_PollError(t *testing.T) {
 	fp := &nut.FakePoller{Err: errors.New("connection lost")}
 	fpub := &publisher.FakePublisher{}
-	outageStart := newOutageStart()
+	outage := newOutageState()
 
-	err := doPoll(fp, fpub, testCfg, outageStart)
+	err := doPoll(fp, fpub, testCfg, outage)
 	if err == nil {
 		t.Fatal("expected error when Poll fails")
 	}
@@ -99,9 +98,9 @@ func TestDoPoll_PollError(t *testing.T) {
 func TestDoPoll_PublishError(t *testing.T) {
 	fp := &nut.FakePoller{Variables: sampleVars}
 	fpub := &publisher.FakePublisher{PublishError: errors.New("broker down")}
-	outageStart := newOutageStart()
+	outage := newOutageState()
 
-	err := doPoll(fp, fpub, testCfg, outageStart)
+	err := doPoll(fp, fpub, testCfg, outage)
 	if err == nil {
 		t.Fatal("expected error when publish fails")
 	}
@@ -110,13 +109,13 @@ func TestDoPoll_PublishError(t *testing.T) {
 func TestDoPoll_OnBattery_SetsOutageStart(t *testing.T) {
 	fp := &nut.FakePoller{Variables: onBatteryVars}
 	fpub := &publisher.FakePublisher{}
-	outageStart := newOutageStart()
+	outage := newOutageState()
 
-	if err := doPoll(fp, fpub, testCfg, outageStart); err != nil {
+	if err := doPoll(fp, fpub, testCfg, outage); err != nil {
 		t.Fatalf("doPoll: %v", err)
 	}
-	if *outageStart == nil {
-		t.Error("outageStart should be set after on-battery poll")
+	if outage.start == nil {
+		t.Error("outage should be set after on-battery poll")
 	}
 	if _, ok := fpub.Find("ups/cyberpower/outage"); !ok {
 		t.Error("outage topic not published")
@@ -126,21 +125,21 @@ func TestDoPoll_OnBattery_SetsOutageStart(t *testing.T) {
 func TestDoPoll_OutageStart_NotResetOnSubsequentOnBatteryPoll(t *testing.T) {
 	fp := &nut.FakePoller{Variables: onBatteryVars}
 	fpub := &publisher.FakePublisher{}
-	outageStart := newOutageStart()
+	outage := newOutageState()
 
-	// First poll — sets outageStart
-	if err := doPoll(fp, fpub, testCfg, outageStart); err != nil {
+	// First poll — sets outage
+	if err := doPoll(fp, fpub, testCfg, outage); err != nil {
 		t.Fatalf("first poll: %v", err)
 	}
-	first := *outageStart
+	first := outage.start
 
-	// Second poll — outageStart must remain the same timestamp
+	// Second poll — outage must remain the same timestamp
 	fpub.Reset()
-	if err := doPoll(fp, fpub, testCfg, outageStart); err != nil {
+	if err := doPoll(fp, fpub, testCfg, outage); err != nil {
 		t.Fatalf("second poll: %v", err)
 	}
-	if *outageStart != first {
-		t.Error("outageStart should not change between consecutive on-battery polls")
+	if outage.start != first {
+		t.Error("outage should not change between consecutive on-battery polls")
 	}
 }
 
@@ -150,9 +149,9 @@ func TestDoPoll_OutagePublishError_Propagated(t *testing.T) {
 		FakePublisher: &publisher.FakePublisher{},
 		failTopic:     "ups/cyberpower/outage",
 	}
-	outageStart := newOutageStart()
+	outage := newOutageState()
 
-	err := doPoll(fp, fpub, testCfg, outageStart)
+	err := doPoll(fp, fpub, testCfg, outage)
 	if err == nil {
 		t.Fatal("expected error when outage publish fails")
 	}
@@ -161,8 +160,8 @@ func TestDoPoll_OutagePublishError_Propagated(t *testing.T) {
 func TestDoPoll_OutageClearError_Propagated(t *testing.T) {
 	// Step 1: drive into on-battery state with a normal publisher.
 	fp := &nut.FakePoller{Sequence: [][]nut.Variable{onBatteryVars, sampleVars}}
-	outageStart := newOutageStart()
-	if err := doPoll(fp, &publisher.FakePublisher{}, testCfg, outageStart); err != nil {
+	outage := newOutageState()
+	if err := doPoll(fp, &publisher.FakePublisher{}, testCfg, outage); err != nil {
 		t.Fatalf("on-battery poll: %v", err)
 	}
 
@@ -171,7 +170,7 @@ func TestDoPoll_OutageClearError_Propagated(t *testing.T) {
 		FakePublisher: &publisher.FakePublisher{},
 		failTopic:     "ups/cyberpower/outage",
 	}
-	err := doPoll(fp, fpub, testCfg, outageStart)
+	err := doPoll(fp, fpub, testCfg, outage)
 	if err == nil {
 		t.Fatal("expected error when outage clear fails")
 	}
@@ -180,9 +179,9 @@ func TestDoPoll_OutageClearError_Propagated(t *testing.T) {
 func TestDoPoll_Label_UsedInTopics(t *testing.T) {
 	fp := &nut.FakePoller{Variables: sampleVars}
 	fpub := &publisher.FakePublisher{}
-	outageStart := newOutageStart()
+	outage := newOutageState()
 
-	if err := doPoll(fp, fpub, labelledCfg, outageStart); err != nil {
+	if err := doPoll(fp, fpub, labelledCfg, outage); err != nil {
 		t.Fatalf("doPoll: %v", err)
 	}
 	if _, ok := fpub.Find("ups/office-ups/state"); !ok {
@@ -196,9 +195,9 @@ func TestDoPoll_Label_UsedInTopics(t *testing.T) {
 func TestDoPoll_Label_UsedInOutageTopic(t *testing.T) {
 	fp := &nut.FakePoller{Variables: onBatteryVars}
 	fpub := &publisher.FakePublisher{}
-	outageStart := newOutageStart()
+	outage := newOutageState()
 
-	if err := doPoll(fp, fpub, labelledCfg, outageStart); err != nil {
+	if err := doPoll(fp, fpub, labelledCfg, outage); err != nil {
 		t.Fatalf("doPoll: %v", err)
 	}
 	if _, ok := fpub.Find("ups/office-ups/outage"); !ok {
@@ -214,23 +213,23 @@ func TestDoPoll_PowerRestored_ClearsOutage(t *testing.T) {
 		Sequence: [][]nut.Variable{onBatteryVars, sampleVars},
 	}
 	fpub := &publisher.FakePublisher{}
-	outageStart := newOutageStart()
+	outage := newOutageState()
 
 	// Poll 1: on battery
-	if err := doPoll(fp, fpub, testCfg, outageStart); err != nil {
+	if err := doPoll(fp, fpub, testCfg, outage); err != nil {
 		t.Fatalf("poll 1: %v", err)
 	}
-	if *outageStart == nil {
-		t.Fatal("outageStart should be set after on-battery poll")
+	if outage.start == nil {
+		t.Fatal("outage should be set after on-battery poll")
 	}
 
 	// Poll 2: power restored
 	fpub.Reset()
-	if err := doPoll(fp, fpub, testCfg, outageStart); err != nil {
+	if err := doPoll(fp, fpub, testCfg, outage); err != nil {
 		t.Fatalf("poll 2: %v", err)
 	}
-	if *outageStart != nil {
-		t.Error("outageStart should be nil after power restored")
+	if outage.start != nil {
+		t.Error("outage should be nil after power restored")
 	}
 
 	// Clear message: empty payload, retained, on outage topic
@@ -263,7 +262,7 @@ func TestDoPoll_OutagePublishedBeforeTelemetry(t *testing.T) {
 	fp := &publisher.FakePublisher{}
 	poller := &nut.FakePoller{Variables: onBatteryVars}
 
-	if err := doPoll(poller, fp, testCfg, newOutageStart()); err != nil {
+	if err := doPoll(poller, fp, testCfg, newOutageState()); err != nil {
 		t.Fatalf("doPoll: %v", err)
 	}
 
@@ -287,7 +286,7 @@ func TestDoPoll_OutageSurvivesTotalTelemetryFailure(t *testing.T) {
 	fp := &publisher.FakePublisher{FailTopic: failAllExceptOutage}
 	poller := &nut.FakePoller{Variables: onBatteryVars}
 
-	err := doPoll(poller, fp, testCfg, newOutageStart())
+	err := doPoll(poller, fp, testCfg, newOutageState())
 	if err == nil {
 		t.Fatal("expected the telemetry failures to be reported")
 	}
@@ -311,7 +310,8 @@ func TestDoPoll_OneFailedTopicDoesNotDropTheRest(t *testing.T) {
 	fp := &publisher.FakePublisher{FailTopic: func(tp string) bool { return tp == failing }}
 	poller := &nut.FakePoller{Variables: sampleVars}
 
-	err := doPoll(poller, fp, testCfg, newOutageStart())
+	// Outage topic already confirmed clear, so only telemetry is published.
+	err := doPoll(poller, fp, testCfg, &outageState{clear: true})
 	if err == nil {
 		t.Fatal("expected the failed topic to be reported")
 	}
@@ -334,7 +334,7 @@ func TestDoPoll_TelemetryFailureStillReported(t *testing.T) {
 	fp := &publisher.FakePublisher{FailTopic: failAllExceptOutage}
 	poller := &nut.FakePoller{Variables: onBatteryVars}
 
-	err := doPoll(poller, fp, testCfg, newOutageStart())
+	err := doPoll(poller, fp, testCfg, newOutageState())
 	if err == nil {
 		t.Fatal("telemetry failures must not be silently swallowed")
 	}
@@ -346,7 +346,7 @@ func TestDoPoll_BothFailures_BothReported(t *testing.T) {
 	fp := &publisher.FakePublisher{FailTopic: func(string) bool { return true }}
 	poller := &nut.FakePoller{Variables: onBatteryVars}
 
-	err := doPoll(poller, fp, testCfg, newOutageStart())
+	err := doPoll(poller, fp, testCfg, newOutageState())
 	if err == nil {
 		t.Fatal("expected an error when everything fails")
 	}
@@ -363,7 +363,7 @@ func TestDoPoll_OutageFailure_TelemetryStillPublished(t *testing.T) {
 	fp := &publisher.FakePublisher{FailTopic: func(tp string) bool { return tp == outageTopic }}
 	poller := &nut.FakePoller{Variables: onBatteryVars}
 
-	if err := doPoll(poller, fp, testCfg, newOutageStart()); err == nil {
+	if err := doPoll(poller, fp, testCfg, newOutageState()); err == nil {
 		t.Fatal("expected the outage failure to be reported")
 	}
 	if _, ok := fp.Find(stateTopic); !ok {
@@ -373,30 +373,29 @@ func TestDoPoll_OutageFailure_TelemetryStillPublished(t *testing.T) {
 
 // ── Outage clearing must be retried until it actually succeeds ────────────
 
-// A failed clear previously still zeroed outageStart, so the retained outage
+// A failed clear previously still zeroed outage, so the retained outage
 // message was left asserting an outage that had already ended.
 func TestDoPoll_FailedClearIsRetried(t *testing.T) {
 	start := time.Now().Add(-time.Minute)
-	os := &start
-	outageStart := &os
+	outage := &outageState{start: &start}
 
 	fp := &publisher.FakePublisher{FailTopic: func(tp string) bool { return tp == outageTopic }}
 	poller := &nut.FakePoller{Variables: sampleVars} // back on mains
 
-	if err := doPoll(poller, fp, testCfg, outageStart); err == nil {
+	if err := doPoll(poller, fp, testCfg, outage); err == nil {
 		t.Fatal("expected the clear failure to be reported")
 	}
-	if *outageStart == nil {
-		t.Fatal("outageStart was cleared despite the clear failing — the retained outage message is now orphaned")
+	if outage.start == nil {
+		t.Fatal("outage was cleared despite the clear failing — the retained outage message is now orphaned")
 	}
 
 	// Second poll with the link healthy: the clear must be retried.
 	fp2 := &publisher.FakePublisher{}
-	if err := doPoll(poller, fp2, testCfg, outageStart); err != nil {
+	if err := doPoll(poller, fp2, testCfg, outage); err != nil {
 		t.Fatalf("retry poll: %v", err)
 	}
-	if *outageStart != nil {
-		t.Error("outageStart should be nil after a successful clear")
+	if outage.start != nil {
+		t.Error("outage should be nil after a successful clear")
 	}
 	msg, ok := fp2.Find(outageTopic)
 	if !ok {
@@ -409,29 +408,80 @@ func TestDoPoll_FailedClearIsRetried(t *testing.T) {
 
 func TestDoPoll_SuccessfulClear_ClearsOutageStart(t *testing.T) {
 	start := time.Now().Add(-time.Minute)
-	os := &start
-	outageStart := &os
+	outage := &outageState{start: &start}
 
 	fp := &publisher.FakePublisher{}
 	poller := &nut.FakePoller{Variables: sampleVars}
 
-	if err := doPoll(poller, fp, testCfg, outageStart); err != nil {
+	if err := doPoll(poller, fp, testCfg, outage); err != nil {
 		t.Fatalf("doPoll: %v", err)
 	}
-	if *outageStart != nil {
-		t.Error("outageStart should be nil after a successful clear")
+	if outage.start != nil {
+		t.Error("outage should be nil after a successful clear")
 	}
 }
 
-// No outage, no clear: a healthy poll must not touch the outage topic at all.
-func TestDoPoll_NoOutage_NoOutageTopic(t *testing.T) {
+// On mains, the outage topic is cleared once — on the first poll, in case a
+// previous process left an outage retained — and then left alone.
+func TestDoPoll_OnMains_ClearsOutageOnceAtStartup(t *testing.T) {
 	fp := &publisher.FakePublisher{}
 	poller := &nut.FakePoller{Variables: sampleVars}
+	outage := newOutageState()
 
-	if err := doPoll(poller, fp, testCfg, newOutageStart()); err != nil {
-		t.Fatalf("doPoll: %v", err)
+	if err := doPoll(poller, fp, testCfg, outage); err != nil {
+		t.Fatalf("first poll: %v", err)
+	}
+	msg, ok := fp.Find(outageTopic)
+	if !ok {
+		t.Fatal("first poll on mains should clear the outage topic")
+	}
+	if msg.Payload != "" || !msg.Retained {
+		t.Errorf("clear = {Payload: %q, Retained: %v}, want an empty retained payload", msg.Payload, msg.Retained)
+	}
+
+	fp.Reset()
+	for i := range 3 {
+		if err := doPoll(poller, fp, testCfg, outage); err != nil {
+			t.Fatalf("poll %d: %v", i+2, err)
+		}
 	}
 	if _, ok := fp.Find(outageTopic); ok {
-		t.Error("outage topic should not be published when the UPS is on mains")
+		t.Error("outage topic should not be touched again once it is known clear")
+	}
+}
+
+// A startup clear that fails must be retried, like any other clear.
+func TestDoPoll_FailedStartupClearIsRetried(t *testing.T) {
+	poller := &nut.FakePoller{Variables: sampleVars}
+	outage := newOutageState()
+
+	fp := &publisher.FakePublisher{FailTopic: func(tp string) bool { return tp == outageTopic }}
+	if err := doPoll(poller, fp, testCfg, outage); err == nil {
+		t.Fatal("expected the clear failure to be reported")
+	}
+
+	fp2 := &publisher.FakePublisher{}
+	if err := doPoll(poller, fp2, testCfg, outage); err != nil {
+		t.Fatalf("retry poll: %v", err)
+	}
+	if msg, ok := fp2.Find(outageTopic); !ok || msg.Payload != "" {
+		t.Error("startup clear was not retried on the following poll")
+	}
+}
+
+// An outage that ends must be cleared even if the topic was already
+// confirmed clear before it began.
+func TestDoPoll_OutageAfterStartupClear_IsClearedAgain(t *testing.T) {
+	poller := &nut.FakePoller{Sequence: [][]nut.Variable{sampleVars, onBatteryVars, sampleVars}}
+	fp := &publisher.FakePublisher{}
+	outage := newOutageState()
+
+	for i := range 3 {
+		if err := doPoll(poller, fp, testCfg, outage); err != nil {
+			t.Fatalf("poll %d: %v", i+1, err)
+		}
+	}
+	if msg, ok := fp.Retained(outageTopic); ok {
+		t.Errorf("outage still retained after mains restored: %s", msg.Payload)
 	}
 }
