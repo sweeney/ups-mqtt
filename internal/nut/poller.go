@@ -56,6 +56,64 @@ func isSentinel(name, value string) bool {
 	return false
 }
 
+// unimplementedRule names variables a driver reports as a constant zero because
+// the device firmware does not measure them.  A zero is a plausible reading,
+// so unlike a sentinel it cannot be recognised by value: the rule is keyed on
+// the driver, and optionally the model, that is known to fake it.
+type unimplementedRule struct {
+	driver string
+	models []string // empty matches every device on the driver
+	vars   []string
+}
+
+// unimplementedVariables are dropped for matching devices, so they publish no
+// topic rather than a zero that reads downstream as "nothing plugged in".
+//
+// riello_usb fills the GPSER "RE" fields (per-phase output current, W and VA)
+// with zeros on every device on record — the iPlug, the iDialog 800 and a
+// VSD3000 carrying ~270 W — so those go for the whole driver.
+//
+// Load percent is narrower.  The VSD3000 reports a real ups.load, but the small
+// USV5 (iPlug) and UNV1 (iDialog) firmwares send a literal 0 even with a whole
+// network on the output, on mains and on battery alike.  Two units in NUT's
+// device library show the same, annotated "unimplemented?".
+var unimplementedVariables = []unimplementedRule{
+	{
+		driver: "riello_usb",
+		vars: []string{
+			"output.L1.current", "output.L1.power", "output.L1.realpower",
+			"output.L2.current", "output.L2.power", "output.L2.realpower",
+			"output.L3.current", "output.L3.power", "output.L3.realpower",
+		},
+	},
+	{
+		driver: "riello_usb",
+		models: []string{"USV5", "UNV1"},
+		vars:   []string{"ups.load", "output.power.percent"},
+	},
+}
+
+// matches reports whether the rule applies to the device described by m,
+// whose values must already be trimmed.
+func (r unimplementedRule) matches(m map[string]string) bool {
+	if m["driver.name"] != r.driver {
+		return false
+	}
+	if len(r.models) == 0 {
+		return true
+	}
+	model := m["device.model"]
+	if model == "" {
+		model = m["ups.model"]
+	}
+	for _, want := range r.models {
+		if model == want {
+			return true
+		}
+	}
+	return false
+}
+
 // VarsToMap converts a []Variable slice into a name→value map for downstream
 // use (metrics computation, topic publishing, etc.).
 //
@@ -69,6 +127,8 @@ func isSentinel(name, value string) bool {
 //     is absent rather than present-but-meaningless.  An absent key publishes
 //     no topic at all, which is the honest representation of "this device
 //     cannot tell us".
+//   - Variables a known driver/model fakes as a constant zero are dropped for
+//     the same reason; see unimplementedVariables.
 func VarsToMap(vars []Variable) map[string]string {
 	m := make(map[string]string, len(vars))
 	for _, v := range vars {
@@ -77,6 +137,14 @@ func VarsToMap(vars []Variable) map[string]string {
 			continue
 		}
 		m[v.Name] = value
+	}
+	for _, rule := range unimplementedVariables {
+		if !rule.matches(m) {
+			continue
+		}
+		for _, name := range rule.vars {
+			delete(m, name)
+		}
 	}
 	return m
 }

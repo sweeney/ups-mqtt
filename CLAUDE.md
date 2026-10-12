@@ -71,6 +71,10 @@ go build ./...                                  # clean compile
   `*float64`, and nil means the UPS cannot report it. A nil metric publishes no
   `computed/` topic and is omitted from the JSON. Never substitute 0 — a
   retained `battery_runtime_mins: 0` reads downstream as a flat battery.
+  The same goes for a device that sends a constant 0 for something it does not
+  measure: `nut.unimplementedVariables` drops those, keyed on `driver.name` and
+  optionally the model, because a zero cannot be told from a reading by value.
+  It currently covers the Riello iPlug/iDialog's load figures.
 - Any comparison against a numeric NUT value must parse to float first. The
   textual form is not stable across drivers, NUT versions and client
   implementations; string matching silently failed against real hardware once

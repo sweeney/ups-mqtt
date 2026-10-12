@@ -133,3 +133,121 @@ func TestVarsToMap_SentinelIgnoresNonNumeric(t *testing.T) {
 		t.Errorf("input.bypass.voltage = %q, want \"N/A\" kept", m["input.bypass.voltage"])
 	}
 }
+
+// ── Variables a driver fakes as a constant zero ───────────────────────────
+
+var rielloLoadVars = []string{
+	"ups.load", "output.power.percent",
+	"output.L1.current", "output.L1.power", "output.L1.realpower",
+	"output.L2.current", "output.L2.power", "output.L2.realpower",
+	"output.L3.current", "output.L3.power", "output.L3.realpower",
+}
+
+// End to end through the real protocol client, against the captured iPlug
+// reply: every load figure goes, everything the device does measure stays.
+func TestVarsToMap_RielloIPlugFixture_DropsUnimplementedLoad(t *testing.T) {
+	s := newFakeUPSD(t)
+	s.UPSName = upsNameFromFixture(t, "listvar_riello.txt")
+	s.Lines = varLinesFromFixture(t, "listvar_riello.txt")
+	s.start(t)
+
+	vars, err := s.client(t, "", "").Poll()
+	if err != nil {
+		t.Fatalf("Poll: %v", err)
+	}
+	raw := make(map[string]string, len(vars))
+	for _, v := range vars {
+		raw[v.Name] = v.Value
+	}
+	for _, name := range rielloLoadVars {
+		if raw[name] != "0" {
+			t.Fatalf("fixture premise: %s = %q, want the device's constant \"0\"", name, raw[name])
+		}
+	}
+
+	m := VarsToMap(vars)
+	for _, name := range rielloLoadVars {
+		if v, ok := m[name]; ok {
+			t.Errorf("%s = %q survived; the iPlug does not measure it", name, v)
+		}
+	}
+	for name, want := range map[string]string{
+		"input.voltage":         "251",
+		"output.voltage":        "245",
+		"battery.voltage":       "13.5",
+		"ups.realpower.nominal": "480",
+		"ups.status":            "OL",
+	} {
+		if got := m[name]; got != want {
+			t.Errorf("%s = %q, want %q (real readings must be untouched)", name, got, want)
+		}
+	}
+}
+
+// A larger riello_usb unit (the VSD3000 in NUT's device library) reports a real
+// ups.load, so load percent is dropped by model, not for the whole driver.
+func TestVarsToMap_RielloOtherModel_KeepsLoadPercent(t *testing.T) {
+	m := VarsToMap([]Variable{
+		{Name: "driver.name", Value: "riello_usb"},
+		{Name: "device.model", Value: "ULC3           "},
+		{Name: "ups.load", Value: "10"},
+		{Name: "output.power.percent", Value: "10"},
+		{Name: "output.L1.realpower", Value: "0"},
+	})
+	if m["ups.load"] != "10" || m["output.power.percent"] != "10" {
+		t.Errorf("load percent dropped for a model that implements it: %v", m)
+	}
+	if _, ok := m["output.L1.realpower"]; ok {
+		t.Error("RE fields are unimplemented across riello_usb and should be dropped")
+	}
+}
+
+// The iDialog 800 (UNV1) shares the iPlug firmware's behaviour.
+func TestVarsToMap_RielloIDialog_DropsLoadPercent(t *testing.T) {
+	m := VarsToMap([]Variable{
+		{Name: "driver.name", Value: "riello_usb"},
+		{Name: "device.model", Value: "UNV1"},
+		{Name: "ups.load", Value: "0"},
+	})
+	if _, ok := m["ups.load"]; ok {
+		t.Error("ups.load should be dropped for UNV1")
+	}
+}
+
+// device.model is preferred, but ups.model identifies the device when a
+// driver does not set device.model.
+func TestVarsToMap_UnimplementedFallsBackToUPSModel(t *testing.T) {
+	m := VarsToMap([]Variable{
+		{Name: "driver.name", Value: "riello_usb"},
+		{Name: "ups.model", Value: "USV5           "},
+		{Name: "ups.load", Value: "0"},
+	})
+	if _, ok := m["ups.load"]; ok {
+		t.Error("ups.load should be dropped when only ups.model identifies a USV5")
+	}
+}
+
+// Another driver's zero is a genuine reading — the CyberPower reports 0 % at
+// loads below its 9 W step — and must be left alone.
+func TestVarsToMap_OtherDriver_KeepsZeroLoad(t *testing.T) {
+	m := VarsToMap([]Variable{
+		{Name: "driver.name", Value: "usbhid-ups"},
+		{Name: "device.model", Value: "USV5"},
+		{Name: "ups.load", Value: "0"},
+		{Name: "output.L1.realpower", Value: "0"},
+	})
+	if m["ups.load"] != "0" || m["output.L1.realpower"] != "0" {
+		t.Errorf("zeros from another driver were dropped: %v", m)
+	}
+}
+
+// Without driver.name nothing can be attributed, so nothing is dropped.
+func TestVarsToMap_NoDriverName_DropsNothing(t *testing.T) {
+	m := VarsToMap([]Variable{
+		{Name: "device.model", Value: "USV5"},
+		{Name: "ups.load", Value: "0"},
+	})
+	if m["ups.load"] != "0" {
+		t.Error("ups.load dropped with no driver.name to attribute it to")
+	}
+}

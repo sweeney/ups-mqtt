@@ -52,6 +52,14 @@ Status tokens are decoded: `OL`→Online, `OB`→On Battery, `LB`→Low Battery,
 > the wall) while the UPS reported 0% — the load is simply below this oversized unit's
 > measurement floor. For true low-wattage figures, use an inline energy monitor (e.g. a
 > Shelly PM) on the UPS output. A spot-check script lives at `scripts/soc-power-probe.sh`.
+>
+> **Riello iPlug / iDialog: no load at all.** These small Riellos (`riello_usb`, model
+> `USV5` or `UNV1`) send a literal 0 for load percent, and every `riello_usb` device on
+> record sends 0 for per-phase output current, watts and VA, whatever is plugged in —
+> the firmware does not measure them. Rather than publish a zero that reads as "nothing
+> plugged in", `ups-mqtt` drops those variables, so `load_watts` is simply absent for
+> these devices. Larger `riello_usb` units that do report load percent keep it. For real
+> figures, meter the UPS output externally.
 
 ### 2. JSON state topic
 

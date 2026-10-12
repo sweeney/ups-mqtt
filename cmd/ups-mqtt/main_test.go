@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -483,5 +484,51 @@ func TestDoPoll_OutageAfterStartupClear_IsClearedAgain(t *testing.T) {
 	}
 	if msg, ok := fp.Retained(outageTopic); ok {
 		t.Errorf("outage still retained after mains restored: %s", msg.Payload)
+	}
+}
+
+// ── The iPlug's firmware does not measure load ─────────────────────────────
+
+// Its constant zero load must publish nothing, rather than a load_watts of 0
+// that reads downstream as nothing plugged in.  Driven from the captured wire
+// fixture, through doPoll, to what reaches the broker.
+func TestDoPoll_RielloIPlug_PublishesNoLoad(t *testing.T) {
+	fp := &publisher.FakePublisher{}
+	poller := &nut.FakePoller{Variables: loadFixture(t, "listvar_riello.txt")}
+
+	if err := doPoll(poller, fp, rielloCfg, newOutageState()); err != nil {
+		t.Fatalf("doPoll: %v", err)
+	}
+	if msg, ok := fp.Find("ups/riello-ups/computed/load_watts"); ok {
+		t.Errorf("computed/load_watts published as %q; the iPlug cannot measure load", msg.Payload)
+	}
+
+	state, ok := fp.Find(rielloStateTopic)
+	if !ok {
+		t.Fatal("state not published")
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(state.Payload), &raw); err != nil {
+		t.Fatalf("decoding state: %v", err)
+	}
+	var vars map[string]string
+	var computed map[string]any
+	if err := json.Unmarshal(raw["variables"], &vars); err != nil {
+		t.Fatalf("decoding variables: %v", err)
+	}
+	if err := json.Unmarshal(raw["computed"], &computed); err != nil {
+		t.Fatalf("decoding computed: %v", err)
+	}
+	for _, name := range []string{"ups.load", "output.power.percent", "output.L1.realpower", "output.L1.power", "output.L1.current"} {
+		if v, ok := vars[name]; ok {
+			t.Errorf("state.variables[%q] = %q; should be absent", name, v)
+		}
+	}
+	if v, ok := computed["load_watts"]; ok {
+		t.Errorf("state.computed.load_watts = %v; should be absent", v)
+	}
+	// What the device does measure still gets through.
+	if vars["input.voltage"] != "251" || computed["status_display"] != "Online" {
+		t.Errorf("real readings lost: input.voltage=%q status_display=%v", vars["input.voltage"], computed["status_display"])
 	}
 }
