@@ -11,6 +11,24 @@ builds or ships anything.
 | [`restart-nut-driver.sh`](restart-nut-driver.sh) | Clean restart of the `usbhid-ups` driver alone. | yes |
 | [`recover-ups-usb.sh`](recover-ups-usb.sh) | Forces a sleep/wake cycle to re-enumerate USB. Largely superseded — see below. | yes |
 | [`soc-power-probe.sh`](soc-power-probe.sh) | Spot-check real power draw at the SoC, for when `ups.load` reads 0 %. | no |
+| [`persist-journal.sh`](persist-journal.sh) | Keep the systemd journal across power loss on Raspberry Pi OS. | yes (`--check`: no) |
+
+## Keep the journal across a power cut
+
+Raspberry Pi OS keeps the systemd journal in RAM
+(`/usr/lib/systemd/journald.conf.d/40-rpi-volatile-storage.conf`), and ships no
+syslog. On a host whose job is reporting power cuts, a power cut then erases
+its own evidence.
+
+```bash
+./scripts/persist-journal.sh --check   # report only
+sudo ./scripts/persist-journal.sh      # apply, with a confirmation prompt
+```
+
+It adds a drop-in that overrides the RPi default with `Storage=persistent`,
+`SyncIntervalSec=10s` (the 5 min default would lose the run-up to a sudden
+power loss) and `SystemMaxUse=64M`. Re-running it is a no-op. Tests:
+`bash scripts/test/persist-journal_test.sh`.
 
 ## Start with ups-doctor.sh
 

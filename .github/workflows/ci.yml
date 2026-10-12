@@ -32,6 +32,10 @@ jobs:
           echo "Exit code: ${PIPESTATUS[0]}"
           test "${PIPESTATUS[0]}" -eq 0
 
+      - name: Script tests
+        run: |
+          for t in scripts/test/*_test.sh; do bash "$t"; done
+
       - name: Enforce 100% coverage on internal/metrics
         run: |
           go test -coverprofile=metrics-coverage.out ./internal/metrics/
