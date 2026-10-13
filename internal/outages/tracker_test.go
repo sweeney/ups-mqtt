@@ -628,3 +628,75 @@ func TestTracker_UnpublishedSummarySupersededByNextOutage(t *testing.T) {
 	tr.Published(s)
 	assertNotDue(t, tr)
 }
+
+// The outage ends while the clock is unsynced; the process restarts within
+// the same boot before the summary is published; then NTP steps the clock.
+// Both ends are re-anchored, so the summary waits for sync and comes out
+// right — not a 0 s outage from a start on the new clock and an end on the
+// old one.
+func TestTracker_ProcessRestartAfterEnd_UnsyncedThenStep(t *testing.T) {
+	store := &MemoryStore{}
+	// The clock reads 30 days slow and unsynced; host booted 1h ago.
+	boot := -time.Hour
+	prevClk := &FakeClock{Wall: t0.Add(-30 * 24 * time.Hour), Boot: &boot, SyncKnown: true, BootIDValue: "boot-a"}
+	prev := NewTracker(prevClk, store)
+	prev.Restore(false)
+	prev.OnBattery(false, nil)
+	prevClk.Advance(20 * time.Minute)
+	prev.OnMains() // ...waits for sync; then a deploy restarts the process
+
+	clk := bootClock("boot-a", prevClk.Wall.Add(time.Minute), time.Hour+21*time.Minute)
+	clk.IsSynced = false
+	tr := NewTracker(clk, store)
+	tr.Restore(false)
+	assertNotDue(t, tr) // still repairable, so it waits
+
+	clk.Step(30 * 24 * time.Hour) // NTP
+	s := mustDue(t, tr)
+	if !s.StartedAt.Equal(t0) || s.Duration() != 20*time.Minute {
+		t.Errorf("summary %s lasting %s, want %s lasting 20m", s.StartedAt, s.Duration(), t0)
+	}
+	assertSynced(t, s.ClockSynced, true)
+	if !s.Final {
+		t.Error("summary not final once synced")
+	}
+}
+
+// An ended record written before end_since_boot existed: neither end is
+// re-anchored, so start and end stay consistent with each other.
+func TestTracker_EndedRecordWithoutEndAnchor_KeepsStoredTimes(t *testing.T) {
+	since := 10 * time.Minute
+	end := t0.Add(20 * time.Minute)
+	store := &MemoryStore{Rec: &Record{StartedAt: t0, BootID: "boot-a", StartSinceBoot: &since, EndedAt: &end}}
+
+	clk := bootClock("boot-a", t0.Add(time.Hour), 2*time.Hour)
+	tr := NewTracker(clk, store)
+	tr.Restore(false)
+	clk.Step(24 * time.Hour)
+	s := mustDue(t, tr)
+	if !s.StartedAt.Equal(t0) || s.Duration() != 20*time.Minute {
+		t.Errorf("summary %s lasting %s, want the stored %s lasting 20m", s.StartedAt, s.Duration(), t0)
+	}
+}
+
+// A start carried over from an earlier boot has no anchor in this one, so
+// the ended record must not keep the old boot's start_since_boot under the
+// new boot ID.
+func TestTracker_EndAfterResumeAcrossReboot_DropsStaleStartAnchor(t *testing.T) {
+	store := &MemoryStore{}
+	prev := NewTracker(bootClock("boot-a", t0, time.Hour), store)
+	prev.Restore(false)
+	prev.OnBattery(false, nil) // no LB: resumed across the reboot
+
+	clk := bootClock("boot-b", t0.Add(10*time.Minute), time.Minute)
+	tr := NewTracker(clk, store)
+	tr.Restore(true)
+	tr.OnBattery(false, nil)
+	clk.Advance(time.Minute)
+	tr.OnMains()
+
+	if store.Rec.BootID != "boot-b" || store.Rec.StartSinceBoot != nil || store.Rec.EndSinceBoot == nil {
+		t.Errorf("ended record = boot %q, start anchor %v, end anchor %v; want boot-b, no start anchor, an end anchor",
+			store.Rec.BootID, store.Rec.StartSinceBoot, store.Rec.EndSinceBoot)
+	}
+}

@@ -16,6 +16,10 @@ type SystemClock struct {
 }
 
 // NewSystemClock returns a SystemClock whose Mono starts now.
+//
+// Mono is Go's monotonic clock (CLOCK_MONOTONIC) while the boot offset comes
+// from /proc/uptime (CLOCK_BOOTTIME).  They differ only by time spent
+// suspended, which a server — and a Raspberry Pi — never is.
 func NewSystemClock() *SystemClock {
 	c := &SystemClock{start: time.Now(), bootID: bootID()}
 	if up, ok := uptime(); ok {

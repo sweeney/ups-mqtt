@@ -51,8 +51,9 @@ type Record struct {
 	StartClockSynced  *bool     `json:"start_clock_synced,omitempty"`
 	LowBatteryReached bool      `json:"low_battery_reached"`
 
-	// BootID is the host boot the outage started in.  A different one on
-	// restore means the host rebooted since.
+	// BootID is the host boot this record was written in, which the
+	// *SinceBoot fields are relative to.  A different one on restore means
+	// the host rebooted since.
 	BootID string `json:"boot_id,omitempty"`
 	// StartSinceBoot is the start as time since boot.  Within the same boot
 	// it re-anchors the start on the monotonic clock, so a process-only
@@ -63,7 +64,9 @@ type Record struct {
 	// published.
 	EndedAt        *time.Time `json:"ended_at,omitempty"`
 	EndClockSynced *bool      `json:"end_clock_synced,omitempty"`
-	SpansRestart   bool       `json:"spans_restart,omitempty"`
+	// EndSinceBoot does for the end what StartSinceBoot does for the start.
+	EndSinceBoot *time.Duration `json:"end_since_boot_ns,omitempty"`
+	SpansRestart bool           `json:"spans_restart,omitempty"`
 }
 
 // Open describes the outage in progress, for the outage message.
@@ -183,20 +186,30 @@ func (t *Tracker) Restore(onBattery bool) {
 
 	ep := episode{rec: *rec, restored: true}
 	rebooted := t.rebootedSince(rec)
-	if rebooted != nil && !*rebooted {
-		ep.startMono = t.reanchor(rec)
-	}
+	sameBoot := rebooted != nil && !*rebooted
 	started := rec.StartedAt.Format(time.RFC3339)
 
 	switch {
 	case rec.EndedAt != nil:
 		ep.restored = rec.SpansRestart
-		t.pending = &ended{ep: ep, since: t.clock.Mono()}
+		p := &ended{ep: ep, since: t.clock.Mono()}
+		// Re-anchor both ends or neither: one end on the monotonic clock and
+		// the other a stored wall time would disagree after a clock step.
+		if sameBoot {
+			start, end := t.reanchor(rec.StartSinceBoot), t.reanchor(rec.EndSinceBoot)
+			if start != nil && end != nil {
+				p.ep.startMono, p.endMono = start, end
+			}
+		}
+		t.pending = p
 		log.Printf("outage started %s ended before this process started and is still unreported", started)
 	case isTrue(rebooted) && rec.LowBatteryReached:
 		t.pending = &ended{ep: ep, restartEnd: true, rebooted: rebooted, since: t.clock.Mono()}
 		log.Printf("outage started %s ran the battery low and the host has rebooted since; it ended at boot", started)
 	case onBattery:
+		if sameBoot {
+			ep.startMono = t.reanchor(rec.StartSinceBoot)
+		}
 		t.open = &ep
 		if isTrue(rebooted) {
 			log.Printf("resuming outage started %s across a reboot (low battery was never seen, so the host may have rebooted on UPS power)", started)
@@ -204,6 +217,9 @@ func (t *Tracker) Restore(onBattery bool) {
 			log.Printf("resuming outage started %s by a previous process", started)
 		}
 	default:
+		if sameBoot {
+			ep.startMono = t.reanchor(rec.StartSinceBoot)
+		}
 		t.pending = &ended{ep: ep, restartEnd: true, rebooted: rebooted, since: t.clock.Mono()}
 		log.Printf("outage started %s ended while ups-mqtt was not running", started)
 	}
@@ -220,15 +236,26 @@ func (t *Tracker) rebootedSince(rec *Record) *bool {
 	return &r
 }
 
-// reanchor puts a start recorded earlier in this boot back on the monotonic
-// clock, or returns nil if it cannot.
-func (t *Tracker) reanchor(rec *Record) *time.Duration {
+// reanchor puts a time recorded earlier in this boot, as time since boot,
+// back on the monotonic clock, or returns nil if it cannot.
+func (t *Tracker) reanchor(sinceBoot *time.Duration) *time.Duration {
 	boot, ok := t.clock.BootMono()
-	if !ok || rec.StartSinceBoot == nil {
+	if !ok || sinceBoot == nil {
 		return nil
 	}
-	m := boot + *rec.StartSinceBoot
+	m := boot + *sinceBoot
 	return &m
+}
+
+// sinceBoot is the monotonic reading m as time since boot, or nil if boot is
+// unknown.
+func (t *Tracker) sinceBoot(m *time.Duration) *time.Duration {
+	boot, ok := t.clock.BootMono()
+	if !ok || m == nil {
+		return nil
+	}
+	d := *m - boot
+	return &d
 }
 
 // OnBattery records a poll on battery.  isNew is true when this poll starts
@@ -245,10 +272,7 @@ func (t *Tracker) OnBattery(lowBattery bool, charge *float64) (o Open, isNew boo
 			},
 			startMono: &mono,
 		}
-		if boot, ok := t.clock.BootMono(); ok {
-			since := mono - boot
-			t.open.rec.StartSinceBoot = &since
-		}
+		t.open.rec.StartSinceBoot = t.sinceBoot(&mono)
 		t.save(t.open.rec)
 		isNew = true
 	} else if lowBattery && !t.open.rec.LowBatteryReached {
@@ -293,6 +317,12 @@ func (t *Tracker) OnMains() bool {
 	ep.rec.EndedAt = &end
 	ep.rec.EndClockSynced = t.syncedNow()
 	ep.rec.SpansRestart = ep.restored
+	// Both ends relative to this boot, so a restart before the summary is
+	// published can re-anchor them together.  A start carried over from an
+	// earlier boot has no anchor in this one.
+	ep.rec.BootID = t.clock.BootID()
+	ep.rec.StartSinceBoot = t.sinceBoot(ep.startMono)
+	ep.rec.EndSinceBoot = t.sinceBoot(&mono)
 	t.save(ep.rec)
 
 	// last_outage is the most recent outage.  If the previous one's summary
