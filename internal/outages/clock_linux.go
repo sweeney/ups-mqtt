@@ -2,6 +2,7 @@ package outages
 
 import (
 	"os"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -29,4 +30,13 @@ func uptime() (time.Duration, bool) {
 	}
 	d, err := parseUptime(string(data))
 	return d, err == nil
+}
+
+// bootID is the kernel's random ID for this boot, or "" if unreadable.
+func bootID() string {
+	data, err := os.ReadFile("/proc/sys/kernel/random/boot_id")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
 }

@@ -2,6 +2,7 @@ package outages
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -291,12 +292,23 @@ func TestTracker_EndedRecordOnDisk_PublishedAsStored(t *testing.T) {
 }
 
 func TestTracker_CorruptStateDiscarded(t *testing.T) {
-	store := &errStore{loadErr: errors.New("unexpected end of JSON input")}
+	store := &errStore{loadErr: fmt.Errorf("%w: unexpected end of JSON input", ErrCorrupt)}
 	tr := NewTracker(syncedClock(), store)
 	tr.Restore(false)
 	assertNotDue(t, tr)
 	if !store.removed {
 		t.Error("corrupt state file was not removed")
+	}
+}
+
+// An I/O error may be transient (a failing SD card): the file must be left
+// for a later process, not destroyed along with a real outage.
+func TestTracker_UnreadableStateKept(t *testing.T) {
+	store := &errStore{loadErr: errors.New("read outage.json: input/output error")}
+	tr := NewTracker(syncedClock(), store)
+	tr.Restore(false)
+	if store.removed {
+		t.Error("state file removed on an I/O error")
 	}
 }
 
@@ -480,3 +492,139 @@ type errStore struct {
 func (s *errStore) Load() (*Record, error) { return nil, s.loadErr }
 func (s *errStore) Save(Record) error      { return nil }
 func (s *errStore) Remove() error          { s.removed = true; return nil }
+
+// ── Reboots: the boot ID ───────────────────────────────────────────────────
+
+// bootClock is a synced clock in boot id, whose host booted bootAgo before
+// this process started.
+func bootClock(id string, wall time.Time, bootAgo time.Duration) *FakeClock {
+	boot := -bootAgo
+	return &FakeClock{Wall: wall, Boot: &boot, IsSynced: true, SyncKnown: true, BootIDValue: id}
+}
+
+// Outage A runs the battery flat; the host dies.  Mains returns and boots
+// it, then fails again before this process's first poll.  A ended at boot;
+// this is outage B, not A resumed with hours of someone else's duration.
+func TestTracker_RebootThenNewOutageBeforeFirstPoll(t *testing.T) {
+	store := &MemoryStore{}
+	prev := NewTracker(bootClock("boot-a", t0, time.Hour), store)
+	prev.Restore(false)
+	prev.OnBattery(false, nil)
+	prev.OnBattery(true, nil) // LB, then the host dies
+
+	bootedAt := t0.Add(6 * time.Hour)
+	clk := bootClock("boot-b", bootedAt.Add(time.Minute), time.Minute)
+	tr := NewTracker(clk, store)
+	tr.Restore(true)
+	b, isNew := tr.OnBattery(false, nil)
+	if !isNew || !b.StartedAt.Equal(bootedAt.Add(time.Minute)) {
+		t.Fatalf("OnBattery = %+v, new %v; want a new outage starting now, not A resumed", b, isNew)
+	}
+
+	a := mustDue(t, tr)
+	if !a.StartedAt.Equal(t0) || !a.EndedAt.Equal(bootedAt) || !a.SpansRestart || !a.LowBatteryReached || !a.Final {
+		t.Errorf("A's summary = %+v, want %s → boot %s, spans_restart, LB, final", a, t0, bootedAt)
+	}
+	tr.Published(a)
+	if store.Rec == nil || !store.Rec.StartedAt.Equal(bootedAt.Add(time.Minute)) {
+		t.Errorf("state = %+v, want B's open record kept", store.Rec)
+	}
+
+	clk.Advance(time.Minute)
+	tr.OnMains()
+	bs := mustDue(t, tr)
+	if bs.Duration() != time.Minute || bs.SpansRestart {
+		t.Errorf("B's summary = %+v, want 1m within one process", bs)
+	}
+}
+
+// A reboot without low battery is ambiguous — the host may have rebooted on
+// UPS power — so an outage still in progress is resumed.
+func TestTracker_RebootWithoutLowBattery_Resumes(t *testing.T) {
+	store := &MemoryStore{}
+	prev := NewTracker(bootClock("boot-a", t0, time.Hour), store)
+	prev.Restore(false)
+	prev.OnBattery(false, nil)
+
+	tr := NewTracker(bootClock("boot-b", t0.Add(10*time.Minute), time.Minute), store)
+	tr.Restore(true)
+	if o, isNew := tr.OnBattery(false, nil); isNew || !o.StartedAt.Equal(t0) {
+		t.Errorf("OnBattery = %+v, new %v; want the outage resumed from %s", o, isNew, t0)
+	}
+}
+
+// A process-only restart (a deploy) mid-outage, while the clock is still
+// unsynced: the start is re-anchored from time-since-boot, so a later NTP
+// sync corrects it rather than leaving it frozen at the wrong wall time.
+func TestTracker_ProcessRestart_StartStaysRepairable(t *testing.T) {
+	store := &MemoryStore{}
+	// The clock reads 2h slow and unsynced.  Host booted 10 min ago.
+	boot := -10 * time.Minute
+	prevClk := &FakeClock{Wall: t0.Add(-2 * time.Hour), Boot: &boot, SyncKnown: true, BootIDValue: "boot-a"}
+	prev := NewTracker(prevClk, store)
+	prev.Restore(false)
+	prev.OnBattery(false, nil)
+
+	// The new process starts 5 min later, same boot, clock still slow.
+	clk := bootClock("boot-a", t0.Add(-2*time.Hour+5*time.Minute), 15*time.Minute)
+	clk.IsSynced = false
+	tr := NewTracker(clk, store)
+	tr.Restore(true)
+	tr.OnBattery(false, nil)
+
+	clk.Step(2 * time.Hour) // NTP
+	o, _ := tr.Current()
+	if !o.StartedAt.Equal(t0) {
+		t.Errorf("start after sync = %s, want corrected %s", o.StartedAt, t0)
+	}
+	assertSynced(t, o.ClockSynced, true)
+	clk.Advance(time.Minute)
+	tr.OnMains()
+	s := mustDue(t, tr)
+	if !s.StartedAt.Equal(t0) || s.Duration() != 6*time.Minute {
+		t.Errorf("summary %s lasting %s, want %s lasting 6m", s.StartedAt, s.Duration(), t0)
+	}
+	assertSynced(t, s.ClockSynced, true)
+}
+
+// A process-only restart on mains: the outage ended before this process
+// started, not at boot — even when the wall clocks would suggest otherwise.
+func TestTracker_ProcessRestartOnMains_EndsAtProcessStart(t *testing.T) {
+	store := &MemoryStore{}
+	prev := NewTracker(bootClock("boot-a", t0, 10*time.Minute), store)
+	prev.Restore(false)
+	prev.OnBattery(false, nil)
+
+	// Same boot; the process starts 5 min later.  The record's wall start
+	// is skewed late, so comparing walls alone would pick boot time.
+	store.Rec.StartedAt = t0.Add(-20 * time.Minute)
+	store.Rec.StartSinceBoot = nil
+	tr := NewTracker(bootClock("boot-a", t0.Add(5*time.Minute), 15*time.Minute), store)
+	tr.Restore(false)
+	if s := mustDue(t, tr); !s.EndedAt.Equal(t0.Add(5 * time.Minute)) {
+		t.Errorf("ended_at = %s, want process start %s", s.EndedAt, t0.Add(5*time.Minute))
+	}
+}
+
+// last_outage is the most recent outage: a summary still unpublished when
+// the next outage ends is superseded (and logged), not queued.
+func TestTracker_UnpublishedSummarySupersededByNextOutage(t *testing.T) {
+	clk := syncedClock()
+	tr := NewTracker(clk, &MemoryStore{})
+	tr.Restore(false)
+	tr.OnBattery(false, nil)
+	clk.Advance(time.Minute)
+	tr.OnMains() // A ends; its publishes keep failing
+	mustDue(t, tr)
+
+	clk.Advance(time.Minute)
+	tr.OnBattery(false, nil) // B
+	clk.Advance(3 * time.Minute)
+	tr.OnMains()
+	s := mustDue(t, tr)
+	if s.Duration() != 3*time.Minute {
+		t.Errorf("summary lasts %s, want B's 3m", s.Duration())
+	}
+	tr.Published(s)
+	assertNotDue(t, tr)
+}

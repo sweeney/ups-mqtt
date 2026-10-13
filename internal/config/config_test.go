@@ -500,19 +500,27 @@ func TestSplitQOS_TwoAccepted(t *testing.T) {
 
 // ── state directory ────────────────────────────────────────────────────────
 
-func TestEffectiveStateDir(t *testing.T) {
-	t.Setenv("STATE_DIRECTORY", "")
-	cfg, err := config.Load(writeTOML(t, "state_dir = \"/srv/ups-mqtt\"\n[nut]\nups_name = \"x\"\n"))
+func TestEffectiveStateDir_SystemdDefault(t *testing.T) {
+	t.Setenv("STATE_DIRECTORY", "/var/lib/ups-mqtt:/var/lib/other")
+	cfg, err := config.Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := cfg.EffectiveStateDir(); got != "/srv/ups-mqtt" {
-		t.Errorf("from config: %q, want /srv/ups-mqtt", got)
+	if dir, src := cfg.EffectiveStateDir(); dir != "/var/lib/ups-mqtt" || src != "$STATE_DIRECTORY" {
+		t.Errorf("EffectiveStateDir() = %q from %s, want the first $STATE_DIRECTORY entry", dir, src)
 	}
+}
 
-	t.Setenv("STATE_DIRECTORY", "/var/lib/ups-mqtt:/var/lib/other")
-	if got := cfg.EffectiveStateDir(); got != "/var/lib/ups-mqtt" {
-		t.Errorf("under systemd: %q, want the first $STATE_DIRECTORY entry", got)
+// An explicit setting beats systemd's default, as explicit settings do
+// everywhere else: an operator's drop-in must not be silently ignored.
+func TestEffectiveStateDir_ExplicitWins(t *testing.T) {
+	t.Setenv("STATE_DIRECTORY", "/var/lib/ups-mqtt")
+	cfg, err := config.Load(writeTOML(t, "state_dir = \"/srv/ups-mqtt\"\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dir, src := cfg.EffectiveStateDir(); dir != "/srv/ups-mqtt" || src != "state_dir" {
+		t.Errorf("from config: %q from %s, want /srv/ups-mqtt from state_dir", dir, src)
 	}
 }
 
@@ -522,19 +530,19 @@ func TestEffectiveStateDir_UnsetMeansNone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := cfg.EffectiveStateDir(); got != "" {
-		t.Errorf("EffectiveStateDir() = %q, want empty by default", got)
+	if dir, _ := cfg.EffectiveStateDir(); dir != "" {
+		t.Errorf("EffectiveStateDir() = %q, want empty by default", dir)
 	}
 }
 
 func TestLoad_EnvOverride_StateDir(t *testing.T) {
-	t.Setenv("STATE_DIRECTORY", "")
-	t.Setenv("UPS_MQTT_STATE_DIR", "/tmp/state")
-	cfg, err := config.Load()
+	t.Setenv("STATE_DIRECTORY", "/var/lib/ups-mqtt")
+	t.Setenv("UPS_MQTT_STATE_DIR", "/mnt/ssd/ups-mqtt")
+	cfg, err := config.Load(writeTOML(t, "state_dir = \"/srv/ups-mqtt\"\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := cfg.EffectiveStateDir(); got != "/tmp/state" {
-		t.Errorf("EffectiveStateDir() = %q, want the env override", got)
+	if dir, _ := cfg.EffectiveStateDir(); dir != "/mnt/ssd/ups-mqtt" {
+		t.Errorf("EffectiveStateDir() = %q, want the env override over config and systemd", dir)
 	}
 }

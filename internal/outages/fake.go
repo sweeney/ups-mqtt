@@ -12,6 +12,8 @@ type FakeClock struct {
 	// IsSynced and SyncKnown are what Synced returns.
 	IsSynced  bool
 	SyncKnown bool
+	// BootIDValue is what BootID returns; empty when unknown.
+	BootIDValue string
 }
 
 // Now implements Clock.
@@ -30,6 +32,9 @@ func (c *FakeClock) BootMono() (time.Duration, bool) {
 
 // Synced implements Clock.
 func (c *FakeClock) Synced() (synced, known bool) { return c.IsSynced, c.SyncKnown }
+
+// BootID implements Clock.
+func (c *FakeClock) BootID() string { return c.BootIDValue }
 
 // Advance lets d pass.
 func (c *FakeClock) Advance(d time.Duration) {

@@ -18,6 +18,10 @@ type Store interface {
 	Remove() error
 }
 
+// ErrCorrupt marks a state file that was read but cannot be used.  Unlike an
+// I/O error, retrying will not help, so it is safe to discard.
+var ErrCorrupt = errors.New("corrupt outage state")
+
 // StateFileName is the file FileStore keeps in the state directory.
 const StateFileName = "outage.json"
 
@@ -37,10 +41,10 @@ func (s *FileStore) Load() (*Record, error) {
 	}
 	var rec Record
 	if err := json.Unmarshal(data, &rec); err != nil {
-		return nil, fmt.Errorf("parsing %s: %w", s.Path, err)
+		return nil, fmt.Errorf("%w: parsing %s: %v", ErrCorrupt, s.Path, err)
 	}
 	if rec.StartedAt.IsZero() {
-		return nil, fmt.Errorf("parsing %s: no started_at", s.Path)
+		return nil, fmt.Errorf("%w: parsing %s: no started_at", ErrCorrupt, s.Path)
 	}
 	return &rec, nil
 }
@@ -55,11 +59,24 @@ func (s *FileStore) Save(rec Record) error {
 		return err
 	}
 	tmp := s.Path + ".tmp"
-	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	if err := writeSynced(tmp, append(data, '\n')); err != nil {
+		os.Remove(tmp) //nolint:errcheck
+		return err
+	}
+	if err := os.Rename(tmp, s.Path); err != nil {
+		os.Remove(tmp) //nolint:errcheck
+		return err
+	}
+	return syncDir(filepath.Dir(s.Path))
+}
+
+// writeSynced writes data to path and fsyncs it.
+func writeSynced(path string, data []byte) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
 		return err
 	}
-	if _, err := f.Write(append(data, '\n')); err != nil {
+	if _, err := f.Write(data); err != nil {
 		f.Close() //nolint:errcheck
 		return err
 	}
@@ -67,13 +84,7 @@ func (s *FileStore) Save(rec Record) error {
 		f.Close() //nolint:errcheck
 		return err
 	}
-	if err := f.Close(); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp, s.Path); err != nil {
-		return err
-	}
-	return syncDir(filepath.Dir(s.Path))
+	return f.Close()
 }
 
 // Remove implements Store.

@@ -212,14 +212,14 @@ func doPoll(poller nut.Poller, pub publisher.Publisher, cfg *config.Config, outa
 // outageStore returns where the outage in progress is persisted, so that a
 // restart or power loss does not forget it.
 func outageStore(cfg *config.Config) outages.Store {
-	dir := cfg.EffectiveStateDir()
+	dir, source := cfg.EffectiveStateDir()
 	if dir == "" {
 		log.Printf("warning: no state directory (StateDirectory= in the unit, or state_dir); " +
 			"an outage in progress will be forgotten across a restart")
 		return outages.NopStore{}
 	}
 	path := filepath.Join(dir, outages.StateFileName)
-	log.Printf("outage state: %s", path)
+	log.Printf("outage state: %s (from %s)", path, source)
 	return &outages.FileStore{Path: path}
 }
 

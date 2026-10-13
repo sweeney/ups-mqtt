@@ -16,6 +16,7 @@
 package outages
 
 import (
+	"errors"
 	"log"
 	"time"
 )
@@ -38,6 +39,9 @@ type Clock interface {
 	// Synced reports whether the wall clock is synchronised to a time
 	// source.  known is false where that cannot be determined.
 	Synced() (synced, known bool)
+	// BootID identifies this boot of the host; it changes on every reboot.
+	// Empty where it cannot be determined.
+	BootID() string
 }
 
 // Record is what is persisted about an outage.  It is written only on
@@ -46,6 +50,14 @@ type Record struct {
 	StartedAt         time.Time `json:"started_at"`
 	StartClockSynced  *bool     `json:"start_clock_synced,omitempty"`
 	LowBatteryReached bool      `json:"low_battery_reached"`
+
+	// BootID is the host boot the outage started in.  A different one on
+	// restore means the host rebooted since.
+	BootID string `json:"boot_id,omitempty"`
+	// StartSinceBoot is the start as time since boot.  Within the same boot
+	// it re-anchors the start on the monotonic clock, so a process-only
+	// restart (a deploy) leaves the start repairable by a later clock sync.
+	StartSinceBoot *time.Duration `json:"start_since_boot_ns,omitempty"`
 
 	// Set once the outage has ended, while its summary waits to be
 	// published.
@@ -94,10 +106,14 @@ type ended struct {
 	ep episode
 	// endMono anchors the end, when this process saw it.
 	endMono *time.Duration
-	// restartEnd marks an outage that ended while no process was watching:
-	// the end is taken as host boot when that is after the start, otherwise
-	// as this process's start.
+	// restartEnd marks an outage that ended while no process was watching.
+	// After a reboot it ended at host boot; after a process-only restart, at
+	// some point before this process started.
 	restartEnd bool
+	// rebooted says whether the host rebooted since the outage began; nil
+	// when there is no boot ID to tell, and the end is chosen by comparing
+	// boot time with the start instead.
+	rebooted *bool
 	// since is when this summary became due, on Mono, for SyncWait.
 	since       time.Duration
 	interimSent bool
@@ -132,11 +148,17 @@ func NewTracker(clock Clock, store Store) *Tracker {
 //
 //   - An outage that had ended but was not yet reported is reported as
 //     stored.
-//   - An outage still open on disk while the UPS is on battery is resumed
-//     with its original start.
+//   - An outage still open on disk, recorded in an earlier boot that saw low
+//     battery, ended at that boot: the battery ran flat, the host died, and
+//     mains returning booted it.  It is reported with spans_restart, and if
+//     the UPS is on battery again now, that is a new outage.
+//   - Otherwise, an outage still open on disk while the UPS is on battery is
+//     resumed with its original start.  Across a reboot without low battery
+//     that is a guess — the host may have rebooted on UPS power — but the
+//     defensible one.
 //   - An outage still open on disk while the UPS is on mains ended while no
-//     process was watching — typically the battery ran flat and the host died
-//     with it.  It is reported with spans_restart, ending at host boot.
+//     process was watching.  It is reported with spans_restart, ending at
+//     host boot if the host rebooted, else at this process's start.
 func (t *Tracker) Restore(onBattery bool) {
 	if t.restoreDone {
 		return
@@ -144,9 +166,15 @@ func (t *Tracker) Restore(onBattery bool) {
 	t.restoreDone = true
 
 	rec, err := t.store.Load()
-	if err != nil {
-		log.Printf("outage state unreadable, discarding it: %v", err)
+	if errors.Is(err, ErrCorrupt) {
+		log.Printf("outage state corrupt, discarding it: %v", err)
 		t.remove()
+		return
+	}
+	if err != nil {
+		// Possibly transient (a failing SD card): leave the file for a
+		// later process rather than destroy a real outage.
+		log.Printf("outage state unreadable, ignoring it for now: %v", err)
 		return
 	}
 	if rec == nil {
@@ -154,18 +182,53 @@ func (t *Tracker) Restore(onBattery bool) {
 	}
 
 	ep := episode{rec: *rec, restored: true}
+	rebooted := t.rebootedSince(rec)
+	if rebooted != nil && !*rebooted {
+		ep.startMono = t.reanchor(rec)
+	}
+	started := rec.StartedAt.Format(time.RFC3339)
+
 	switch {
 	case rec.EndedAt != nil:
 		ep.restored = rec.SpansRestart
 		t.pending = &ended{ep: ep, since: t.clock.Mono()}
-		log.Printf("outage that ended before this process started is still unreported (started %s)", rec.StartedAt.Format(time.RFC3339))
+		log.Printf("outage started %s ended before this process started and is still unreported", started)
+	case isTrue(rebooted) && rec.LowBatteryReached:
+		t.pending = &ended{ep: ep, restartEnd: true, rebooted: rebooted, since: t.clock.Mono()}
+		log.Printf("outage started %s ran the battery low and the host has rebooted since; it ended at boot", started)
 	case onBattery:
 		t.open = &ep
-		log.Printf("resuming outage started %s by a previous process", rec.StartedAt.Format(time.RFC3339))
+		if isTrue(rebooted) {
+			log.Printf("resuming outage started %s across a reboot (low battery was never seen, so the host may have rebooted on UPS power)", started)
+		} else {
+			log.Printf("resuming outage started %s by a previous process", started)
+		}
 	default:
-		t.pending = &ended{ep: ep, restartEnd: true, since: t.clock.Mono()}
-		log.Printf("outage started %s ended while ups-mqtt was not running", rec.StartedAt.Format(time.RFC3339))
+		t.pending = &ended{ep: ep, restartEnd: true, rebooted: rebooted, since: t.clock.Mono()}
+		log.Printf("outage started %s ended while ups-mqtt was not running", started)
 	}
+}
+
+// rebootedSince reports whether the host has rebooted since rec was
+// written, or nil if there is no boot ID to tell by.
+func (t *Tracker) rebootedSince(rec *Record) *bool {
+	now := t.clock.BootID()
+	if now == "" || rec.BootID == "" {
+		return nil
+	}
+	r := now != rec.BootID
+	return &r
+}
+
+// reanchor puts a start recorded earlier in this boot back on the monotonic
+// clock, or returns nil if it cannot.
+func (t *Tracker) reanchor(rec *Record) *time.Duration {
+	boot, ok := t.clock.BootMono()
+	if !ok || rec.StartSinceBoot == nil {
+		return nil
+	}
+	m := boot + *rec.StartSinceBoot
+	return &m
 }
 
 // OnBattery records a poll on battery.  isNew is true when this poll starts
@@ -178,8 +241,13 @@ func (t *Tracker) OnBattery(lowBattery bool, charge *float64) (o Open, isNew boo
 				StartedAt:         t.clock.Now(),
 				StartClockSynced:  t.syncedNow(),
 				LowBatteryReached: lowBattery,
+				BootID:            t.clock.BootID(),
 			},
 			startMono: &mono,
+		}
+		if boot, ok := t.clock.BootMono(); ok {
+			since := mono - boot
+			t.open.rec.StartSinceBoot = &since
 		}
 		t.save(t.open.rec)
 		isNew = true
@@ -227,6 +295,13 @@ func (t *Tracker) OnMains() bool {
 	ep.rec.SpansRestart = ep.restored
 	t.save(ep.rec)
 
+	// last_outage is the most recent outage.  If the previous one's summary
+	// never got out — its publishes failed throughout this outage too — it
+	// is superseded, not queued: say so rather than lose it silently.
+	if old := t.pending; old != nil {
+		log.Printf("dropping unpublished summary of the outage started %s; superseded by the one that just ended",
+			t.startWall(&old.ep).UTC().Format(time.RFC3339))
+	}
 	t.pending = &ended{ep: ep, endMono: &mono, since: mono}
 	return true
 }
@@ -286,12 +361,14 @@ func (t *Tracker) summarise(p *ended) Summary {
 		end = t.wallAt(*p.endMono)
 	case p.restartEnd:
 		// Mains returning is what brings a host back after its UPS ran flat,
-		// so boot time is the best estimate of the end.  If the host booted
-		// before the outage began, only the process restarted, and the
-		// outage ended at some point before this process started.
+		// so boot time is the best estimate of the end.  If only the process
+		// restarted, the outage ended at some point before this process
+		// started.  The boot ID says which; without one, a boot after the
+		// start means a reboot.
 		end = t.wallAt(0)
 		if boot, ok := t.clock.BootMono(); ok {
-			if bootWall := t.wallAt(boot); bootWall.After(start) {
+			bootWall := t.wallAt(boot)
+			if (p.rebooted != nil && *p.rebooted) || (p.rebooted == nil && bootWall.After(start)) {
 				end = bootWall
 			}
 		}

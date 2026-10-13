@@ -1,6 +1,7 @@
 package outages
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -49,8 +50,8 @@ func TestFileStore_CorruptFile(t *testing.T) {
 		if err := os.WriteFile(s.Path, []byte(body), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := s.Load(); err == nil || !strings.Contains(err.Error(), s.Path) {
-			t.Errorf("Load(%q) = %v, want an error naming the file", body, err)
+		if _, err := s.Load(); !errors.Is(err, ErrCorrupt) || !strings.Contains(err.Error(), s.Path) {
+			t.Errorf("Load(%q) = %v, want ErrCorrupt naming the file", body, err)
 		}
 	}
 }
@@ -103,4 +104,32 @@ func TestSystemClock(t *testing.T) {
 		t.Errorf("Now is %s off", d)
 	}
 	c.Synced() // must not panic on any OS
+}
+
+// A failed save must not leave the temp file behind.
+func TestFileStore_FailedSaveLeavesNoTemp(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, StateFileName)
+	// A non-empty directory where the file should be: the rename fails.
+	if err := os.MkdirAll(filepath.Join(path, "x"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	s := &FileStore{Path: path}
+	if err := s.Save(Record{StartedAt: t0}); err == nil {
+		t.Fatal("Save() over a directory succeeded")
+	}
+	if _, err := os.Stat(path + ".tmp"); !os.IsNotExist(err) {
+		t.Error("temp file left behind after a failed save")
+	}
+}
+
+// An I/O error is not corruption: the tracker must keep the file.
+func TestFileStore_UnreadableIsNotCorrupt(t *testing.T) {
+	path := filepath.Join(t.TempDir(), StateFileName)
+	if err := os.Mkdir(path, 0o755); err != nil { // reading a directory fails
+		t.Fatal(err)
+	}
+	if _, err := (&FileStore{Path: path}).Load(); err == nil || errors.Is(err, ErrCorrupt) {
+		t.Errorf("Load() = %v, want a non-corrupt error", err)
+	}
 }

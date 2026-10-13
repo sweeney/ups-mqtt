@@ -87,22 +87,28 @@ func (c MQTTConfig) EffectiveEventQOS() byte {
 // Config is the top-level configuration struct.
 type Config struct {
 	// StateDir is where an outage in progress is persisted, so it survives a
-	// restart or power loss.  Under systemd, $STATE_DIRECTORY (from
-	// StateDirectory= in the unit) takes precedence; see EffectiveStateDir.
+	// restart or power loss.  Under systemd it can be left empty:
+	// $STATE_DIRECTORY (from StateDirectory= in the unit) is the fallback.
+	// See EffectiveStateDir.
 	StateDir string     `toml:"state_dir"`
 	NUT      NUTConfig  `toml:"nut"`
 	MQTT     MQTTConfig `toml:"mqtt"`
 }
 
-// EffectiveStateDir returns the directory for persistent state: the first
-// entry of $STATE_DIRECTORY, which systemd sets from StateDirectory=, else
-// StateDir.  Empty means no persistence.
-func (c *Config) EffectiveStateDir() string {
+// EffectiveStateDir returns the directory for persistent state, and where
+// that came from for the log.  An explicit StateDir (state_dir, or
+// UPS_MQTT_STATE_DIR) wins, as explicit settings do everywhere else; then the
+// first entry of $STATE_DIRECTORY, systemd's default from StateDirectory=.
+// Empty means no persistence.
+func (c *Config) EffectiveStateDir() (dir, source string) {
+	if c.StateDir != "" {
+		return c.StateDir, "state_dir"
+	}
 	if v := os.Getenv("STATE_DIRECTORY"); v != "" {
 		// systemd joins several directories with ':'.
-		return strings.SplitN(v, ":", 2)[0]
+		return strings.SplitN(v, ":", 2)[0], "$STATE_DIRECTORY"
 	}
-	return c.StateDir
+	return "", ""
 }
 
 // Load reads config from the first existing path in paths, then applies

@@ -11,3 +11,6 @@ func clockSynced() (synced, known bool) { return false, false }
 // uptime is unknown here, so an outage that ended while no process was
 // watching is taken to have ended when this process started.
 func uptime() (time.Duration, bool) { return 0, false }
+
+// bootID is unknown here.
+func bootID() string { return "" }

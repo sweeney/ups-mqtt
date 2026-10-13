@@ -73,10 +73,13 @@ go build ./...                                  # clean compile
   `config.Load` because paho does not check it. A CONNACK refusal is retried.
 - `{prefix}/{label}/last_outage` is a retained summary published **after** the
   outage clear when an outage ends; never cleared. `internal/outages.Tracker`
-  owns it: it persists the open outage to `$STATE_DIRECTORY`/`state_dir`
-  (`outage.json`, written on transitions only), resumes it after a restart on
-  battery, and reports an outage that ended while nothing was running with
-  `spans_restart`, ending at boot. Every event is anchored on the monotonic
+  owns it: it persists the open outage to `state_dir`, else systemd's
+  `$STATE_DIRECTORY` (`outage.json`, written on transitions only, with the
+  kernel `boot_id`). After a restart on battery it resumes the outage, except
+  when the record is from an earlier boot and saw low battery: that outage
+  ran flat and ended at boot. An outage that ended while nothing was running
+  is reported with `spans_restart`, ending at boot after a reboot, else at
+  process start. Every event is anchored on the monotonic
   clock and turned into wall time only at publish, so a later NTP sync
   corrects it; a summary waits for sync (interim after `DefaultSyncWait`,
   corrected later). Tests use `outages.FakeClock` and `outages.MemoryStore`;

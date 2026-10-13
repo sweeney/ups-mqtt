@@ -162,7 +162,9 @@ When an outage ends, after the `outage` topic has been cleared, a summary is pub
 | `clock_synced` | Whether both times can be trusted. Absent where it cannot be determined (anywhere but Linux). |
 | `spans_restart` | The daemon restarted during the outage, or was not running when it ended |
 
-**When the daemon was not running at the end.** This is the case that matters most: the battery runs flat, the host dies with it, and when mains returns the host boots on restored power. The new process finds the outage still open in its state file and the UPS on mains. It clears the stale `outage` topic and publishes `last_outage` with `spans_restart: true`. `ended_at` is the host's **boot time**, because mains returning is what boots the host. If the host booted before the outage began, only the daemon restarted, and `ended_at` is when this process started. Either way, it is the latest the outage could have ended, not necessarily when it did.
+**When the daemon was not running at the end.** This is the case that matters most: the battery runs flat, the host dies with it, and when mains returns the host boots on restored power. The new process finds the outage still open in its state file and the UPS on mains. It clears the stale `outage` topic and publishes `last_outage` with `spans_restart: true`. `ended_at` is the host's **boot time**, because mains returning is what boots the host. If only the daemon restarted (same kernel `boot_id` as the record), `ended_at` is when this process started. Either way, it is the latest the outage could have ended, not necessarily when it did.
+
+If the power fails again after such a reboot, before the first poll, the record from the earlier boot is *not* resumed when it saw low battery. That outage ran flat and ended at boot, and this is a new one. Without low battery a reboot is ambiguous (the host may have rebooted on UPS power), so the outage is resumed. Within one boot, a restart (a deploy, say) keeps the start anchored to the monotonic clock via the time since boot, so a later NTP sync still corrects it.
 
 #### The clock
 
@@ -174,7 +176,7 @@ A host without a real-time clock (a Raspberry Pi) boots after a power loss with 
 
 #### State file
 
-The outage in progress is kept in `outage.json`, written only on transitions (start, low battery first seen, end) to spare the SD card, and synced to disk. The directory is `$STATE_DIRECTORY`, which systemd sets from `StateDirectory=ups-mqtt` in the unit (`/var/lib/ups-mqtt`), or else the `state_dir` config key. With neither set, outages are not persisted, and a warning is logged at startup. On macOS, set `state_dir`.
+The outage in progress is kept in `outage.json`, written only on transitions (start, low battery first seen, end) to spare the SD card, and synced to disk. The directory is `state_dir` (or `UPS_MQTT_STATE_DIR`) when set, otherwise `$STATE_DIRECTORY`, which systemd sets from `StateDirectory=ups-mqtt` in the unit (`/var/lib/ups-mqtt`). The startup log names the one in use. With neither, outages are not persisted, and a warning is logged. On macOS, set `state_dir`.
 
 "Published" means the broker sent PUBACK. Behind a bridged local broker that is the local one, and from there delivery is up to the bridge's queue, which Mosquitto saves to disk only every `autosave_interval`. A power loss within that window can lose a queued `last_outage` after the state file is gone. Tighten the broker config if that matters.
 
@@ -212,8 +214,8 @@ Every QoS key must be 0, 1 or 2; anything else is a startup error.
 Configuration is TOML, with environment variable overrides for all values. On startup the daemon looks for a config file at the path given by `--config` (default `/etc/ups-mqtt/config.toml`), falling back to `./config.toml` if the primary path doesn't exist.
 
 ```toml
-state_dir     = ""            # where an outage in progress is persisted; under systemd,
-                              # StateDirectory= in the unit sets it instead
+state_dir     = ""            # where an outage in progress is persisted; under systemd
+                              # leave empty and StateDirectory= in the unit provides it
 
 [nut]
 host          = "localhost"   # upsd hostname
@@ -247,7 +249,7 @@ Every field has a `UPS_MQTT_` override (useful for Docker / secrets):
 
 | Variable | Field |
 |----------|-------|
-| `UPS_MQTT_STATE_DIR` | `state_dir` (`$STATE_DIRECTORY` takes precedence) |
+| `UPS_MQTT_STATE_DIR` | `state_dir` (beats systemd's `$STATE_DIRECTORY`) |
 | `UPS_MQTT_NUT_HOST` | `nut.host` |
 | `UPS_MQTT_NUT_PORT` | `nut.port` |
 | `UPS_MQTT_NUT_USERNAME` | `nut.username` |
