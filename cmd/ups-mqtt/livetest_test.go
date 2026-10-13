@@ -182,8 +182,11 @@ func (c realClock) BootID() string                  { return "test-boot" }
 
 // replayResult is what a replay left behind.
 type replayResult struct {
-	poller  *scriptedPoller
-	rec     *mqtttest.Recorder
+	poller *scriptedPoller
+	rec    *mqtttest.Recorder
+	// source records what the daemon published, on the broker it publishes
+	// to, where the topology has one that does not fail (the local broker).
+	source  *mqtttest.Recorder
 	observe string // URL of the broker subscribers read
 	logs    string
 }
@@ -194,6 +197,9 @@ type topology struct {
 	publishTo string
 	observe   string
 	setLink   func(mqtttest.Mode)
+	// local is the broker the daemon publishes to when it is on the
+	// daemon's side of the failing link; empty when it is not.
+	local string
 }
 
 // direct is the topology of the live tests: ups-mqtt publishing straight
@@ -210,7 +216,7 @@ func bridged(t *testing.T) topology {
 	remote := mqtttest.StartBroker(t, "")
 	proxy := mqtttest.StartProxy(t, remote.Addr)
 	local := mqtttest.StartBridged(t, proxy.Addr)
-	return topology{publishTo: local.URL(), observe: remote.URL(), setLink: proxy.SetMode}
+	return topology{publishTo: local.URL(), observe: remote.URL(), setLink: proxy.SetMode, local: local.URL()}
 }
 
 const (
@@ -252,6 +258,10 @@ func replayOn(t *testing.T, topo func(*testing.T) topology, tl timeline, faults 
 
 	top := topo(t)
 	rec := mqtttest.Record(t, top.observe, "#")
+	var source *mqtttest.Recorder
+	if top.local != "" {
+		source = mqtttest.Record(t, top.local, "ups/#")
+	}
 
 	cfg := &config.Config{
 		NUT: config.NUTConfig{
@@ -300,7 +310,7 @@ func replayOn(t *testing.T, topo func(*testing.T) topology, tl timeline, faults 
 	rec.WaitQuiet(200*time.Millisecond, 3*time.Second)
 
 	logMu.Lock()
-	res := replayResult{poller: poller, rec: rec, observe: top.observe, logs: logs.String()}
+	res := replayResult{poller: poller, rec: rec, source: source, observe: top.observe, logs: logs.String()}
 	logMu.Unlock()
 	t.Cleanup(func() {
 		if t.Failed() {
