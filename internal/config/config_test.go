@@ -597,3 +597,19 @@ func TestLoad_SampleInterval_TOMLAndEnv(t *testing.T) {
 		t.Errorf("bad env var: %s, want the TOML 3s kept", got)
 	}
 }
+
+func TestLoad_RejectsNonPositivePollInterval(t *testing.T) {
+	for _, v := range []string{"0s", "-10s"} {
+		t.Setenv("UPS_MQTT_NUT_POLL_INTERVAL", v)
+		if _, err := config.Load(); err == nil || !strings.Contains(err.Error(), "poll_interval") {
+			t.Errorf("poll_interval %s: Load() = %v, want an error naming poll_interval", v, err)
+		}
+	}
+}
+
+func TestLoad_RejectsNegativeSampleInterval(t *testing.T) {
+	t.Setenv("UPS_MQTT_NUT_SAMPLE_INTERVAL", "-2s")
+	if _, err := config.Load(); err == nil || !strings.Contains(err.Error(), "sample_interval") {
+		t.Errorf("Load() = %v, want an error naming sample_interval", err)
+	}
+}

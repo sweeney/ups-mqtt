@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
+	"fmt"
 	"log"
 	"strings"
 	"testing"
@@ -85,10 +85,11 @@ func TestSample_PublishesEveryPollNotEverySample(t *testing.T) {
 // returning likewise, rather than at the next poll.
 func TestSample_PowerChangePublishesAtOnce(t *testing.T) {
 	ol, ob := reading("OL", "100"), reading("OB DISCHRG", "100")
-	d, pub, clk := samplingDaemon(ol, ol, ob, ob, ol, ol)
+	// OL at 0 and 2 s, OB from 4 s to 14 s, OL from 16 s.
+	d, pub, clk := samplingDaemon(ol, ol, ob, ob, ob, ob, ob, ob, ol)
 	t0 := time.Now()
 
-	sampleAt(d, clk, t0, 3) // 0 s OL (published), 2 s OL, 4 s OB
+	sampleAt(d, clk, t0, 3)
 	if _, ok := pub.Retained(sampleOutageTopic); !ok {
 		t.Fatal("outage not published at the sample that saw OB")
 	}
@@ -100,8 +101,10 @@ func TestSample_PowerChangePublishesAtOnce(t *testing.T) {
 		t.Errorf("published %d messages at an unchanged sample", len(pub.Messages)-before)
 	}
 
-	clk.Advance(2 * time.Second)
-	d.sample(t0.Add(8*time.Second), false) // OL: mains back
+	for _, at := range []time.Duration{8, 10, 12, 14, 16} {
+		clk.Advance(2 * time.Second)
+		d.sample(t0.Add(at*time.Second), false)
+	}
 	if m, ok := pub.Retained(sampleOutageTopic); ok {
 		t.Errorf("outage still retained at the sample that saw mains return: %s", m.Payload)
 	}
@@ -111,15 +114,24 @@ func TestSample_PowerChangePublishesAtOnce(t *testing.T) {
 }
 
 // The summary's duration comes from the samples: 4 s on battery is reported
-// as 4 s, not rounded to the 10 s poll.
+// as 4 s, not rounded to the 10 s poll — even though mains returning so soon
+// after the outage was published waits for the next scheduled publish.
 func TestSample_OutageTimedToTheSample(t *testing.T) {
 	ol, ob := reading("OL", "100"), reading("OB DISCHRG", "100")
-	d, pub, clk := samplingDaemon(ol, ob, ob, ol)
-	sampleAt(d, clk, time.Now(), 4) // OB from 2 s to 6 s
+	d, pub, clk := samplingDaemon(ol, ob, ob, ol) // OB from 2 s to 6 s
+	sampleAt(d, clk, time.Now(), 4)
+	if _, ok := pub.Retained(sampleLastTopic); ok {
+		t.Error("published at 6 s, 4 s after the last change; a second change within a poll must wait")
+	}
+	t0 := time.Now()
+	for _, at := range []time.Duration{8, 10, 12} {
+		clk.Advance(2 * time.Second)
+		d.sample(t0.Add(at*time.Second), false)
+	}
 
 	msg, ok := pub.Retained(sampleLastTopic)
 	if !ok {
-		t.Fatal("no last_outage")
+		t.Fatal("no last_outage at the scheduled publish")
 	}
 	var lo publisher.LastOutageMessage
 	if err := json.Unmarshal([]byte(msg.Payload), &lo); err != nil {
@@ -130,7 +142,54 @@ func TestSample_OutageTimedToTheSample(t *testing.T) {
 	}
 }
 
-// Low battery is news too.
+// Power flapping every sample must not publish on every flip: changes go
+// out at most once per poll interval, so the event rate the bridge queue is
+// sized for holds.
+func TestSample_FlappingPublishesAtMostOncePerPoll(t *testing.T) {
+	ol, ob := reading("OL", "100"), reading("OB DISCHRG", "100")
+	var seq [][]nut.Variable
+	for i := 0; i < 31; i++ { // 60 s, flipping every 2 s
+		if i%2 == 0 {
+			seq = append(seq, ol)
+		} else {
+			seq = append(seq, ob)
+		}
+	}
+	d, pub, clk := samplingDaemon(seq...)
+	sampleAt(d, clk, time.Now(), len(seq))
+
+	if got := count(pub, sampleStateTopic); got > 7 {
+		t.Errorf("state published %d times in 60 s of flapping, want at most one per 10 s poll (7)", got)
+	}
+	if got := count(pub, sampleOutageTopic); got > 7 {
+		t.Errorf("outage topic published %d times in 60 s of flapping, want at most 7", got)
+	}
+}
+
+// A sample interval that does not divide the poll interval must not publish
+// more often than once per poll: it drifts later instead.
+func TestSample_NonDivisorNeverPublishesFaster(t *testing.T) {
+	d, pub, _ := samplingDaemon(reading("OL", "100"))
+	d.cfg.NUT.SampleInterval = config.Duration{Duration: 3 * time.Second}
+	t0 := time.Now()
+	var at []time.Time
+	for i := 0; i <= 40; i++ { // 120 s
+		n := count(pub, sampleStateTopic)
+		now := t0.Add(time.Duration(i) * 3 * time.Second)
+		d.sample(now, false)
+		if count(pub, sampleStateTopic) > n {
+			at = append(at, now)
+		}
+	}
+	for i := 1; i < len(at); i++ {
+		if gap := at[i].Sub(at[i-1]); gap < 10*time.Second-250*time.Millisecond {
+			t.Errorf("published %s after the previous one, want at least the 10 s poll", gap)
+		}
+	}
+}
+
+// Low battery is news too, and its first onset is not held back even right
+// after the outage was published.
 func TestSample_LowBatteryPublishesAtOnce(t *testing.T) {
 	ob, lb := reading("OB DISCHRG", "30"), reading("OB DISCHRG LB", "10")
 	d, pub, clk := samplingDaemon(ob, ob, lb)
@@ -149,9 +208,9 @@ func TestSample_LowestChargeBetweenPublishes(t *testing.T) {
 		reading("OB DISCHRG", "90"), // published: on battery
 		reading("OB DISCHRG", "70"), // not published
 		reading("OB DISCHRG", "80"),
-		reading("OL CHRG", "80"),
+		reading("OL CHRG", "80"), // mains: published at the next poll
 	)
-	sampleAt(d, clk, time.Now(), 5)
+	sampleAt(d, clk, time.Now(), 7) // to 12 s
 
 	msg, ok := pub.Retained(sampleLastTopic)
 	if !ok {
@@ -175,7 +234,8 @@ func TestSample_ForcePublishes(t *testing.T) {
 }
 
 // A NUT outage is logged when it starts and then once a poll interval, not
-// on every 2 s sample.
+// on every 2 s sample — even when each error names a different local port,
+// as a re-dial's does.
 func TestSample_PollErrorLoggedOncePerPoll(t *testing.T) {
 	var buf bytes.Buffer
 	out, flags := log.Writer(), log.Flags()
@@ -184,12 +244,22 @@ func TestSample_PollErrorLoggedOncePerPoll(t *testing.T) {
 	t.Cleanup(func() { log.SetOutput(out); log.SetFlags(flags) })
 
 	d, _, _ := samplingDaemon(reading("OL", "100"))
-	d.poller.(*nut.FakePoller).Err = errors.New("connection refused")
+	fp := d.poller.(*nut.FakePoller)
 	t0 := time.Now()
 	for i := 0; i < 11; i++ { // 20 s of samples
+		fp.Err = fmt.Errorf("read tcp 127.0.0.1:%d->127.0.0.1:3493: i/o timeout", 50000+i)
 		d.sample(t0.Add(time.Duration(i)*2*time.Second), false)
 	}
-	if n := strings.Count(buf.String(), "connection refused"); n != 3 {
+	if n := strings.Count(buf.String(), "i/o timeout"); n != 3 {
 		t.Errorf("logged %d times over 20 s, want 3 (0, 10, 20 s):\n%s", n, buf.String())
+	}
+	if !strings.Contains(buf.String(), "11 failed samples so far") {
+		t.Errorf("the repeat line should count the failures:\n%s", buf.String())
+	}
+
+	fp.Err = nil
+	d.sample(t0.Add(22*time.Second), false)
+	if !strings.Contains(buf.String(), "NUT answering again after 11 failed samples") {
+		t.Errorf("recovery not logged:\n%s", buf.String())
 	}
 }

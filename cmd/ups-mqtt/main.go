@@ -90,15 +90,17 @@ type daemon struct {
 	outage      outageState
 
 	// What the last publish said, and when.  A sample that differs from it
-	// in power state is published at once.
-	published     bool
-	lastPublish   time.Time
-	lastOnBattery bool
-	lastLow       bool
+	// in power state is published at once, at most once per poll.
+	published         bool
+	lastPublish       time.Time
+	lastChangePublish time.Time
+	lastOnBattery     bool
+	lastLow           bool
+	lowAnnounced      bool // low battery published in this outage
 
-	// The last poll error logged, and when, so a NUT outage is not logged
-	// on every sample.
-	lastPollErr   string
+	// Failed samples in a row, and when one was last logged, so a NUT
+	// outage is not logged on every sample.
+	pollErrors    int
 	lastPollErrAt time.Time
 }
 
@@ -161,36 +163,81 @@ func (d *daemon) sample(now time.Time, force bool) {
 		d.logPollError(now, err)
 		return
 	}
-	d.lastPollErr = ""
+	if d.pollErrors > 0 {
+		log.Printf("NUT answering again after %d failed samples", d.pollErrors)
+		d.pollErrors = 0
+	}
 
 	varMap := nut.VarsToMap(vars)
 	m := metrics.Compute(varMap)
+	d.track(varMap, m)
 
-	// Half a sample of slack keeps ticker jitter from pushing a publish to
-	// the sample after.
-	due := now.Sub(d.lastPublish) >= d.cfg.NUT.PollInterval.Duration-d.cfg.NUT.EffectiveSampleInterval()/2
+	poll := d.cfg.NUT.PollInterval.Duration
+	// A little slack keeps ticker jitter from pushing a publish to the
+	// sample after.  It is capped well below a sample, so where the sample
+	// does not divide the poll interval, publishing drifts later, never
+	// earlier: the publish rate is never more than once per poll.
+	slack := min(d.cfg.NUT.EffectiveSampleInterval()/2, 250*time.Millisecond)
+	due := now.Sub(d.lastPublish) >= poll-slack
+	// A change of power state is published at once, but at most once per
+	// poll interval: power flapping every couple of seconds must not
+	// multiply the event rate the bridge queue is sized for.  A change it
+	// holds back goes out with the next scheduled publish; the outage
+	// times are still the samples', since the tracker follows every one.
 	changed := m.OnBattery != d.lastOnBattery || m.LowBattery != d.lastLow
-	if force || !d.published || changed || due {
-		d.published, d.lastPublish = true, now
-		d.lastOnBattery, d.lastLow = m.OnBattery, m.LowBattery
-		if err := publishSample(varMap, m, d.pub, d.cfg, &d.outage); err != nil {
-			log.Printf("poll error: %v", err)
-		}
+	changeAllowed := now.Sub(d.lastChangePublish) >= poll-slack
+	// Low battery is the warning that the host is about to lose power, so
+	// its first onset in an outage is never held back.  It can only happen
+	// once per outage, so it cannot flap.
+	firstLow := m.LowBattery && !d.lowAnnounced
+
+	if !force && d.published && !due && !(changed && (changeAllowed || firstLow)) {
 		return
 	}
-	if m.OnBattery {
-		d.outage.tracker.OnBattery(m.LowBattery, parseOptional(varMap["battery.charge"]))
+	if m.LowBattery {
+		d.lowAnnounced = true
+	} else if !m.OnBattery {
+		d.lowAnnounced = false
+	}
+	if changed {
+		d.lastChangePublish = now
+	}
+	d.published, d.lastPublish = true, now
+	d.lastOnBattery, d.lastLow = m.OnBattery, m.LowBattery
+	if err := publishSample(varMap, m, d.pub, d.cfg, &d.outage); err != nil {
+		log.Printf("poll error: %v", err)
 	}
 }
 
-// logPollError logs a failed sample when the error is new, or once a poll
-// interval while it persists.
-func (d *daemon) logPollError(now time.Time, err error) {
-	msg := err.Error()
-	if msg == d.lastPollErr && now.Sub(d.lastPollErrAt) < d.cfg.NUT.PollInterval.Duration {
+// track keeps the outage tracker current with every sample, published or
+// not, so outage times are accurate to a sample.
+func (d *daemon) track(varMap map[string]string, m metrics.Metrics) {
+	tr := d.outage.tracker
+	tr.Restore(m.OnBattery)
+	if m.OnBattery {
+		if _, isNew := tr.OnBattery(m.LowBattery, parseOptional(varMap["battery.charge"])); isNew {
+			log.Printf("power outage detected — UPS on battery")
+		}
 		return
 	}
-	d.lastPollErr, d.lastPollErrAt = msg, now
+	if tr.OnMains() {
+		log.Printf("power restored")
+	}
+}
+
+// logPollError logs a failed sample when NUT starts failing, then once a
+// poll interval while it goes on.  It goes by time, not the error text: a
+// re-dial's error names a new local port every time.
+func (d *daemon) logPollError(now time.Time, err error) {
+	d.pollErrors++
+	if d.pollErrors > 1 && now.Sub(d.lastPollErrAt) < d.cfg.NUT.PollInterval.Duration {
+		return
+	}
+	d.lastPollErrAt = now
+	if d.pollErrors > 1 {
+		log.Printf("poll error: polling NUT (%d failed samples so far): %v", d.pollErrors, err)
+		return
+	}
 	log.Printf("poll error: polling NUT: %v", err)
 }
 

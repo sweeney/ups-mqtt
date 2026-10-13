@@ -246,7 +246,9 @@ If you run multiple instances against the same broker, each must have a distinct
 
 ### Sampling
 
-`poll_interval` sets how often everything is published. Between publishes the daemon reads the UPS every `sample_interval` (default 2 s, never longer than `poll_interval`). When a sample finds the UPS has gone on battery, come back to mains, or reached low battery, everything is published straight away rather than at the next poll. Outage start and end times, and so `last_outage`, are then accurate to a sample rather than a poll, and the lowest battery charge counts readings between publishes too.
+`poll_interval` sets how often everything is published. Between publishes the daemon reads the UPS every `sample_interval` (default 2 s, never longer than `poll_interval`). When a sample finds the UPS has gone on battery, come back to mains, or reached low battery, everything is published straight away rather than at the next poll. Outage start and end times, and so `last_outage`, are accurate to a sample rather than a poll whether or not that sample was published, and the lowest battery charge counts readings between publishes too.
+
+At most one such immediate publish goes out per poll interval. Power flapping every few seconds — a brownout, a generator transfer — would otherwise publish on every flip; instead a change held back goes out with the next scheduled publish, so a short outage's clear can arrive up to a poll late while its recorded times stay exact. The first low battery of an outage is never held back. Where `sample_interval` does not divide `poll_interval`, publishes drift later rather than earlier. `poll_interval` must be positive.
 
 The publish rate is unchanged, which matters behind a bridged local broker: while its uplink is down the bridge queues the QoS 1 outage messages, one per poll. A sample is a single `LIST VAR` round trip to upsd, normally on the same host. A NUT error is logged when it starts and then once per poll interval, not on every sample.
 

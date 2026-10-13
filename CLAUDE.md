@@ -109,7 +109,10 @@ go build ./...                                  # clean compile
   `TestRestart*` in `cmd/ups-mqtt` replays the scenarios end to end.
 - The UPS is read every `nut.sample_interval` (default 2 s, capped at
   `poll_interval`) but published every `poll_interval`, plus at once when a
-  sample sees on/off battery or low battery (`daemon.sample`). Keep the
+  sample sees on/off battery or low battery (`daemon.sample`), at most once
+  per poll (the first low battery of an outage excepted), so flapping power
+  cannot multiply it. The tracker follows every sample (`daemon.track`), so
+  outage times are a sample's even when the publish was held back. Keep the
   publish rate: the Pi's bridged local broker queues one QoS 1 `outage` per
   publish while its uplink is down, and its cap was sized for 10 s polls.
 - `state` is published every poll regardless of change, so it doubles as a

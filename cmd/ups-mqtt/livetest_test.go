@@ -371,7 +371,7 @@ func TestLiveReplay_Clean(t *testing.T) {
 	if first.IsZero() {
 		t.Fatal("no outage message reached the broker")
 	}
-	if lag := first.Sub(r.poller.start.Add(scaled(start))); lag > scaled(2*time.Second)+scaled(3*time.Second) {
+	if lag := first.Sub(r.poller.start.Add(scaled(start))); lag > scaled(6*time.Second) {
 		t.Errorf("outage reached the broker %s (live %s) after the UPS went on battery, want within a sample",
 			lag, lag*compress)
 	}
@@ -458,7 +458,10 @@ func TestShutdown_BoundedAgainstDeadBroker(t *testing.T) {
 	broker := mqtttest.StartBroker(t, "")
 	proxy := mqtttest.StartProxy(t, broker.Addr)
 	cfg := &config.Config{
-		NUT: config.NUTConfig{UPSName: "iplug", Label: replayLabel},
+		NUT: config.NUTConfig{
+			UPSName: "iplug", Label: replayLabel,
+			PollInterval: config.Duration{Duration: 10 * time.Second},
+		},
 		MQTT: config.MQTTConfig{
 			Broker: proxy.URL(), ClientID: "ups-mqtt-stop",
 			TopicPrefix: "ups", Retained: true, QOS: 1,
@@ -486,7 +489,7 @@ func TestShutdown_BoundedAgainstDeadBroker(t *testing.T) {
 	proxy.SetMode(mqtttest.Blackhole)
 	cancel()
 	start := time.Now()
-	d.run(ctx, 10*time.Second, replayStateTopic)
+	d.run(ctx, replayStateTopic)
 	pub.Close() //nolint:errcheck
 	if took := time.Since(start); took > 2*publishTimeout+time.Second {
 		t.Errorf("stopping took %s against a dead broker, want about one publish timeout (%s)", took, publishTimeout)

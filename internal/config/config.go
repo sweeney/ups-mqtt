@@ -160,7 +160,23 @@ func Load(paths ...string) (*Config, error) {
 	if err := cfg.MQTT.validateQOS(); err != nil {
 		return nil, err
 	}
+	if err := cfg.NUT.validateIntervals(); err != nil {
+		return nil, err
+	}
 	return cfg, nil
+}
+
+// validateIntervals rejects a poll interval that is not positive.  Zero once
+// panicked at startup; with sampling it would instead publish on every
+// sample, five times the intended rate, without a word.
+func (c NUTConfig) validateIntervals() error {
+	if c.PollInterval.Duration <= 0 {
+		return fmt.Errorf("nut.poll_interval = %s: must be positive", c.PollInterval.Duration)
+	}
+	if c.SampleInterval.Duration < 0 {
+		return fmt.Errorf("nut.sample_interval = %s: must not be negative", c.SampleInterval.Duration)
+	}
+	return nil
 }
 
 // validateQOS rejects QoS levels above 2.  Nothing downstream checks: paho
