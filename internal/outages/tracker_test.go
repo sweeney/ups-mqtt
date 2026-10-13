@@ -700,3 +700,33 @@ func TestTracker_EndAfterResumeAcrossReboot_DropsStaleStartAnchor(t *testing.T) 
 			store.Rec.BootID, store.Rec.StartSinceBoot, store.Rec.EndSinceBoot)
 	}
 }
+
+// Resumed across a reboot on UPS power, then low battery in the new boot,
+// then a process-only restart while still on battery.  That is one outage,
+// still in progress: it must be resumed, not ended at the reboot with a
+// false last_outage published while the power is still off.
+func TestTracker_LBAfterResumeAcrossReboot_ProcessRestartResumes(t *testing.T) {
+	store := &MemoryStore{}
+	prev := NewTracker(bootClock("boot-a", t0, time.Hour), store)
+	prev.Restore(false)
+	prev.OnBattery(false, nil)
+
+	// The host reboots on UPS power at t0+10m; no LB yet, so resume.
+	mid := NewTracker(bootClock("boot-b", t0.Add(11*time.Minute), time.Minute), store)
+	mid.Restore(true)
+	mid.OnBattery(false, nil)
+	if store.Rec.BootID != "boot-b" || store.Rec.StartSinceBoot != nil {
+		t.Errorf("resumed record = boot %q, start anchor %v; want re-stamped for boot-b with no start anchor",
+			store.Rec.BootID, store.Rec.StartSinceBoot)
+	}
+	mid.OnBattery(true, nil) // LB, in boot-b
+
+	// A deploy restarts the process, still in boot-b, still on battery.
+	tr := NewTracker(bootClock("boot-b", t0.Add(21*time.Minute), 11*time.Minute), store)
+	tr.Restore(true)
+	o, isNew := tr.OnBattery(true, nil)
+	if isNew || !o.StartedAt.Equal(t0) {
+		t.Errorf("OnBattery = start %s, new %v; want the outage from %s resumed", o.StartedAt, isNew, t0)
+	}
+	assertNotDue(t, tr)
+}

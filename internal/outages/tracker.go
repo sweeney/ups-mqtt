@@ -209,6 +209,15 @@ func (t *Tracker) Restore(onBattery bool) {
 	case onBattery:
 		if sameBoot {
 			ep.startMono = t.reanchor(rec.StartSinceBoot)
+		} else if isTrue(rebooted) {
+			// The outage continues in this boot, so the record now belongs
+			// to it, with no start anchor here.  Left under the old boot ID,
+			// low battery seen from now on would read, after a mere process
+			// restart, as an earlier boot that ran flat — ending this outage
+			// while the power is still off.
+			ep.rec.BootID = t.clock.BootID()
+			ep.rec.StartSinceBoot = nil
+			t.save(ep.rec)
 		}
 		t.open = &ep
 		if isTrue(rebooted) {
