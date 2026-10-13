@@ -1,0 +1,8 @@
+Oct 13 13:19:10.891248 ups-host kernel: smsc95xx 1-1.1:1.0 eth0: Link is Down
+Oct 13 13:19:17.103881 ups-host kernel: smsc95xx 1-1.1:1.0 eth0: Link is Up - 100Mbps/Full - flow control rx/tx
+Oct 13 13:19:33.951198 ups-host kernel: smsc95xx 1-1.1:1.0 eth0: Link is Down
+Oct 13 13:19:36.588492 ups-host kernel: smsc95xx 1-1.1:1.0 eth0: Link is Up - 100Mbps/Full - flow control rx/tx
+Oct 13 13:20:10.179203 ups-host kernel: smsc95xx 1-1.1:1.0 eth0: Link is Down
+Oct 13 13:20:13.720801 ups-host kernel: smsc95xx 1-1.1:1.0 eth0: Link is Up - 100Mbps/Full - flow control rx/tx
+Oct 13 19:49:41.499145 ups-host kernel: hwmon hwmon1: Undervoltage detected!
+Oct 13 19:49:45.531169 ups-host kernel: hwmon hwmon1: Voltage normalised

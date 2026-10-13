@@ -1,0 +1,6 @@
+Oct 13 12:57:33.179117 ups-host kernel: smsc95xx 1-1.1:1.0 eth0: Link is Down
+Oct 13 12:57:53.911213 ups-host kernel: smsc95xx 1-1.1:1.0 eth0: Link is Up - 100Mbps/Full - flow control rx/tx
+Oct 13 12:58:10.923213 ups-host kernel: smsc95xx 1-1.1:1.0 eth0: Link is Down
+Oct 13 12:58:13.451138 ups-host kernel: smsc95xx 1-1.1:1.0 eth0: Link is Up - 100Mbps/Full - flow control rx/tx
+Oct 13 12:58:47.575165 ups-host kernel: smsc95xx 1-1.1:1.0 eth0: Link is Down
+Oct 13 12:58:51.079145 ups-host kernel: smsc95xx 1-1.1:1.0 eth0: Link is Up - 100Mbps/Full - flow control rx/tx

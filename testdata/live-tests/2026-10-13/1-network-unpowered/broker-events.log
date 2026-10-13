@@ -1,0 +1,64 @@
+2026-10-13T12:57:03+0100 1 ups/site-ups/computed/on_battery false
+2026-10-13T12:57:03+0100 1 ups/site-ups/computed/low_battery false
+2026-10-13T12:57:03+0100 1 ups/site-ups/computed/status_display Online
+2026-10-13T12:57:05+0100 0 ups/site-ups/computed/low_battery false
+2026-10-13T12:57:05+0100 0 ups/site-ups/computed/status_display Online
+2026-10-13T12:57:05+0100 0 ups/site-ups/computed/on_battery false
+2026-10-13T12:57:15+0100 0 ups/site-ups/computed/on_battery false
+2026-10-13T12:57:15+0100 0 ups/site-ups/computed/low_battery false
+2026-10-13T12:57:15+0100 0 ups/site-ups/computed/status_display Online
+2026-10-13T12:57:25+0100 0 ups/site-ups/computed/on_battery false
+2026-10-13T12:57:25+0100 0 ups/site-ups/computed/low_battery false
+2026-10-13T12:57:25+0100 0 ups/site-ups/computed/status_display Online
+2026-10-13T12:59:45+0100 0 ups/site-ups/outage {"timestamp":"2026-10-13T11:57:35Z","ups_name":"site-ups","outage_started_at":"2026-10-13T11:57:35Z","outage_duration_secs":0,"status":"OB","status_display":"On Battery","battery_voltage":13.4,"low_battery":false,"clock_synced":true}
+2026-10-13T12:59:45+0100 0 ups/site-ups/computed/status_display On Battery
+2026-10-13T12:59:45+0100 0 ups/site-ups/computed/on_battery true
+2026-10-13T12:59:45+0100 0 ups/site-ups/computed/low_battery false
+2026-10-13T12:59:45+0100 0 ups/site-ups/computed/on_battery false
+2026-10-13T12:59:45+0100 0 ups/site-ups/computed/low_battery false
+2026-10-13T12:59:45+0100 0 ups/site-ups/computed/status_display Online
+2026-10-13T12:59:45+0100 0 ups/site-ups/outage 
+2026-10-13T12:59:45+0100 0 ups/site-ups/outage 
+2026-10-13T12:59:45+0100 0 ups/site-ups/computed/low_battery false
+2026-10-13T12:59:45+0100 0 ups/site-ups/computed/low_battery false
+2026-10-13T12:59:45+0100 0 ups/site-ups/outage 
+2026-10-13T12:59:45+0100 0 ups/site-ups/outage 
+2026-10-13T12:59:45+0100 0 ups/site-ups/computed/status_display Online
+2026-10-13T12:59:45+0100 0 ups/site-ups/computed/on_battery false
+2026-10-13T12:59:45+0100 0 ups/site-ups/computed/on_battery false
+2026-10-13T12:59:45+0100 0 ups/site-ups/computed/status_display Online
+2026-10-13T12:59:45+0100 0 ups/site-ups/computed/on_battery false
+2026-10-13T12:59:45+0100 0 ups/site-ups/computed/low_battery false
+2026-10-13T12:59:45+0100 0 ups/site-ups/computed/status_display Online
+2026-10-13T12:59:45+0100 0 ups/site-ups/outage 
+2026-10-13T12:59:45+0100 0 ups/site-ups/last_outage {"ups_name":"site-ups","started_at":"2026-10-13T11:57:35Z","ended_at":"2026-10-13T11:58:05Z","duration_secs":30,"low_battery_reached":false,"clock_synced":true,"spans_restart":false}
+2026-10-13T12:59:45+0100 0 ups/site-ups/computed/on_battery false
+2026-10-13T12:59:45+0100 0 ups/site-ups/computed/low_battery false
+2026-10-13T12:59:45+0100 0 ups/site-ups/computed/status_display Online
+2026-10-13T12:59:55+0100 0 ups/site-ups/computed/on_battery false
+2026-10-13T12:59:55+0100 0 ups/site-ups/computed/low_battery false
+2026-10-13T12:59:55+0100 0 ups/site-ups/computed/status_display Online
+2026-10-13T13:00:17+0100 0 ups/site-ups/computed/on_battery false
+2026-10-13T13:00:17+0100 0 ups/site-ups/computed/low_battery false
+2026-10-13T13:00:17+0100 0 ups/site-ups/computed/status_display Online
+2026-10-13T13:00:19+0100 0 ups/site-ups/computed/on_battery false
+2026-10-13T13:00:19+0100 0 ups/site-ups/computed/low_battery false
+2026-10-13T13:00:19+0100 0 ups/site-ups/computed/status_display Online
+2026-10-13T13:00:25+0100 0 ups/site-ups/computed/low_battery false
+2026-10-13T13:00:25+0100 0 ups/site-ups/computed/status_display Online
+2026-10-13T13:00:25+0100 0 ups/site-ups/computed/on_battery false
+2026-10-13T13:00:35+0100 0 ups/site-ups/computed/status_display Online
+2026-10-13T13:00:35+0100 0 ups/site-ups/computed/on_battery false
+2026-10-13T13:00:35+0100 0 ups/site-ups/computed/low_battery false
+2026-10-13T13:00:45+0100 0 ups/site-ups/computed/on_battery false
+2026-10-13T13:00:45+0100 0 ups/site-ups/computed/low_battery false
+2026-10-13T13:00:45+0100 0 ups/site-ups/computed/status_display Online
+2026-10-13T13:00:55+0100 0 ups/site-ups/computed/low_battery false
+2026-10-13T13:00:55+0100 0 ups/site-ups/computed/status_display Online
+2026-10-13T13:00:55+0100 0 ups/site-ups/computed/on_battery false
+2026-10-13T13:01:05+0100 0 ups/site-ups/computed/on_battery false
+2026-10-13T13:01:05+0100 0 ups/site-ups/computed/low_battery false
+2026-10-13T13:01:05+0100 0 ups/site-ups/computed/status_display Online
+2026-10-13T13:01:15+0100 0 ups/site-ups/computed/on_battery false
+2026-10-13T13:01:15+0100 0 ups/site-ups/computed/low_battery false
+2026-10-13T13:01:15+0100 0 ups/site-ups/computed/status_display Online

@@ -1,0 +1,19 @@
+2026-10-13T12:57:08+0100 1 {"timestamp":"2026-10-13T11:57:05Z","ups_name":"site-ups","variables":{…},"computed":{"on_battery":false,"low_battery":false,"status_display":"Online","input_voltage_deviation_pct":8.7}}
+2026-10-13T12:57:15+0100 0 {"timestamp":"2026-10-13T11:57:15Z","ups_name":"site-ups","variables":{…},"computed":{"on_battery":false,"low_battery":false,"status_display":"Online","input_voltage_deviation_pct":8.7}}
+2026-10-13T12:57:25+0100 0 {"timestamp":"2026-10-13T11:57:25Z","ups_name":"site-ups","variables":{…},"computed":{"on_battery":false,"low_battery":false,"status_display":"Online","input_voltage_deviation_pct":8.7}}
+2026-10-13T12:58:11+0100 0 {"online":false,"timestamp":"2026-10-13T11:48:25Z"}
+2026-10-13T12:59:45+0100 0 {"timestamp":"2026-10-13T11:58:00Z","ups_name":"site-ups","variables":{…},"computed":{"on_battery":true,"low_battery":false,"status_display":"On Battery","input_voltage_deviation_pct":-97.83}}
+2026-10-13T12:59:45+0100 0 {"timestamp":"2026-10-13T11:59:00Z","ups_name":"site-ups","variables":{…},"computed":{"on_battery":false,"low_battery":false,"status_display":"Online","input_voltage_deviation_pct":7.39}}
+2026-10-13T12:59:45+0100 0 {"timestamp":"2026-10-13T11:59:30Z","ups_name":"site-ups","variables":{…},"computed":{"on_battery":false,"low_battery":false,"status_display":"Online","input_voltage_deviation_pct":7.83}}
+2026-10-13T12:59:45+0100 0 {"timestamp":"2026-10-13T11:58:30Z","ups_name":"site-ups","variables":{…},"computed":{"on_battery":false,"low_battery":false,"status_display":"Online","input_voltage_deviation_pct":9.13}}
+2026-10-13T12:59:45+0100 0 {"timestamp":"2026-10-13T11:59:45Z","ups_name":"site-ups","variables":{…},"computed":{"on_battery":false,"low_battery":false,"status_display":"Online","input_voltage_deviation_pct":8.26}}
+2026-10-13T12:59:45+0100 0 {"timestamp":"2026-10-13T11:59:45Z","ups_name":"site-ups","variables":{…},"computed":{"on_battery":false,"low_battery":false,"status_display":"Online","input_voltage_deviation_pct":8.26}}
+2026-10-13T12:59:55+0100 0 {"timestamp":"2026-10-13T11:59:55Z","ups_name":"site-ups","variables":{…},"computed":{"on_battery":false,"low_battery":false,"status_display":"Online","input_voltage_deviation_pct":8.26}}
+2026-10-13T13:00:19+0100 0 {"timestamp":"2026-10-13T12:00:19Z","ups_name":"site-ups","variables":{…},"computed":{"on_battery":false,"low_battery":false,"status_display":"Online","input_voltage_deviation_pct":8.26}}
+2026-10-13T13:00:19+0100 0 {"timestamp":"2026-10-13T12:00:19Z","ups_name":"site-ups","variables":{…},"computed":{"on_battery":false,"low_battery":false,"status_display":"Online","input_voltage_deviation_pct":8.26}}
+2026-10-13T13:00:25+0100 0 {"timestamp":"2026-10-13T12:00:25Z","ups_name":"site-ups","variables":{…},"computed":{"on_battery":false,"low_battery":false,"status_display":"Online","input_voltage_deviation_pct":8.26}}
+2026-10-13T13:00:35+0100 0 {"timestamp":"2026-10-13T12:00:35Z","ups_name":"site-ups","variables":{…},"computed":{"on_battery":false,"low_battery":false,"status_display":"Online","input_voltage_deviation_pct":8.26}}
+2026-10-13T13:00:45+0100 0 {"timestamp":"2026-10-13T12:00:45Z","ups_name":"site-ups","variables":{…},"computed":{"on_battery":false,"low_battery":false,"status_display":"Online","input_voltage_deviation_pct":9.13}}
+2026-10-13T13:00:55+0100 0 {"timestamp":"2026-10-13T12:00:55Z","ups_name":"site-ups","variables":{…},"computed":{"on_battery":false,"low_battery":false,"status_display":"Online","input_voltage_deviation_pct":8.26}}
+2026-10-13T13:01:05+0100 0 {"timestamp":"2026-10-13T12:01:05Z","ups_name":"site-ups","variables":{…},"computed":{"on_battery":false,"low_battery":false,"status_display":"Online","input_voltage_deviation_pct":7.39}}
+2026-10-13T13:01:15+0100 0 {"timestamp":"2026-10-13T12:01:15Z","ups_name":"site-ups","variables":{…},"computed":{"on_battery":false,"low_battery":false,"status_display":"Online","input_voltage_deviation_pct":7.39}}

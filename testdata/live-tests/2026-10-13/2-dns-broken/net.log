@@ -1,0 +1,671 @@
+# Pi local time (BST); eth0 carrier, ping 1.1.1.1, ls of the state dir, every 1 s
+19:46:11 1 inet-up 
+19:46:12 1 inet-up 
+19:46:13 1 inet-up 
+19:46:14 1 inet-up 
+19:46:15 1 inet-up 
+19:46:16 1 inet-up 
+19:46:17 1 inet-up 
+19:46:18 1 inet-up 
+19:46:19 1 inet-up 
+19:46:20 1 inet-up 
+19:46:22 1 inet-up 
+19:46:23 1 inet-up 
+19:46:24 1 inet-up 
+19:46:25 1 inet-up 
+19:46:26 1 inet-up 
+19:46:27 1 inet-up 
+19:46:28 1 inet-up 
+19:46:29 1 inet-up 
+19:46:30 1 inet-up 
+19:46:31 1 inet-up 
+19:46:32 1 inet-up 
+19:46:33 1 inet-up 
+19:46:34 1 inet-up 
+19:46:35 1 inet-up 
+19:46:36 1 inet-up 
+19:46:37 1 inet-up 
+19:46:38 1 inet-up 
+19:46:39 1 inet-up 
+19:46:40 1 inet-up 
+19:46:42 1 inet-up 
+19:46:43 1 inet-up 
+19:46:44 1 inet-up 
+19:46:45 1 inet-up 
+19:46:46 1 inet-up 
+19:46:47 1 inet-up 
+19:46:48 1 inet-up 
+19:46:49 1 inet-up 
+19:46:50 1 inet-up 
+19:46:51 1 inet-up 
+19:46:52 1 inet-up 
+19:46:53 1 inet-up 
+19:46:54 1 inet-up 
+19:46:55 1 inet-up 
+19:46:56 1 inet-up 
+19:46:57 1 inet-up 
+19:46:58 1 inet-up 
+19:46:59 1 inet-up 
+19:47:00 1 inet-up 
+19:47:02 1 inet-up 
+19:47:03 1 inet-up outage.json 
+19:47:04 1 inet-up outage.json 
+19:47:05 1 inet-up outage.json 
+19:47:06 1 inet-up outage.json 
+19:47:07 1 inet-up outage.json 
+19:47:08 1 inet-up outage.json 
+19:47:09 1 inet-up outage.json 
+19:47:10 1 inet-up outage.json 
+19:47:11 1 inet-up outage.json 
+19:47:12 1 inet-up outage.json 
+19:47:13 1 inet-up outage.json 
+19:47:14 1 inet-up outage.json 
+19:47:15 1 inet-up outage.json 
+19:47:16 1 inet-up outage.json 
+19:47:17 1 inet-up outage.json 
+19:47:18 1 inet-up outage.json 
+19:47:20 1 inet-up outage.json 
+19:47:21 1 inet-up outage.json 
+19:47:22 1 inet-up outage.json 
+19:47:23 1 inet-up outage.json 
+19:47:24 1 inet-up outage.json 
+19:47:25 1 inet-up outage.json 
+19:47:26 1 inet-up outage.json 
+19:47:27 1 inet-up outage.json 
+19:47:28 1 inet-up outage.json 
+19:47:29 1 inet-up outage.json 
+19:47:30 1 inet-up outage.json 
+19:47:31 1 inet-up outage.json 
+19:47:32 1 inet-up outage.json 
+19:47:33 1 inet-up outage.json 
+19:47:34 1 inet-up outage.json 
+19:47:35 1 inet-up outage.json 
+19:47:36 1 inet-up outage.json 
+19:47:38 1 inet-up outage.json 
+19:47:39 1 inet-up outage.json 
+19:47:40 1 inet-up outage.json 
+19:47:41 1 inet-up outage.json 
+19:47:42 1 inet-up outage.json 
+19:47:43 1 inet-up outage.json 
+19:47:44 1 inet-up outage.json 
+19:47:45 1 inet-up outage.json 
+19:47:46 1 inet-up outage.json 
+19:47:47 1 inet-up outage.json 
+19:47:48 1 inet-up outage.json 
+19:47:49 1 inet-up outage.json 
+19:47:50 1 inet-up outage.json 
+19:47:51 1 inet-up outage.json 
+19:47:52 1 inet-up outage.json 
+19:47:53 1 inet-up outage.json 
+19:47:54 1 inet-up outage.json 
+19:47:56 1 inet-up outage.json 
+19:47:57 1 inet-up outage.json 
+19:47:58 1 inet-up outage.json 
+19:47:59 1 inet-up outage.json 
+19:48:00 1 inet-up outage.json 
+19:48:01 1 inet-up outage.json 
+19:48:02 1 inet-up outage.json 
+19:48:03 1 inet-up outage.json 
+19:48:04 1 inet-up outage.json 
+19:48:05 1 inet-up outage.json 
+19:48:06 1 inet-up outage.json 
+19:48:07 1 inet-up outage.json 
+19:48:08 1 inet-up outage.json 
+19:48:09 1 inet-up outage.json 
+19:48:10 1 inet-up outage.json 
+19:48:11 1 inet-up outage.json 
+19:48:12 1 inet-up outage.json 
+19:48:13 1 inet-up outage.json 
+19:48:15 1 inet-up outage.json 
+19:48:16 1 inet-up outage.json 
+19:48:17 1 inet-up outage.json 
+19:48:18 1 inet-up outage.json 
+19:48:19 1 inet-up outage.json 
+19:48:20 1 inet-up outage.json 
+19:48:21 1 inet-up outage.json 
+19:48:22 1 inet-up outage.json 
+19:48:23 1 inet-up outage.json 
+19:48:24 1 inet-up outage.json 
+19:48:25 1 inet-up outage.json 
+19:48:26 1 inet-up outage.json 
+19:48:27 1 inet-up outage.json 
+19:48:28 1 inet-up outage.json 
+19:48:29 1 inet-up outage.json 
+19:48:31 1 inet-up outage.json 
+19:48:32 1 inet-up outage.json 
+19:48:33 1 inet-up outage.json 
+19:48:34 1 inet-up outage.json 
+19:48:35 1 inet-up outage.json 
+19:48:36 1 inet-up outage.json 
+19:48:37 1 inet-up outage.json 
+19:48:38 1 inet-up outage.json 
+19:48:39 1 inet-up outage.json 
+19:48:40 1 inet-up outage.json 
+19:48:41 1 inet-up outage.json 
+19:48:42 1 inet-up outage.json 
+19:48:43 1 inet-up outage.json 
+19:48:44 1 inet-up outage.json 
+19:48:45 1 inet-up outage.json 
+19:48:46 1 inet-up outage.json 
+19:48:47 1 inet-up outage.json 
+19:48:49 1 inet-up outage.json 
+19:48:50 1 inet-up outage.json 
+19:48:51 1 inet-up outage.json 
+19:48:52 1 inet-up outage.json 
+19:48:53 1 inet-up outage.json 
+19:48:54 1 inet-up outage.json 
+19:48:55 1 inet-up outage.json 
+19:48:56 1 inet-up outage.json 
+19:48:57 1 inet-up outage.json 
+19:48:58 1 inet-up outage.json 
+19:48:59 1 inet-up outage.json 
+19:49:00 1 inet-up outage.json 
+19:49:01 1 inet-up outage.json 
+19:49:02 1 inet-up outage.json 
+19:49:03 1 inet-up outage.json 
+19:49:04 1 inet-up outage.json 
+19:49:05 1 inet-up outage.json 
+19:49:07 1 inet-up outage.json 
+19:49:08 1 inet-up outage.json 
+19:49:09 1 inet-up outage.json 
+19:49:10 1 inet-up outage.json 
+19:49:11 1 inet-up outage.json 
+19:49:12 1 inet-up outage.json 
+19:49:13 1 inet-up outage.json 
+19:49:14 1 inet-up outage.json 
+19:49:15 1 inet-up outage.json 
+19:49:16 1 inet-up outage.json 
+19:49:17 1 inet-up outage.json 
+19:49:18 1 inet-up outage.json 
+19:49:19 1 inet-up outage.json 
+19:49:20 1 inet-up outage.json 
+19:49:21 1 inet-up outage.json 
+19:49:22 1 inet-up outage.json 
+19:49:23 1 inet-up outage.json 
+19:49:24 1 inet-up outage.json 
+19:49:25 1 inet-up outage.json 
+19:49:27 1 inet-up outage.json 
+19:49:28 1 inet-up outage.json 
+19:49:29 1 inet-up outage.json 
+19:49:30 1 inet-up outage.json 
+19:49:31 1 inet-up outage.json 
+19:49:32 1 inet-up outage.json 
+19:49:33 1 inet-up outage.json 
+19:49:34 1 inet-up outage.json 
+19:49:35 1 inet-up outage.json 
+19:49:36 1 inet-up outage.json 
+19:49:37 1 inet-up outage.json 
+19:49:38 1 inet-up outage.json 
+19:49:39 1 inet-up outage.json 
+19:49:40 1 inet-up outage.json 
+19:49:41 1 inet-up outage.json 
+19:49:42 1 inet-up outage.json 
+19:49:44 1 inet-up outage.json 
+19:49:45 1 inet-up outage.json 
+19:49:46 1 inet-up outage.json 
+19:49:47 1 inet-up outage.json 
+19:49:48 1 inet-up outage.json 
+19:49:49 1 inet-up outage.json 
+19:49:50 1 inet-up outage.json 
+19:49:51 1 inet-up outage.json 
+19:49:52 1 inet-up outage.json 
+19:49:53 1 inet-up outage.json 
+19:49:54 1 inet-up outage.json 
+19:49:55 1 inet-up outage.json 
+19:49:56 1 inet-up outage.json 
+19:49:57 1 inet-up outage.json 
+19:49:58 1 inet-up outage.json 
+19:49:59 1 inet-up outage.json 
+19:50:00 1 inet-up outage.json 
+19:50:01 1 inet-up outage.json 
+19:50:03 1 inet-up outage.json 
+19:50:04 1 inet-up outage.json 
+19:50:05 1 inet-up outage.json 
+19:50:06 1 inet-up outage.json 
+19:50:07 1 inet-up outage.json 
+19:50:08 1 inet-up outage.json 
+19:50:09 1 inet-up outage.json 
+19:50:10 1 inet-up outage.json 
+19:50:11 1 inet-up outage.json 
+19:50:12 1 inet-up outage.json 
+19:50:13 1 inet-up outage.json 
+19:50:14 1 inet-up outage.json 
+19:50:15 1 inet-up outage.json 
+19:50:16 1 inet-up outage.json 
+19:50:17 1 inet-up outage.json 
+19:50:18 1 inet-up outage.json 
+19:50:19 1 inet-up outage.json 
+19:50:21 1 inet-up outage.json 
+19:50:22 1 inet-up outage.json 
+19:50:23 1 inet-up outage.json 
+19:50:24 1 inet-up outage.json 
+19:50:25 1 inet-up outage.json 
+19:50:26 1 inet-up outage.json 
+19:50:27 1 inet-up outage.json 
+19:50:28 1 inet-up outage.json 
+19:50:29 1 inet-up outage.json 
+19:50:30 1 inet-up outage.json 
+19:50:31 1 inet-up outage.json 
+19:50:32 1 inet-up outage.json 
+19:50:33 1 inet-up outage.json 
+19:50:34 1 inet-up outage.json 
+19:50:35 1 inet-up outage.json 
+19:50:36 1 inet-up outage.json 
+19:50:37 1 inet-up outage.json 
+19:50:39 1 inet-up outage.json 
+19:50:40 1 inet-up outage.json 
+19:50:41 1 inet-up outage.json 
+19:50:42 1 inet-up outage.json 
+19:50:43 1 inet-up outage.json 
+19:50:44 1 inet-up outage.json 
+19:50:45 1 inet-up outage.json 
+19:50:46 1 inet-up outage.json 
+19:50:47 1 inet-up outage.json 
+19:50:48 1 inet-up outage.json 
+19:50:49 1 inet-up outage.json 
+19:50:50 1 inet-up outage.json 
+19:50:51 1 inet-up outage.json 
+19:50:52 1 inet-up outage.json 
+19:50:53 1 inet-up outage.json 
+19:50:54 1 inet-up outage.json 
+19:50:55 1 inet-up outage.json 
+19:50:57 1 inet-up outage.json 
+19:50:58 1 inet-up outage.json 
+19:50:59 1 inet-up outage.json 
+19:51:00 1 inet-up outage.json 
+19:51:01 1 inet-up outage.json 
+19:51:02 1 inet-up outage.json 
+19:51:03 1 inet-up outage.json 
+19:51:04 1 inet-up outage.json 
+19:51:05 1 inet-up outage.json 
+19:51:06 1 inet-up outage.json 
+19:51:07 1 inet-up outage.json 
+19:51:08 1 inet-up outage.json 
+19:51:09 1 inet-up outage.json 
+19:51:10 1 inet-up outage.json 
+19:51:11 1 inet-up outage.json 
+19:51:12 1 inet-up outage.json 
+19:51:13 1 inet-up outage.json 
+19:51:15 1 inet-up outage.json 
+19:51:16 1 inet-up outage.json 
+19:51:17 1 inet-up outage.json 
+19:51:18 1 inet-up outage.json 
+19:51:19 1 inet-up outage.json 
+19:51:20 1 inet-up outage.json 
+19:51:21 1 inet-up outage.json 
+19:51:22 1 inet-up outage.json 
+19:51:23 1 inet-up outage.json 
+19:51:24 1 inet-up outage.json 
+19:51:25 1 inet-up outage.json 
+19:51:26 1 inet-up outage.json 
+19:51:27 1 inet-up outage.json 
+19:51:28 1 inet-up outage.json 
+19:51:29 1 inet-up outage.json 
+19:51:30 1 inet-up outage.json 
+19:51:31 1 inet-up outage.json 
+19:51:33 1 inet-up outage.json 
+19:51:34 1 inet-up outage.json 
+19:51:35 1 inet-up outage.json 
+19:51:36 1 inet-up outage.json 
+19:51:37 1 inet-up outage.json 
+19:51:38 1 inet-up outage.json 
+19:51:39 1 inet-up outage.json 
+19:51:40 1 inet-up outage.json 
+19:51:41 1 inet-up outage.json 
+19:51:42 1 inet-up outage.json 
+19:51:43 1 inet-up outage.json 
+19:51:44 1 inet-up outage.json 
+19:51:45 1 inet-up outage.json 
+19:51:46 1 inet-up outage.json 
+19:51:47 1 inet-up outage.json 
+19:51:48 1 inet-up outage.json 
+19:51:49 1 inet-up outage.json 
+19:51:50 1 inet-up outage.json 
+19:51:52 1 inet-up outage.json 
+19:51:53 1 inet-up outage.json 
+19:51:54 1 inet-up outage.json 
+19:51:55 1 inet-up outage.json 
+19:51:56 1 inet-up outage.json 
+19:51:57 1 inet-up outage.json 
+19:51:58 1 inet-up outage.json 
+19:51:59 1 inet-up outage.json 
+19:52:00 1 inet-up outage.json 
+19:52:01 1 inet-up outage.json 
+19:52:02 1 inet-up outage.json 
+19:52:03 1 inet-up outage.json 
+19:52:04 1 inet-up outage.json 
+19:52:05 1 inet-up outage.json 
+19:52:06 1 inet-up outage.json 
+19:52:07 1 inet-up outage.json 
+19:52:08 1 inet-up outage.json 
+19:52:09 1 inet-up outage.json 
+19:52:11 1 inet-up outage.json 
+19:52:12 1 inet-up outage.json 
+19:52:13 1 inet-up outage.json 
+19:52:14 1 inet-up outage.json 
+19:52:15 1 inet-up outage.json 
+19:52:16 1 inet-up outage.json 
+19:52:17 1 inet-up outage.json 
+19:52:18 1 inet-up outage.json 
+19:52:19 1 inet-up outage.json 
+19:52:20 1 inet-up outage.json 
+19:52:21 1 inet-up outage.json 
+19:52:22 1 inet-up outage.json 
+19:52:23 1 inet-up outage.json 
+19:52:24 1 inet-up outage.json 
+19:52:25 1 inet-up outage.json 
+19:52:26 1 inet-up outage.json 
+19:52:27 1 inet-up outage.json 
+19:52:28 1 inet-up outage.json 
+19:52:30 1 inet-up outage.json 
+19:52:31 1 inet-up outage.json 
+19:52:32 1 inet-up outage.json 
+19:52:33 1 inet-up outage.json 
+19:52:34 1 inet-up outage.json 
+19:52:35 1 inet-up outage.json 
+19:52:36 1 inet-up outage.json 
+19:52:37 1 inet-up outage.json 
+19:52:38 1 inet-up outage.json 
+19:52:39 1 inet-up outage.json 
+19:52:40 1 inet-up outage.json 
+19:52:41 1 inet-up outage.json 
+19:52:42 1 inet-up outage.json 
+19:52:43 1 inet-up outage.json 
+19:52:44 1 inet-up outage.json 
+19:52:45 1 inet-up outage.json 
+19:52:46 1 inet-up outage.json 
+19:52:47 1 inet-up outage.json 
+19:52:49 1 inet-up outage.json 
+19:52:50 1 inet-up outage.json 
+19:52:51 1 inet-up outage.json 
+19:52:52 1 inet-up outage.json 
+19:52:53 1 inet-up outage.json 
+19:52:54 1 inet-up outage.json 
+19:52:55 1 inet-up outage.json 
+19:52:56 1 inet-up outage.json 
+19:52:57 1 inet-up outage.json 
+19:52:58 1 inet-up outage.json 
+19:52:59 1 inet-up outage.json 
+19:53:00 1 inet-up outage.json 
+19:53:01 1 inet-up outage.json 
+19:53:02 1 inet-up outage.json 
+19:53:03 1 inet-up outage.json 
+19:53:04 1 inet-up outage.json 
+19:53:05 1 inet-up outage.json 
+19:53:06 1 inet-up outage.json 
+19:53:07 1 inet-up outage.json 
+19:53:09 1 inet-up outage.json 
+19:53:10 1 inet-up outage.json 
+19:53:11 1 inet-up outage.json 
+19:53:12 1 inet-up outage.json 
+19:53:13 1 inet-up outage.json 
+19:53:14 1 inet-up outage.json 
+19:53:15 1 inet-up outage.json 
+19:53:16 1 inet-up outage.json 
+19:53:17 1 inet-up outage.json 
+19:53:18 1 inet-up outage.json 
+19:53:19 1 inet-up outage.json 
+19:53:20 1 inet-up outage.json 
+19:53:21 1 inet-up outage.json 
+19:53:22 1 inet-up outage.json 
+19:53:23 1 inet-up outage.json 
+19:53:24 1 inet-up outage.json 
+19:53:25 1 inet-up outage.json 
+19:53:26 1 inet-up outage.json 
+19:53:27 1 inet-up outage.json 
+19:53:29 1 inet-up outage.json 
+19:53:30 1 inet-up outage.json 
+19:53:31 1 inet-up outage.json 
+19:53:32 1 inet-up outage.json 
+19:53:33 1 inet-up outage.json 
+19:53:34 1 inet-up outage.json 
+19:53:35 1 inet-up outage.json 
+19:53:36 1 inet-up outage.json 
+19:53:37 1 inet-up outage.json 
+19:53:38 1 inet-up outage.json 
+19:53:39 1 inet-up outage.json 
+19:53:40 1 inet-up outage.json 
+19:53:41 1 inet-up outage.json 
+19:53:42 1 inet-up outage.json 
+19:53:43 1 inet-up outage.json 
+19:53:44 1 inet-up outage.json 
+19:53:45 1 inet-up outage.json 
+19:53:46 1 inet-up outage.json 
+19:53:47 1 inet-up outage.json 
+19:53:49 1 inet-up outage.json 
+19:53:50 1 inet-up outage.json 
+19:53:51 1 inet-up outage.json 
+19:53:52 1 inet-up outage.json 
+19:53:53 1 inet-up outage.json 
+19:53:54 1 inet-up outage.json 
+19:53:55 1 inet-up outage.json 
+19:53:56 1 inet-up outage.json 
+19:53:57 1 inet-up outage.json 
+19:53:58 1 inet-up outage.json 
+19:53:59 1 inet-up outage.json 
+19:54:00 1 inet-up outage.json 
+19:54:01 1 inet-up outage.json 
+19:54:02 1 inet-up outage.json 
+19:54:03 1 inet-up outage.json 
+19:54:04 1 inet-up outage.json 
+19:54:05 1 inet-up outage.json 
+19:54:07 1 inet-up outage.json 
+19:54:08 1 inet-up outage.json 
+19:54:09 1 inet-up outage.json 
+19:54:10 1 inet-up outage.json 
+19:54:11 1 inet-up outage.json 
+19:54:12 1 inet-up outage.json 
+19:54:13 1 inet-up outage.json 
+19:54:14 1 inet-up outage.json 
+19:54:15 1 inet-up outage.json 
+19:54:16 1 inet-up outage.json 
+19:54:17 1 inet-up outage.json 
+19:54:18 1 inet-up outage.json 
+19:54:19 1 inet-up outage.json 
+19:54:20 1 inet-up outage.json 
+19:54:21 1 inet-up outage.json 
+19:54:22 1 inet-up outage.json 
+19:54:23 1 inet-up outage.json 
+19:54:25 1 inet-up outage.json 
+19:54:26 1 inet-up outage.json 
+19:54:27 1 inet-up outage.json 
+19:54:28 1 inet-up outage.json 
+19:54:29 1 inet-up outage.json 
+19:54:30 1 inet-up outage.json 
+19:54:31 1 inet-up outage.json 
+19:54:32 1 inet-up outage.json 
+19:54:33 1 inet-up outage.json 
+19:54:34 1 inet-up outage.json 
+19:54:35 1 inet-up outage.json 
+19:54:36 1 inet-up outage.json 
+19:54:37 1 inet-up outage.json 
+19:54:38 1 inet-up outage.json 
+19:54:39 1 inet-up outage.json 
+19:54:40 1 inet-up outage.json 
+19:54:41 1 inet-up outage.json 
+19:54:42 1 inet-up outage.json 
+19:54:44 1 inet-up outage.json 
+19:54:45 1 inet-up outage.json 
+19:54:46 1 inet-up outage.json 
+19:54:47 1 inet-up outage.json 
+19:54:48 1 inet-up outage.json 
+19:54:49 1 inet-up outage.json 
+19:54:50 1 inet-up outage.json 
+19:54:51 1 inet-up outage.json 
+19:54:52 1 inet-up outage.json 
+19:54:53 1 inet-up outage.json 
+19:54:54 1 inet-up outage.json 
+19:54:55 1 inet-up outage.json 
+19:54:56 1 inet-up outage.json 
+19:54:57 1 inet-up outage.json 
+19:54:58 1 inet-up outage.json 
+19:54:59 1 inet-up outage.json 
+19:55:00 1 inet-up outage.json 
+19:55:02 1 inet-up outage.json 
+19:55:03 1 inet-up outage.json 
+19:55:04 1 inet-up outage.json 
+19:55:05 1 inet-up outage.json 
+19:55:06 1 inet-up outage.json 
+19:55:07 1 inet-up outage.json 
+19:55:08 1 inet-up outage.json 
+19:55:09 1 inet-up outage.json 
+19:55:10 1 inet-up outage.json 
+19:55:11 1 inet-up outage.json 
+19:55:12 1 inet-up outage.json 
+19:55:13 1 inet-up outage.json 
+19:55:14 1 inet-up outage.json 
+19:55:15 1 inet-up outage.json 
+19:55:16 1 inet-up outage.json 
+19:55:17 1 inet-up outage.json 
+19:55:18 1 inet-up outage.json 
+19:55:19 1 inet-up outage.json 
+19:55:21 1 inet-up outage.json 
+19:55:22 1 inet-up outage.json 
+19:55:23 1 inet-up outage.json 
+19:55:24 1 inet-up outage.json 
+19:55:25 1 inet-up outage.json 
+19:55:26 1 inet-up outage.json 
+19:55:27 1 inet-up outage.json 
+19:55:28 1 inet-up outage.json 
+19:55:29 1 inet-up outage.json 
+19:55:30 1 inet-up outage.json 
+19:55:31 1 inet-up outage.json 
+19:55:32 1 inet-up outage.json 
+19:55:33 1 inet-up outage.json 
+19:55:34 1 inet-up outage.json 
+19:55:35 1 inet-up outage.json 
+19:55:36 1 inet-up outage.json 
+19:55:37 1 inet-up outage.json 
+19:55:39 1 inet-up outage.json 
+19:55:40 1 inet-up outage.json 
+19:55:41 1 inet-up outage.json 
+19:55:42 1 inet-up outage.json 
+19:55:43 1 inet-up outage.json 
+19:55:44 1 inet-up outage.json 
+19:55:45 1 inet-up outage.json 
+19:55:46 1 inet-up outage.json 
+19:55:47 1 inet-up outage.json 
+19:55:48 1 inet-up outage.json 
+19:55:49 1 inet-up outage.json 
+19:55:50 1 inet-up outage.json 
+19:55:51 1 inet-up outage.json 
+19:55:52 1 inet-up outage.json 
+19:55:53 1 inet-up outage.json 
+19:55:54 1 inet-up outage.json 
+19:55:55 1 inet-up outage.json 
+19:55:56 1 inet-up outage.json 
+19:55:58 1 inet-up outage.json 
+19:55:59 1 inet-up outage.json 
+19:56:00 1 inet-up outage.json 
+19:56:01 1 inet-up outage.json 
+19:56:02 1 inet-up outage.json 
+19:56:03 1 inet-up outage.json 
+19:56:04 1 inet-up outage.json 
+19:56:05 1 inet-up outage.json 
+19:56:06 1 inet-up outage.json 
+19:56:07 1 inet-up outage.json 
+19:56:08 1 inet-up outage.json 
+19:56:09 1 inet-up outage.json 
+19:56:10 1 inet-up outage.json 
+19:56:11 1 inet-up outage.json 
+19:56:12 1 inet-up outage.json 
+19:56:13 1 inet-up outage.json 
+19:56:14 1 inet-up outage.json 
+19:56:16 1 inet-up outage.json 
+19:56:17 1 inet-up outage.json 
+19:56:18 1 inet-up outage.json 
+19:56:19 1 inet-up outage.json 
+19:56:20 1 inet-up outage.json 
+19:56:21 1 inet-up outage.json 
+19:56:22 1 inet-up outage.json 
+19:56:23 1 inet-up outage.json 
+19:56:24 1 inet-up outage.json 
+19:56:25 1 inet-up outage.json 
+19:56:26 1 inet-up outage.json 
+19:56:27 1 inet-up outage.json 
+19:56:28 1 inet-up outage.json 
+19:56:29 1 inet-up outage.json 
+19:56:30 1 inet-up outage.json 
+19:56:31 1 inet-up outage.json 
+19:56:33 1 inet-up outage.json 
+19:56:34 1 inet-up outage.json 
+19:56:35 1 inet-up outage.json 
+19:56:36 1 inet-up outage.json 
+19:56:37 1 inet-up outage.json 
+19:56:38 1 inet-up outage.json 
+19:56:39 1 inet-up outage.json 
+19:56:40 1 inet-up outage.json 
+19:56:41 1 inet-up outage.json 
+19:56:42 1 inet-up outage.json 
+19:56:43 1 inet-up outage.json 
+19:56:44 1 inet-up outage.json 
+19:56:45 1 inet-up outage.json 
+19:56:46 1 inet-up outage.json 
+19:56:47 1 inet-up outage.json 
+19:56:48 1 inet-up outage.json 
+19:56:49 1 inet-up outage.json 
+19:56:51 1 inet-up outage.json 
+19:56:52 1 inet-up outage.json 
+19:56:53 1 inet-up outage.json 
+19:56:54 1 inet-up outage.json 
+19:56:55 1 inet-up outage.json 
+19:56:56 1 inet-up outage.json 
+19:56:57 1 inet-up outage.json 
+19:56:58 1 inet-up outage.json 
+19:56:59 1 inet-up outage.json 
+19:57:00 1 inet-up outage.json 
+19:57:01 1 inet-up outage.json 
+19:57:02 1 inet-up outage.json 
+19:57:03 1 inet-up outage.json 
+19:57:04 1 inet-up outage.json 
+19:57:05 1 inet-up outage.json 
+19:57:06 1 inet-up outage.json 
+19:57:07 1 inet-up outage.json 
+19:57:08 1 inet-up outage.json 
+19:57:10 1 inet-up outage.json 
+19:57:11 1 inet-up outage.json 
+19:57:12 1 inet-up outage.json 
+19:57:13 1 inet-up outage.json 
+19:57:14 1 inet-up outage.json 
+19:57:15 1 inet-up outage.json 
+19:57:16 1 inet-up outage.json 
+19:57:17 1 inet-up outage.json 
+19:57:18 1 inet-up outage.json 
+19:57:19 1 inet-up outage.json 
+19:57:20 1 inet-up outage.json 
+19:57:21 1 inet-up outage.json 
+19:57:22 1 inet-up outage.json 
+19:57:23 1 inet-up outage.json 
+19:57:24 1 inet-up outage.json 
+19:57:25 1 inet-up outage.json 
+19:57:26 1 inet-up outage.json 
+19:57:28 1 inet-up outage.json 
+19:57:29 1 inet-up outage.json 
+19:57:30 1 inet-up outage.json 
+19:57:31 1 inet-up outage.json 
+19:57:32 1 inet-up outage.json 
+19:57:33 1 inet-up outage.json 
+19:57:34 1 inet-up outage.json 
+19:57:35 1 inet-up outage.json 
+19:57:36 1 inet-up outage.json 
+19:57:37 1 inet-up outage.json 
+19:57:38 1 inet-up outage.json 
+19:57:39 1 inet-up outage.json 
+19:57:40 1 inet-up 
+19:57:41 1 inet-up 
+19:57:42 1 inet-up 
+19:57:43 1 inet-up 
+19:57:44 1 inet-up 
+19:57:45 1 inet-up 
+19:57:47 1 inet-up 
+19:57:48 1 inet-up 
+19:57:49 1 inet-up 
+19:57:50 1 inet-up 
+19:57:51 1 inet-up 
+19:57:52 1 inet-up 
+19:57:53 1 inet-up 
+19:57:54 1 inet-up 
+19:57:55 1 inet-up 
+19:57:56 1 inet-up 
+19:57:57 1 inet-up 
+19:57:58 1 inet-up 

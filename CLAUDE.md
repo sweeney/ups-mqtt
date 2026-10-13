@@ -26,6 +26,8 @@ internal/nut/                  Poller interface, real client, FakePoller
 internal/metrics/              pure computed metrics (100% test coverage)
 internal/publisher/            Publisher interface, topic routing, JSON, FakePublisher
 internal/integration_test.go   end-to-end: FakePoller → metrics → FakePublisher
+docs/live-tests.md             write-ups of live power-cut tests on real hardware
+testdata/live-tests/<date>/    their raw captures (sanitised), the source for fixtures
 ```
 
 ## Test / build commands
