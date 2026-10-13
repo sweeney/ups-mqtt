@@ -7,22 +7,29 @@
 #   ./deploy.sh --install-unit [user@host]
 #                                  # install this checkout's systemd unit
 #                                  # (asks first, needs sudo); no build
+#   ./deploy.sh --install-sudoers [user@host]
+#                                  # install the passwordless-sudo rule this
+#                                  # script needs (asks first, needs sudo)
 #
 # Prerequisites on the target host (one-time, run first-install.sh):
 #   - /etc/ups-mqtt/config.toml exists
 #   - /usr/local/bin/ups-mqtt symlink exists
-#   - /etc/systemd/system/ups-mqtt.service symlink exists
-#   - passwordless sudo for systemctl:
-#       sweeney ALL=(ALL) NOPASSWD: /usr/bin/systemctl
+#   - /etc/systemd/system/ups-mqtt.service exists
+#   - passwordless sudo for exactly what this script runs as root
+#     (systemctl daemon-reload, systemctl restart ups-mqtt, and tee of the
+#     config): scripts/install-sudoers.sh
 #
 # See first-install.sh for the one-time setup procedure.
 set -euo pipefail
 
-INSTALL_UNIT=0
+INSTALL=""
 TARGET=""
 for arg in "$@"; do
   case "$arg" in
-    --install-unit) INSTALL_UNIT=1 ;;
+    --install-unit)    [[ -z "$INSTALL" ]] || { echo "ERROR: one --install-* at a time" >&2; exit 2; }
+                       INSTALL=install-unit.sh ;;
+    --install-sudoers) [[ -z "$INSTALL" ]] || { echo "ERROR: one --install-* at a time" >&2; exit 2; }
+                       INSTALL=install-sudoers.sh ;;
     -*)             echo "ERROR: unknown argument: $arg" >&2; exit 2 ;;
     *)              [[ -z "$TARGET" ]] || { echo "ERROR: more than one host given" >&2; exit 2; }
                     TARGET="$arg" ;;
@@ -31,15 +38,19 @@ done
 TARGET="${TARGET:-sweeney@garibaldi}"
 SERVICE="ups-mqtt"
 
+# The unit and the root-only installers travel with every deploy; installing
+# needs root, which this script deliberately does not have unattended.
+SHIPPED=("${SERVICE}.service" scripts/install-unit.sh scripts/install-sudoers.sh)
+
 # ---------------------------------------------------------------------------
-# --install-unit: ship the unit and its installer, then run the installer
-# with a terminal so its confirmation prompt (and sudo) can ask.  Quoted as
-# one remote command, so ~ is the remote home, not this machine's.
+# --install-unit / --install-sudoers: ship, then run that installer with a
+# terminal so its confirmation prompt (and sudo's password) can ask.  Quoted
+# as one remote command, so ~ is the remote home, not this machine's.
 # ---------------------------------------------------------------------------
-if [[ $INSTALL_UNIT == 1 ]]; then
-  echo "==> Shipping ${SERVICE}.service and install-unit.sh to ${TARGET}:~/${SERVICE}/..."
-  scp -q "${SERVICE}.service" scripts/install-unit.sh "${TARGET}:~/${SERVICE}/"
-  exec ssh -t "${TARGET}" "sudo bash ~/${SERVICE}/install-unit.sh"
+if [[ -n "$INSTALL" ]]; then
+  echo "==> Shipping ${SHIPPED[*]} to ${TARGET}:~/${SERVICE}/..."
+  scp -q "${SHIPPED[@]}" "${TARGET}:~/${SERVICE}/"
+  exec ssh -t "${TARGET}" "sudo bash ~/${SERVICE}/${INSTALL}"
 fi
 KEEP_VERSIONS=3
 VERSION=$(date +%Y%m%d-%H%M%S)
@@ -85,9 +96,8 @@ trap 'rm -f "${LOCAL_BIN}"' EXIT
 # ---------------------------------------------------------------------------
 echo "==> Uploading to ${TARGET}:~/${SERVICE}/${REMOTE_BIN}..."
 scp -q "${LOCAL_BIN}" "${TARGET}:~/${SERVICE}/${REMOTE_BIN}"
-# The unit and its installer travel with every deploy, but installing the unit
-# needs root, which this script deliberately does not have.  Step 9 checks it.
-scp -q "${SERVICE}.service" scripts/install-unit.sh "${TARGET}:~/${SERVICE}/"
+# Step 9 checks whether the shipped unit needs installing.
+scp -q "${SHIPPED[@]}" "${TARGET}:~/${SERVICE}/"
 
 # ---------------------------------------------------------------------------
 # 5. Atomic swap: make executable and repoint the symlink
@@ -130,8 +140,9 @@ sleep 5
 STATUS=$(ssh "${TARGET}" "systemctl is-active ${SERVICE} 2>/dev/null || true")
 echo "    Status: ${STATUS}"
 if [ "${STATUS}" != "active" ]; then
-  echo "  ⚠  Service is '${STATUS}' — showing recent logs:"
-  ssh "${TARGET}" "sudo systemctl status ${SERVICE} --no-pager -l"
+  echo "  ⚠  Service is '${STATUS}' — showing recent logs (journal lines need the"
+  echo "     adm or systemd-journal group on ${TARGET}; else: sudo journalctl -u ${SERVICE}):"
+  ssh "${TARGET}" "systemctl status ${SERVICE} --no-pager -l"
   exit 1
 fi
 
@@ -158,7 +169,7 @@ ssh "${TARGET}" "bash ~/${SERVICE}/install-unit.sh --check" || UNIT_CHECK=$?
 # ---------------------------------------------------------------------------
 echo ""
 echo "==> Deployed ${VERSION} to ${TARGET} [${SUFFIX}]"
-ssh "${TARGET}" "sudo systemctl status ${SERVICE} --no-pager -l"
+ssh "${TARGET}" "systemctl status ${SERVICE} --no-pager -l"
 # install-unit.sh --check: 0 up to date, 1 differs, 2 error (no installed
 # unit, no User=, or systemd-analyze rejects the new one).
 case "${UNIT_CHECK}" in

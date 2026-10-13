@@ -477,6 +477,7 @@ Subsequent deployments:
 ./deploy.sh              # default host (TARGET in deploy.sh)
 ./deploy.sh user@host    # specific host
 ./deploy.sh --install-unit user@host   # install a changed systemd unit (asks first)
+./deploy.sh --install-sudoers user@host   # install the narrow sudo rule deploy.sh needs
 ```
 
 The script:
@@ -520,8 +521,8 @@ The daemon handles `SIGTERM`/`SIGINT` gracefully: it publishes one final state s
 
 ```bash
 # Linux
-sudo systemctl status ups-mqtt
-sudo journalctl -u ups-mqtt -f
+systemctl status ups-mqtt
+journalctl -u ups-mqtt -f   # needs the adm or systemd-journal group, else sudo
 
 # macOS
 launchctl list | grep ups-mqtt

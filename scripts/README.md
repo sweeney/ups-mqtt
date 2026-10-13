@@ -13,6 +13,7 @@ builds or ships anything.
 | [`soc-power-probe.sh`](soc-power-probe.sh) | Spot-check real power draw at the SoC, for when `ups.load` reads 0 %. | no |
 | [`persist-journal.sh`](persist-journal.sh) | Keep the systemd journal across power loss on Raspberry Pi OS. | yes (`--check`: no) |
 | [`install-unit.sh`](install-unit.sh) | Bring the installed systemd unit up to date with the repo's. | yes (`--check`: no) |
+| [`install-sudoers.sh`](install-sudoers.sh) | Install the narrow passwordless-sudo rule `deploy.sh` needs. | yes, even `--check` |
 | [`live-test.sh`](live-test.sh) | Record a live power-cut test (run from your machine; ships [`live-test-watch.sh`](live-test-watch.sh) to the host), then sanitise it for `testdata/`. | no |
 
 ## Keep the journal across a power cut
@@ -52,6 +53,39 @@ unit with `systemd-analyze verify`, and prompts before replacing it (`--yes`
 skips the prompt). It then runs `daemon-reload` and restarts ups-mqtt if it is
 running. Re-running it is a no-op. Tests:
 `bash scripts/test/install-unit_test.sh` and `bash scripts/test/deploy_test.sh`.
+
+## Narrow the deploy user's sudo
+
+`deploy.sh` runs over ssh with no terminal, so the root commands it uses must
+not ask for a password. `install-sudoers.sh` writes `/etc/sudoers.d/ups-mqtt`
+allowing exactly those, and nothing else:
+
+```
+systemctl daemon-reload
+systemctl restart ups-mqtt
+tee /etc/ups-mqtt/config.toml     # only when a host has no config yet
+```
+
+Hosts installed before it have a rule allowing any `systemctl` and
+`journalctl` command without a password. Any `systemctl` command is root
+(`systemctl edit` writes a unit as root), and any `journalctl` command reads,
+and can delete, every log on the host. To replace it:
+
+```bash
+./deploy.sh --install-sudoers <host>
+```
+
+sudo asks for your password, then the script shows the diff, checks the rule
+with `visudo`, and prompts. It refuses if the sudoers configuration already
+fails `visudo -c`; after installing it checks it again and puts the old rule
+back if it now fails. It then lists any passwordless grant you still have
+from elsewhere that leaves you root or able to read any log (`ALL`, or
+`systemctl` or `journalctl` with no arguments or a wildcard). It does not
+touch those; they belong to whatever installed them. The rule is only narrow
+while the ups-mqtt unit is a root-owned file with a non-root `User=`, so it
+warns if the unit is a symlink, writable by others, or runs as root. `first-install.sh` uses it for new hosts. Tests:
+`bash scripts/test/install-sudoers_test.sh`; `deploy_test.sh` checks that
+every `sudo` in `deploy.sh` is one the rule allows.
 
 ## Start with ups-doctor.sh
 

@@ -46,6 +46,7 @@ ssh "${TARGET}" "mkdir -p ~/${SERVICE}"
 scp -q "${LOCAL_BIN}"       "${TARGET}:~/${SERVICE}/${REMOTE_BIN}"
 scp -q "${SERVICE}.service" "${TARGET}:~/${SERVICE}/${SERVICE}.service"
 scp -q remote-setup.sh      "${TARGET}:~/${SERVICE}/remote-setup.sh"
+scp -q scripts/install-sudoers.sh "${TARGET}:~/${SERVICE}/install-sudoers.sh"
 
 # Activate the versioned symlink (no sudo needed — it's in the user's home).
 ssh "${TARGET}" "

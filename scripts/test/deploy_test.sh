@@ -52,7 +52,7 @@ check() {
 
 # The remote command must reach ssh as one argument, so ~ is expanded on the
 # host: unquoted, the local shell turned it into this machine's home.
-SCP_CALL=$'== scp\n-q\nups-mqtt.service\nscripts/install-unit.sh\npi@host:~/ups-mqtt/'
+SCP_CALL=$'== scp\n-q\nups-mqtt.service\nscripts/install-unit.sh\nscripts/install-sudoers.sh\npi@host:~/ups-mqtt/'
 SSH_CALL=$'== ssh\n-t\npi@host\nsudo bash ~/ups-mqtt/install-unit.sh'
 
 # ── --install-unit: ship, then run the installer with a terminal ───────────
@@ -72,6 +72,68 @@ check "install-unit: passes on an abort" '[[ $CODE == 1 ]]'
 
 STUB_SCP_FAIL=1 run --install-unit pi@host
 check "install-unit: scp fails, no ssh" '[[ $CODE != 0 && $CALLS != *"== ssh"* ]]'
+
+# ── --install-sudoers: the same, running the sudoers installer ────────────
+run --install-sudoers pi@host
+check "install-sudoers: ships, ssh -t"  '[[ $CODE == 0 && $CALLS == "$SCP_CALL"$'"'"'\n== ssh\n-t\npi@host\nsudo bash ~/ups-mqtt/install-sudoers.sh'"'"' ]]'
+
+run --install-sudoers --install-unit pi@host
+check "two installs: exit 2, no calls"  '[[ $CODE == 2 && $OUT == *"one --install-* at a time"* && -z $CALLS ]]'
+
+# ── what deploy.sh runs as root must match the narrow sudoers rule ─────────
+# Anything else would need a password, which an unattended ssh cannot give.
+# A whole deploy runs against a stub host (no config yet, so the config tee
+# runs too), then again with the service failing to start, and every sudo in
+# the commands they sent is checked against the rule install-sudoers.sh
+# writes, paths included.
+FULL="$WORK/full"
+mkdir -p "$FULL/scripts" "$FULL/bin"
+cp "$REPO/deploy.sh" "$REPO/ups-mqtt.service" "$FULL/"
+cp "$REPO/scripts/install-unit.sh" "$REPO/scripts/install-sudoers.sh" "$FULL/scripts/"
+echo '# test config' > "$FULL/config.toml"
+cat > "$FULL/bin/ssh" <<EOF
+#!/usr/bin/env bash
+cmd=\${@: -1}
+printf '%s\n==\n' "\$cmd" >> "$WORK/remote"
+case "\$cmd" in
+  "uname -m")                       echo x86_64 ;;
+  "[ -L "*)                         exit 0 ;;
+  "[ -f "*)                         exit 1 ;;
+  *"systemctl is-active"*)          echo "\${STUB_STATUS:-active}" ;;
+esac
+exit 0
+EOF
+printf '#!/usr/bin/env bash\nexit 0\n' > "$FULL/bin/scp"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$FULL/bin/sleep"
+printf '#!/usr/bin/env bash\nwhile [[ $# -gt 0 ]]; do [[ $1 == -o ]] && : > "$2"; shift; done\n' > "$FULL/bin/go"
+chmod +x "$FULL/bin/"*
+: > "$WORK/remote"
+set +e
+OUT=$(cd "$FULL" && PATH="$FULL/bin:$PATH" bash ./deploy.sh pi@host 2>&1 < /dev/null)
+CODE=$?
+set -e
+CALLS=$(cat "$WORK/remote")
+check "full deploy: completes"          '[[ $CODE == 0 && $OUT == *"Deployed"* ]]'
+check "full deploy: reached the tee"    '[[ $CALLS == *"sudo tee /etc/ups-mqtt/config.toml"* ]]'
+set +e
+OUT=$(cd "$FULL" && STUB_STATUS=failed PATH="$FULL/bin:$PATH" bash ./deploy.sh pi@host 2>&1 < /dev/null)
+CODE=$?
+set -e
+check "failed start: reported"          '[[ $CODE == 1 && $OUT == *"Service is '"'"'failed'"'"'"* ]]'
+CALLS=$(cat "$WORK/remote")
+
+RULE_CMDS=$(sed -n 's/^\${USER_NAME} ALL=(root) NOPASSWD: //p' "$REPO/scripts/install-sudoers.sh" \
+  | sed 's/\${SYSTEMCTL}/\/usr\/bin\/systemctl/g; s/\${TEE}/\/usr\/bin\/tee/g; s/\${SERVICE}/ups-mqtt/g; s/\${CONFIG}/\/etc\/ups-mqtt\/config.toml/g' \
+  | tr ',' '\n' | sed 's/^ *//; s/ *$//')
+# Every sudo, with any options, up to the end of its shell command; a bare
+# command name is what sudo finds on its secure_path, /usr/bin on both hosts.
+DEPLOY_CMDS=$(grep -oE 'sudo( +-[^ ]+)* +[^"&;|>]+' <<<"$CALLS" \
+  | sed -E 's/^sudo +//; s/ +$//; s/^([a-z][^ \/]*)/\/usr\/bin\/\1/' | sort -u)
+check "sudo: rule parsed"               '[[ $(wc -l <<<"$RULE_CMDS") -eq 3 ]]'
+check "sudo: deploy runs three"         '[[ $(wc -l <<<"$DEPLOY_CMDS") -eq 3 ]]'
+while read -r c; do
+  check "sudo: rule allows '$c'"        'grep -qxF -- "$c" <<<"$RULE_CMDS"'
+done <<<"$DEPLOY_CMDS"
 
 # ── arguments ──────────────────────────────────────────────────────────────
 run --frobnicate

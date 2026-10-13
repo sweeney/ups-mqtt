@@ -8,6 +8,13 @@ set -euo pipefail
 SERVICE="ups-mqtt"
 INSTALL_USER="${SUDO_USER:-$(logname 2>/dev/null || echo sweeney)}"
 INSTALL_HOME=$(getent passwd "${INSTALL_USER}" | cut -d: -f6)
+# The service runs as this user and gets passwordless sudo for deploys: it
+# must be the account deploy.sh logs in as, never root.  Checked before
+# anything is written.
+if [ "${INSTALL_USER}" = root ]; then
+  echo "  ERROR: run this with sudo from the deploy user's account, not as root." >&2
+  exit 2
+fi
 
 echo "  Installing ${SERVICE} for user ${INSTALL_USER} (home: ${INSTALL_HOME})"
 
@@ -30,13 +37,8 @@ sed "s/User=SERVICE_USER/User=${INSTALL_USER}/" \
     > /etc/systemd/system/${SERVICE}.service
 echo "  Installed service → /etc/systemd/system/${SERVICE}.service (User=${INSTALL_USER})"
 
-# Passwordless sudo for systemctl so deploy.sh works without a password.
-# Scoped to systemctl only.
-SUDOERS_FILE="/etc/sudoers.d/${SERVICE}"
-echo "${INSTALL_USER} ALL=(ALL) NOPASSWD: /usr/bin/systemctl, /usr/bin/journalctl, /usr/bin/tee /etc/${SERVICE}/config.toml" > "${SUDOERS_FILE}"
-chmod 440 "${SUDOERS_FILE}"
-visudo -c -f "${SUDOERS_FILE}" > /dev/null
-echo "  Added sudoers rule → ${SUDOERS_FILE}"
+# Passwordless sudo for exactly the root commands deploy.sh runs, no more.
+bash "$(dirname "$0")/install-sudoers.sh" --yes --user "${INSTALL_USER}"
 
 # Enable and start.
 systemctl daemon-reload
