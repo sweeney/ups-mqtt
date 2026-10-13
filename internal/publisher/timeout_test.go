@@ -1,6 +1,7 @@
 package publisher
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -51,11 +52,12 @@ type fakeClient struct {
 	publishCalls int
 	publishedQOS []byte
 	connectErr   error
+	connectHangs bool // models a blackholed route: the attempt never ends
 }
 
 func (c *fakeClient) IsConnected() bool      { return c.connected }
 func (c *fakeClient) IsConnectionOpen() bool { return c.connected }
-func (c *fakeClient) Connect() mqtt.Token    { return newFakeToken(true, c.connectErr) }
+func (c *fakeClient) Connect() mqtt.Token    { return newFakeToken(!c.connectHangs, c.connectErr) }
 func (c *fakeClient) Disconnect(uint)        {}
 
 func (c *fakeClient) Publish(_ string, qos byte, _ bool, _ interface{}) mqtt.Token {
@@ -203,7 +205,7 @@ func TestConnect_ErrorNamesBroker(t *testing.T) {
 	c := &fakeClient{connectErr: errors.New("no such host")}
 	p := &MQTTPublisher{client: c, broker: "tcp://broker.invalid:1883"}
 
-	err := p.Connect()
+	err := p.Connect(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "tcp://broker.invalid:1883") {
 		t.Errorf("Connect() = %v, want an error naming the broker", err)
 	}
@@ -211,7 +213,25 @@ func TestConnect_ErrorNamesBroker(t *testing.T) {
 
 func TestConnect_Success(t *testing.T) {
 	p := &MQTTPublisher{client: &fakeClient{}}
-	if err := p.Connect(); err != nil {
+	if err := p.Connect(context.Background()); err != nil {
 		t.Errorf("Connect() = %v, want nil", err)
+	}
+}
+
+// A signal during a connect attempt must not wait out paho's 30 s
+// ConnectTimeout: stopping the service against a blackholed broker would
+// otherwise take that long.
+func TestConnect_CancelledMidAttemptReturnsAtOnce(t *testing.T) {
+	p := &MQTTPublisher{client: &fakeClient{connectHangs: true}, broker: "tcp://blackhole:1883"}
+	ctx, cancel := context.WithCancel(context.Background())
+	time.AfterFunc(20*time.Millisecond, cancel)
+
+	start := time.Now()
+	err := p.Connect(ctx)
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("Connect() = %v, want context.Canceled", err)
+	}
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Errorf("took %s to return after cancel", elapsed)
 	}
 }

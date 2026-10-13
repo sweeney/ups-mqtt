@@ -89,7 +89,8 @@ func TestNewTLSConfig_ValidCert(t *testing.T) {
 // ── NewMQTTPublisher ─────────────────────────────────────────────────────────
 
 // TestNewMQTTPublisher_TLSCertError verifies the error path when the TLS CA
-// cert file cannot be loaded.
+// cert file cannot be loaded.  It surfaces from construction, not from
+// Connect: no retry can fix a bad path, so it must not be retried.
 func TestNewMQTTPublisher_TLSCertError(t *testing.T) {
 	cfg := config.MQTTConfig{
 		Broker:    "tcp://127.0.0.1:1883",
@@ -117,8 +118,6 @@ func TestNewMQTTPublisher_WithCredentials_TLSError(t *testing.T) {
 		t.Fatal("expected TLS error even with credentials set")
 	}
 }
-
-// ── NewMQTTPublisher ─────────────────────────────────────────────────────────
 
 // NewMQTTPublisher must not dial: an unreachable broker is the caller's to
 // retry, not a construction error.
@@ -156,14 +155,5 @@ func TestNewMQTTPublisher_WillUsesEventQOS(t *testing.T) {
 	}
 	if got := opts.WillQos(); got != 1 {
 		t.Errorf("will QoS = %d, want event QoS 1", got)
-	}
-}
-
-// A bad CA path is a configuration error: no retry can fix it, so it must
-// surface from construction rather than from Connect.
-func TestNewMQTTPublisher_BadCACertFails(t *testing.T) {
-	cfg := config.MQTTConfig{Broker: "ssl://127.0.0.1:1", TLSCACert: "/nonexistent/ca.pem"}
-	if _, err := NewMQTTPublisher(cfg, "t", "p"); err == nil {
-		t.Error("expected an error for an unreadable CA cert")
 	}
 }

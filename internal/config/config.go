@@ -111,7 +111,30 @@ func Load(paths ...string) (*Config, error) {
 	}
 
 	applyEnvOverrides(cfg)
+	if err := cfg.MQTT.validateQOS(); err != nil {
+		return nil, err
+	}
 	return cfg, nil
+}
+
+// validateQOS rejects QoS levels above 2.  Nothing downstream checks: paho
+// puts the value straight into PUBLISH and, for the LWT, into CONNECT, where
+// the broker rejects it.  The connect retry would then repeat that refusal
+// for ever, looking like a network fault, so it has to fail here, at load.
+func (c MQTTConfig) validateQOS() error {
+	for _, q := range []struct {
+		key   string
+		value *byte
+	}{
+		{"qos", &c.QOS},
+		{"telemetry_qos", c.TelemetryQOS},
+		{"event_qos", c.EventQOS},
+	} {
+		if q.value != nil && *q.value > 2 {
+			return fmt.Errorf("mqtt.%s = %d: QoS must be 0, 1 or 2", q.key, *q.value)
+		}
+	}
+	return nil
 }
 
 func defaults() *Config {

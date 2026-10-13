@@ -44,7 +44,8 @@ func main() {
 	// starting, or a remote one whose name does not resolve until the network
 	// is up.  Exiting and leaning on systemd's restart risks its start-rate
 	// limit, after which nothing is published at all.
-	if err := retryConnect(ctx, "MQTT", pub.Connect, sleepCtx); err != nil {
+	connectMQTT := func() error { return pub.Connect(ctx) }
+	if err := retryConnect(ctx, "MQTT", connectMQTT, sleepCtx); err != nil {
 		log.Printf("MQTT connection interrupted: %v", err)
 		return
 	}
@@ -140,6 +141,9 @@ func retryConnect(
 		err := connect()
 		if err == nil {
 			return nil
+		}
+		if ctx.Err() != nil {
+			return ctx.Err() // the attempt was cut short by a signal
 		}
 		log.Printf("%s connection failed: %v — retrying in %s", what, err, backoff)
 

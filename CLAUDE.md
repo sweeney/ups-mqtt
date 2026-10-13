@@ -66,8 +66,10 @@ go build ./...                                  # clean compile
   Behind a bridged local broker, QoS 1 telemetry would fill the bridge's
   capped queue and get the outage dropped. A new publish must pick its kind.
 - Startup retries the MQTT connect, then the NUT connect, via `retryConnect`
-  (1 s doubling to 60 s, interruptible by signal). `NewMQTTPublisher` does not
-  dial; it fails only on config errors, which are fatal.
+  (1 s doubling to 60 s; a signal interrupts both the wait and an attempt in
+  progress). `NewMQTTPublisher` does not dial; it fails only on errors no
+  retry can fix (bad CA path), which are fatal, as is a QoS > 2, rejected in
+  `config.Load` because paho does not check it. A CONNACK refusal is retried.
 - `state` is published every poll regardless of change, so it doubles as a
   heartbeat. It is also the LWT topic, so it carries two shapes: a full snapshot
   while alive, `{"online":false,…}` when the broker declares the client dead.

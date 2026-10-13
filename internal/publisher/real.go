@@ -1,6 +1,7 @@
 package publisher
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -33,7 +34,8 @@ type MQTTPublisher struct {
 }
 
 // NewMQTTPublisher creates an MQTT client but does not connect it; call
-// Connect.  It fails only on configuration errors, which no retry can fix.
+// Connect.  It fails only on configuration errors that no retry can fix,
+// such as an unreadable CA certificate.
 // lwtTopic and lwtPayload are used for the Last Will and Testament message,
 // published by the broker if the client disconnects unexpectedly.  The LWT is
 // an event, so it goes at the event QoS.
@@ -72,9 +74,24 @@ func NewMQTTPublisher(cfg config.MQTTConfig, lwtTopic, lwtPayload string) (*MQTT
 // Connect makes one attempt to connect to the broker.  The caller retries:
 // at boot the broker may not be up yet, or its name may not resolve.  Once
 // connected, paho's auto-reconnect takes over.
-func (p *MQTTPublisher) Connect() error {
-	if token := p.client.Connect(); token.Wait() && token.Error() != nil {
-		return fmt.Errorf("connecting to MQTT broker %q: %w", p.broker, token.Error())
+//
+// An attempt can take up to paho's ConnectTimeout (30 s) against a
+// blackholed route, so it returns as soon as ctx is cancelled rather than
+// holding up shutdown for that long.  The abandoned attempt is left to paho;
+// the process is exiting.
+//
+// A CONNACK refusal (bad credentials, not authorised) is returned like any
+// other failure and so is retried.  That is deliberate: exiting would only
+// hand the retry to systemd, whose start-rate limit gives up for good.
+func (p *MQTTPublisher) Connect(ctx context.Context) error {
+	token := p.client.Connect()
+	select {
+	case <-token.Done():
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	if err := token.Error(); err != nil {
+		return fmt.Errorf("connecting to MQTT broker %q: %w", p.broker, err)
 	}
 	return nil
 }

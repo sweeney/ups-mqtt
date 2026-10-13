@@ -3,6 +3,7 @@ package config_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -463,5 +464,36 @@ func TestSplitQOS_BadEnvIgnored(t *testing.T) {
 	}
 	if got := cfg.MQTT.EffectiveTelemetryQOS(); got != 1 {
 		t.Errorf("telemetry QoS = %d, want qos 1", got)
+	}
+}
+
+// An out-of-range QoS must stop the daemon at load.  paho does not check it:
+// in event_qos it lands in the LWT, the broker rejects every CONNECT, and the
+// connect retry would repeat that for ever under a network-error message.
+func TestSplitQOS_OutOfRangeRejected(t *testing.T) {
+	for _, body := range []string{
+		"[mqtt]\nqos = 3\n",
+		"[mqtt]\ntelemetry_qos = 3\n",
+		"[mqtt]\nevent_qos = 255\n",
+	} {
+		_, err := config.Load(writeTOML(t, body))
+		if err == nil || !strings.Contains(err.Error(), "QoS must be 0, 1 or 2") {
+			t.Errorf("Load(%q) = %v, want a QoS range error", body, err)
+		}
+	}
+}
+
+func TestSplitQOS_OutOfRangeEnvRejected(t *testing.T) {
+	t.Setenv("UPS_MQTT_MQTT_EVENT_QOS", "3")
+	_, err := config.Load()
+	if err == nil || !strings.Contains(err.Error(), "mqtt.event_qos = 3") {
+		t.Errorf("Load() = %v, want an error naming mqtt.event_qos", err)
+	}
+}
+
+// 2 is the top of the range, not past it.
+func TestSplitQOS_TwoAccepted(t *testing.T) {
+	if _, err := config.Load(writeTOML(t, "[mqtt]\nqos = 2\ntelemetry_qos = 2\nevent_qos = 2\n")); err != nil {
+		t.Errorf("Load() = %v, want QoS 2 accepted", err)
 	}
 }

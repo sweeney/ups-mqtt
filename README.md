@@ -148,6 +148,18 @@ Messages fall into two kinds, each with its own QoS:
 
 Both fall back to `mqtt.qos`, so a config that sets only `qos` behaves as before. The split matters behind a local broker bridged to a remote one. While the bridge is down, Mosquitto queues QoS 1 messages for it and drops QoS 0 ones. Its queue is capped, and once the cap is reached it drops the *newest* messages. If telemetry were sent at QoS 1, it would fill the queue with readings the next poll supersedes, and the outage message would be the one dropped. For that setup use `telemetry_qos = 0` and `event_qos = 1`. The first poll after the bridge reconnects refreshes every retained telemetry topic.
 
+The client's QoS is only half of it. Mosquitto forwards to the bridge at the *lower* of the publish QoS and the QoS on the bridge's `topic` line, and that line **defaults to 0**. With a plain `topic ups/# out`, `event_qos = 1` is quietly downgraded, and the outage is dropped while the link is down. The bridge needs `out 1`, and a persistent session so the queue survives a bridge reconnect:
+
+```
+connection upstream
+address remote-broker:1883
+topic ups/# out 1
+cleansession false
+max_queued_messages 1000
+```
+
+Every QoS key must be 0, 1 or 2; anything else is a startup error.
+
 **Liveness behind a bridge.** Behind a bridged local broker, `online:false` only covers this process dying: the LWT fires when the daemon loses its connection to the *local* broker. When the site's uplink drops, remote subscribers do not see `online:false`; the retained `state` simply stops updating. To tell whether the site is reachable, watch the bridge's notification topic (e.g. `sites/<site>/bridge`, a retained `1`/`0` published by Mosquitto when the bridge has `notification_topic` set).
 
 ---
@@ -625,7 +637,7 @@ Subscribers see the final state before the offline announcement, so there's no g
 
 ### Connection resilience
 
-On startup, the daemon connects to the MQTT broker and then to NUT. It retries each with exponential backoff (1 s → 2 s → 4 s → … capped at 60 s), and a signal interrupts any wait. The service can therefore start before either is ready, for example in a boot race between systemd units or while the broker's name does not resolve yet. It connects as soon as each becomes available, rather than exiting and relying on systemd's restart, which can hit the start-rate limit and give up. A configuration error, such as an unreadable `tls_ca_cert`, still exits immediately. Once connected, paho reconnects to the broker by itself.
+On startup, the daemon connects to the MQTT broker and then to NUT. It retries each with exponential backoff (1 s → 2 s → 4 s → … capped at 60 s), and a signal interrupts any wait. The service can therefore start before either is ready, for example in a boot race between systemd units or while the broker's name does not resolve yet. It connects as soon as each becomes available, rather than exiting and relying on systemd's restart, which can hit the start-rate limit and give up. Errors that no retry can fix exit immediately: an unreadable `tls_ca_cert`, or a QoS outside 0–2. A broker refusing the connection (bad credentials, not authorised) is retried like a network failure, because exiting would only hand the retry to systemd's start-rate limit. A signal also cuts short a connect attempt in progress, so a blackholed broker does not delay shutdown by paho's 30 s connect timeout. Once connected, paho reconnects to the broker by itself.
 
 If `Poll()` returns an error during normal operation (NUT restart, USB disconnect), the error is logged and the next tick retries automatically.
 
