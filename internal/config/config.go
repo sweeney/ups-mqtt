@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -85,8 +86,23 @@ func (c MQTTConfig) EffectiveEventQOS() byte {
 
 // Config is the top-level configuration struct.
 type Config struct {
-	NUT  NUTConfig  `toml:"nut"`
-	MQTT MQTTConfig `toml:"mqtt"`
+	// StateDir is where an outage in progress is persisted, so it survives a
+	// restart or power loss.  Under systemd, $STATE_DIRECTORY (from
+	// StateDirectory= in the unit) takes precedence; see EffectiveStateDir.
+	StateDir string     `toml:"state_dir"`
+	NUT      NUTConfig  `toml:"nut"`
+	MQTT     MQTTConfig `toml:"mqtt"`
+}
+
+// EffectiveStateDir returns the directory for persistent state: the first
+// entry of $STATE_DIRECTORY, which systemd sets from StateDirectory=, else
+// StateDir.  Empty means no persistence.
+func (c *Config) EffectiveStateDir() string {
+	if v := os.Getenv("STATE_DIRECTORY"); v != "" {
+		// systemd joins several directories with ':'.
+		return strings.SplitN(v, ":", 2)[0]
+	}
+	return c.StateDir
 }
 
 // Load reads config from the first existing path in paths, then applies
@@ -157,6 +173,9 @@ func defaults() *Config {
 
 // applyEnvOverrides copies any set UPS_MQTT_* environment variables into cfg.
 func applyEnvOverrides(cfg *Config) {
+	if v := os.Getenv("UPS_MQTT_STATE_DIR"); v != "" {
+		cfg.StateDir = v
+	}
 	if v := os.Getenv("UPS_MQTT_NUT_HOST"); v != "" {
 		cfg.NUT.Host = v
 	}

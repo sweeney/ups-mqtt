@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/sweeney/ups-mqtt/internal/metrics"
+	"github.com/sweeney/ups-mqtt/internal/outages"
 )
 
 // Message is a single MQTT publish request.
@@ -84,6 +85,10 @@ type OutageMessage struct {
 	EstimatedDepletionAt string   `json:"estimated_depletion_at,omitempty"`
 	LoadWatts            *float64 `json:"load_watts,omitempty"`
 	LowBattery           bool     `json:"low_battery"`
+	// ClockSynced says whether outage_started_at can be trusted.  On a host
+	// without an RTC the wall clock is wrong after a power-loss reboot until
+	// NTP syncs.  Absent where sync cannot be determined.
+	ClockSynced *bool `json:"clock_synced,omitempty"`
 }
 
 // OutageTopic returns the MQTT topic used for the outage message.
@@ -92,12 +97,14 @@ func OutageTopic(prefix, upsName string) string {
 }
 
 // PublishOutage marshals and publishes an OutageMessage.  outageStart is when
-// the OB condition was first detected this session; it is used to compute
-// outage_duration_secs and is independent of the current poll time.
+// the OB condition was first detected, possibly by a previous process; it is
+// used to compute outage_duration_secs and is independent of the current poll
+// time.  clockSynced says whether outageStart can be trusted (nil: unknown).
 func PublishOutage(
 	vars map[string]string,
 	m metrics.Metrics,
 	outageStart time.Time,
+	clockSynced *bool,
 	cfg PublishConfig,
 	pub Publisher,
 ) error {
@@ -126,6 +133,7 @@ func PublishOutage(
 		EstimatedDepletionAt: depletionAt,
 		LoadWatts:            m.LoadWatts,
 		LowBattery:           m.LowBattery,
+		ClockSynced:          clockSynced,
 	}
 
 	payload, err := json.Marshal(msg)
@@ -146,6 +154,50 @@ func ClearOutage(cfg PublishConfig, pub Publisher) error {
 	return pub.Publish(Message{
 		Topic:    OutageTopic(cfg.Prefix, cfg.UPSName),
 		Payload:  "",
+		Retained: true,
+		QOS:      cfg.EventQOS,
+	})
+}
+
+// LastOutageMessage is published, retained, to {prefix}/{label}/last_outage
+// when an outage ends.  Unlike the outage topic, it is never cleared: it is
+// the record a subscriber that was not watching at the time can read
+// afterwards.  Each outage replaces the previous one.
+type LastOutageMessage struct {
+	UPSName             string   `json:"ups_name"`
+	StartedAt           string   `json:"started_at"`
+	EndedAt             string   `json:"ended_at"`
+	DurationSecs        int64    `json:"duration_secs"`
+	LowBatteryReached   bool     `json:"low_battery_reached"`
+	MinBatteryChargePct *float64 `json:"min_battery_charge_pct,omitempty"`
+	ClockSynced         *bool    `json:"clock_synced,omitempty"`
+	SpansRestart        bool     `json:"spans_restart"`
+}
+
+// LastOutageTopic returns the MQTT topic used for the last_outage summary.
+func LastOutageTopic(prefix, upsName string) string {
+	return fmt.Sprintf("%s/%s/last_outage", prefix, upsName)
+}
+
+// PublishLastOutage publishes the summary of an outage that has ended.  It is
+// an event: always retained, at the event QoS.
+func PublishLastOutage(s outages.Summary, cfg PublishConfig, pub Publisher) error {
+	payload, err := json.Marshal(LastOutageMessage{
+		UPSName:             cfg.UPSName,
+		StartedAt:           s.StartedAt.UTC().Format(time.RFC3339),
+		EndedAt:             s.EndedAt.UTC().Format(time.RFC3339),
+		DurationSecs:        int64(s.Duration().Seconds()),
+		LowBatteryReached:   s.LowBatteryReached,
+		MinBatteryChargePct: s.MinBatteryChargePct,
+		ClockSynced:         s.ClockSynced,
+		SpansRestart:        s.SpansRestart,
+	})
+	if err != nil {
+		return fmt.Errorf("marshalling last_outage: %w", err)
+	}
+	return pub.Publish(Message{
+		Topic:    LastOutageTopic(cfg.Prefix, cfg.UPSName),
+		Payload:  string(payload),
 		Retained: true,
 		QOS:      cfg.EventQOS,
 	})

@@ -8,7 +8,7 @@ Tested against a **CyberPower CP1500EPFCLCD** (900 W, 1500 VA) and an **APC Back
 
 ## What it publishes
 
-Every poll cycle, ups-mqtt publishes two kinds of MQTT messages. When the UPS switches to battery a third, outage-specific topic is published as well.
+Every poll cycle, ups-mqtt publishes two kinds of MQTT messages. When the UPS switches to battery a third, outage-specific topic is published as well, and when the outage ends a fourth records it.
 
 The middle component of every topic is the **label** — a human-readable name set in config (e.g. `office-ups`, `network-ups`). It defaults to the NUT device name (`ups_name`) if no label is set.
 
@@ -132,8 +132,51 @@ When the UPS switches to battery (`ups.status` contains `OB`), a call-to-action 
 | `outage_duration_secs` | Seconds elapsed since `outage_started_at`; increases each poll |
 | `estimated_depletion_at` | `timestamp` + `battery_runtime_secs` — the key field for graceful-shutdown decisions |
 | `low_battery` | `true` when `ups.status` contains `LB` |
+| `clock_synced` | Whether `outage_started_at` can be trusted; see [the clock](#the-clock). Absent where it cannot be determined. |
 
 The message is always published **retained** so a subscriber that connects mid-outage receives it immediately. When mains power is restored, an empty retained payload is published to the same topic, clearing the retained copy from the broker. The same clear is sent on the first poll on mains after the daemon starts, so an outage left retained by a process that died mid-outage (for example because its host lost power too) does not outlive the outage. Subscribers should treat an empty or absent payload as "no active outage".
+
+If the daemon restarts during an outage that is still in progress, it resumes the outage with its original `outage_started_at`, read back from the [state file](#state-file).
+
+### 4. Last outage
+
+When an outage ends, after the `outage` topic has been cleared, a summary is published **retained** to `{prefix}/{label}/last_outage`. It is never cleared, so a subscriber that was not connected at the time (the link was down, or it connected later) can still find out what happened. The next outage replaces it.
+
+```json
+{
+  "ups_name": "office-ups",
+  "started_at": "2026-10-13T10:02:10Z",
+  "ended_at": "2026-10-13T10:40:00Z",
+  "duration_secs": 2270,
+  "low_battery_reached": false,
+  "min_battery_charge_pct": 61,
+  "clock_synced": true,
+  "spans_restart": false
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `low_battery_reached` | `ups.status` contained `LB` at some poll during the outage |
+| `min_battery_charge_pct` | The lowest `battery.charge` seen. Absent when the UPS does not report charge, or when the outage spans a restart (the minimum after the last state-file write is unknown). |
+| `clock_synced` | Whether both times can be trusted. Absent where it cannot be determined (anywhere but Linux). |
+| `spans_restart` | The daemon restarted during the outage, or was not running when it ended |
+
+**When the daemon was not running at the end.** This is the case that matters most: the battery runs flat, the host dies with it, and when mains returns the host boots on restored power. The new process finds the outage still open in its state file and the UPS on mains. It clears the stale `outage` topic and publishes `last_outage` with `spans_restart: true`. `ended_at` is the host's **boot time**, because mains returning is what boots the host. If the host booted before the outage began, only the daemon restarted, and `ended_at` is when this process started. Either way, it is the latest the outage could have ended, not necessarily when it did.
+
+#### The clock
+
+A host without a real-time clock (a Raspberry Pi) boots after a power loss with whatever time `systemd-timesyncd` last saved, which is earlier than the truth, and corrects it only once NTP syncs. That needs the network, which may itself still be down. ups-mqtt anchors every event on the monotonic clock, which never steps, and works out wall times only when it publishes. Once the clock has synced, those times are right however wrong the clock was when the event happened.
+
+- A summary is held until the clock syncs. If that takes longer than 15 minutes, an interim `last_outage` is published with `clock_synced: false`. The corrected one replaces it, retained, once the clock syncs. The state file is kept until then, so the correction survives a further restart.
+- A start time recorded by an earlier boot while its clock was unsynced cannot be repaired. Its summary says `clock_synced: false` for good.
+- Sync status comes from the kernel (`adjtimex`), so it works with timesyncd, chrony or ntpd.
+
+#### State file
+
+The outage in progress is kept in `outage.json`, written only on transitions (start, low battery first seen, end) to spare the SD card, and synced to disk. The directory is `$STATE_DIRECTORY`, which systemd sets from `StateDirectory=ups-mqtt` in the unit (`/var/lib/ups-mqtt`), or else the `state_dir` config key. With neither set, outages are not persisted, and a warning is logged at startup. On macOS, set `state_dir`.
+
+"Published" means the broker sent PUBACK. Behind a bridged local broker that is the local one, and from there delivery is up to the bridge's queue, which Mosquitto saves to disk only every `autosave_interval`. A power loss within that window can lose a queued `last_outage` after the state file is gone. Tighten the broker config if that matters.
 
 All other messages are published with configurable QoS and retain flag. An LWT (last will and testament) of `{"online":false,"timestamp":"…"}` is registered at startup so MQTT subscribers see the device go offline immediately if the daemon dies unexpectedly.
 
@@ -144,7 +187,7 @@ Messages fall into two kinds, each with its own QoS:
 | Kind | Topics | Config key |
 |------|--------|------------|
 | telemetry | `state` snapshots, `computed/*` | `mqtt.telemetry_qos` |
-| events | `outage` and its clear, the shutdown offline announcement, the LWT | `mqtt.event_qos` |
+| events | `outage` and its clear, `last_outage`, the shutdown offline announcement, the LWT | `mqtt.event_qos` |
 
 Both fall back to `mqtt.qos`, so a config that sets only `qos` behaves as before. The split matters behind a local broker bridged to a remote one. While the bridge is down, Mosquitto queues QoS 1 messages for it and drops QoS 0 ones. Its queue is capped, and once the cap is reached it drops the *newest* messages. If telemetry were sent at QoS 1, it would fill the queue with readings the next poll supersedes, and the outage message would be the one dropped. For that setup use `telemetry_qos = 0` and `event_qos = 1`. The first poll after the bridge reconnects refreshes every retained telemetry topic.
 
@@ -169,6 +212,9 @@ Every QoS key must be 0, 1 or 2; anything else is a startup error.
 Configuration is TOML, with environment variable overrides for all values. On startup the daemon looks for a config file at the path given by `--config` (default `/etc/ups-mqtt/config.toml`), falling back to `./config.toml` if the primary path doesn't exist.
 
 ```toml
+state_dir     = ""            # where an outage in progress is persisted; under systemd,
+                              # StateDirectory= in the unit sets it instead
+
 [nut]
 host          = "localhost"   # upsd hostname
 port          = 3493          # upsd port
@@ -201,6 +247,7 @@ Every field has a `UPS_MQTT_` override (useful for Docker / secrets):
 
 | Variable | Field |
 |----------|-------|
+| `UPS_MQTT_STATE_DIR` | `state_dir` (`$STATE_DIRECTORY` takes precedence) |
 | `UPS_MQTT_NUT_HOST` | `nut.host` |
 | `UPS_MQTT_NUT_PORT` | `nut.port` |
 | `UPS_MQTT_NUT_USERNAME` | `nut.username` |
@@ -451,6 +498,7 @@ User=nobody
 ExecStart=/usr/local/bin/ups-mqtt --config /etc/ups-mqtt/config.toml
 Restart=on-failure
 RestartSec=10s
+StateDirectory=ups-mqtt
 ```
 
 The daemon handles `SIGTERM`/`SIGINT` gracefully: it publishes one final state snapshot before the offline announcement, then exits cleanly.

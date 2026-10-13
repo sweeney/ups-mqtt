@@ -1,5 +1,10 @@
 # ups-mqtt configuration — copy to /etc/ups-mqtt/config.toml and edit.
 
+# Where an outage in progress is persisted, so it survives a restart or power
+# loss.  Under systemd leave it empty: StateDirectory= in the unit provides
+# /var/lib/ups-mqtt.  Elsewhere (macOS) set it, e.g. "/usr/local/var/ups-mqtt".
+state_dir     = ""
+
 [nut]
 host          = "localhost"
 port          = 3493

@@ -22,16 +22,19 @@ func splitQOSCfg() *config.Config {
 	}
 }
 
-// assertQOS checks every recorded message: the outage topic at event, all
-// else at telemetry.  It returns how many outage messages it saw.
+// assertQOS checks every recorded message: outage and last_outage at event,
+// all else at telemetry.  It returns how many outage messages it saw.
 func assertQOS(t *testing.T, fp *publisher.FakePublisher, telemetry, event byte) int {
 	t.Helper()
 	outages := 0
 	for _, m := range fp.Messages {
 		want := telemetry
-		if m.Topic == outageTopic {
+		switch m.Topic {
+		case outageTopic:
 			want = event
 			outages++
+		case lastOutageTopic:
+			want = event
 		}
 		if m.QOS != want {
 			t.Errorf("%s (payload %q…) published at QoS %d, want %d",

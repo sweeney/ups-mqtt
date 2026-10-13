@@ -7,12 +7,15 @@ import (
 	"fmt"
 	"log"
 	"os/signal"
+	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/sweeney/ups-mqtt/internal/config"
 	"github.com/sweeney/ups-mqtt/internal/metrics"
 	"github.com/sweeney/ups-mqtt/internal/nut"
+	"github.com/sweeney/ups-mqtt/internal/outages"
 	"github.com/sweeney/ups-mqtt/internal/publisher"
 )
 
@@ -27,6 +30,10 @@ func main() {
 
 	log.Printf("ups-mqtt starting (NUT: %s:%d, UPS: %s, label: %s, MQTT: %s)",
 		cfg.NUT.Host, cfg.NUT.Port, cfg.NUT.UPSName, cfg.NUT.EffectiveLabel(), cfg.MQTT.Broker)
+
+	// The clock's monotonic zero is process start, which is also the best
+	// estimate for the end of an outage that ended while nothing was running.
+	tracker := outages.NewTracker(outages.NewSystemClock(), outageStore(cfg))
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
@@ -67,7 +74,7 @@ func main() {
 
 	log.Printf("polling every %s", cfg.NUT.PollInterval)
 
-	var outage outageState
+	outage := outageState{tracker: tracker}
 
 loop:
 	for {
@@ -202,57 +209,103 @@ func doPoll(poller nut.Poller, pub publisher.Publisher, cfg *config.Config, outa
 	return errors.Join(outageErr, telemetryErr)
 }
 
-// outageState is what this process knows about the retained outage topic.
-// Its zero value is the state at startup.
-type outageState struct {
-	// start is when the current on-battery condition began, or nil while on
-	// mains.  It is used to compute the outage duration.
-	start *time.Time
+// outageStore returns where the outage in progress is persisted, so that a
+// restart or power loss does not forget it.
+func outageStore(cfg *config.Config) outages.Store {
+	dir := cfg.EffectiveStateDir()
+	if dir == "" {
+		log.Printf("warning: no state directory (StateDirectory= in the unit, or state_dir); " +
+			"an outage in progress will be forgotten across a restart")
+		return outages.NopStore{}
+	}
+	path := filepath.Join(dir, outages.StateFileName)
+	log.Printf("outage state: %s", path)
+	return &outages.FileStore{Path: path}
+}
 
+// outageState is what this process knows about the retained outage topic,
+// plus the tracker following the outage itself.
+type outageState struct {
 	// clear is true once this process has confirmed the retained outage
 	// topic empty.  It starts false: a previous process may have died
 	// mid-outage — the host losing power is exactly how that happens — and
 	// left its outage message retained on the broker, so the first poll on
 	// mains clears it whether or not this process ever saw the outage.
 	clear bool
+
+	tracker *outages.Tracker
 }
 
 // publishOutageState publishes the outage message while the UPS is on battery,
-// and clears the retained topic once mains are restored.
+// clears the retained topic once mains are restored, and then publishes the
+// last_outage summary.
 //
 // The outage is marked clear only after the retained message has actually
 // been cleared, so a failed clear is retried on the next poll rather than
 // leaving a stale retained message asserting an outage that has already
-// ended.
+// ended.  last_outage goes out only after the clear, and a failed publish is
+// likewise retried on the next poll.
 func publishOutageState(
 	vars map[string]string,
 	m metrics.Metrics,
 	pubCfg publisher.PublishConfig,
 	pub publisher.Publisher,
-	outage *outageState,
+	st *outageState,
 ) error {
+	tr := st.tracker
+	tr.Restore(m.OnBattery)
+
 	if m.OnBattery {
-		outage.clear = false
-		if outage.start == nil {
-			now := time.Now()
-			outage.start = &now
+		st.clear = false
+		o, isNew := tr.OnBattery(m.LowBattery, parseOptional(vars["battery.charge"]))
+		if isNew {
 			log.Printf("power outage detected — UPS on battery")
 		}
-		if err := publisher.PublishOutage(vars, m, *outage.start, pubCfg, pub); err != nil {
+		if err := publisher.PublishOutage(vars, m, o.StartedAt, o.ClockSynced, pubCfg, pub); err != nil {
 			return fmt.Errorf("publishing outage: %w", err)
 		}
-		return nil
+		// A summary of an earlier outage may still be waiting.
+		return publishLastOutage(tr, pubCfg, pub)
 	}
 
-	if !outage.clear {
+	if tr.OnMains() {
+		log.Printf("power restored")
+	}
+	if !st.clear {
 		if err := publisher.ClearOutage(pubCfg, pub); err != nil {
 			return fmt.Errorf("clearing outage: %w", err)
 		}
-		if outage.start != nil {
-			log.Printf("power restored — outage topic cleared")
-		}
-		outage.start = nil
-		outage.clear = true
+		st.clear = true
 	}
+	return publishLastOutage(tr, pubCfg, pub)
+}
+
+// publishLastOutage publishes the summary of an ended outage, if one is due.
+func publishLastOutage(tr *outages.Tracker, pubCfg publisher.PublishConfig, pub publisher.Publisher) error {
+	s, ok := tr.Due()
+	if !ok {
+		return nil
+	}
+	if err := publisher.PublishLastOutage(s, pubCfg, pub); err != nil {
+		return fmt.Errorf("publishing last_outage: %w", err)
+	}
+	tr.Published(s)
+
+	kind := "last_outage"
+	if !s.Final {
+		kind = "interim last_outage (clock not synced; a corrected one will follow)"
+	}
+	log.Printf("published %s: %s → %s (%s, spans restart: %v)", kind,
+		s.StartedAt.Format(time.RFC3339), s.EndedAt.Format(time.RFC3339), s.Duration(), s.SpansRestart)
 	return nil
+}
+
+// parseOptional parses a numeric NUT value, or returns nil if it is absent
+// or not a number.
+func parseOptional(v string) *float64 {
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil {
+		return nil
+	}
+	return &f
 }

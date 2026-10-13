@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/sweeney/ups-mqtt/internal/metrics"
+	"github.com/sweeney/ups-mqtt/internal/outages"
 	"github.com/sweeney/ups-mqtt/internal/publisher"
 )
 
@@ -334,7 +335,7 @@ func runPublishOutage(t *testing.T, outageStart time.Time) (*publisher.FakePubli
 	m := metrics.Compute(onBatteryVars)
 	fp := &publisher.FakePublisher{}
 	cfg := publisher.PublishConfig{Prefix: "ups", UPSName: "cyberpower", Retained: true}
-	if err := publisher.PublishOutage(onBatteryVars, m, outageStart, cfg, fp); err != nil {
+	if err := publisher.PublishOutage(onBatteryVars, m, outageStart, nil, cfg, fp); err != nil {
 		t.Fatalf("PublishOutage: %v", err)
 	}
 	msg, ok := fp.Find("ups/cyberpower/outage")
@@ -481,7 +482,7 @@ func runRielloOutage(t *testing.T) (publisher.OutageMessage, string) {
 	m := metrics.Compute(rielloOnBatteryVars)
 	fp := &publisher.FakePublisher{}
 	cfg := publisher.PublishConfig{Prefix: "ups", UPSName: "iplug", Retained: true}
-	if err := publisher.PublishOutage(rielloOnBatteryVars, m, time.Now().Add(-30*time.Second), cfg, fp); err != nil {
+	if err := publisher.PublishOutage(rielloOnBatteryVars, m, time.Now().Add(-30*time.Second), nil, cfg, fp); err != nil {
 		t.Fatalf("PublishOutage: %v", err)
 	}
 	msg, ok := fp.Find("ups/iplug/outage")
@@ -776,5 +777,89 @@ func TestState_DoesNotMutateInputVariables(t *testing.T) {
 	}
 	if _, ok := vars["driver.state"]; !ok {
 		t.Error("driver.state was removed from the caller's map")
+	}
+}
+
+// ── clock_synced on the outage message ────────────────────────────────────
+
+func TestPublishOutage_ClockSynced(t *testing.T) {
+	m := metrics.Compute(onBatteryVars)
+	cfg := publisher.PublishConfig{Prefix: "ups", UPSName: "cyberpower"}
+	for _, tc := range []struct {
+		synced *bool
+		want   string
+	}{
+		{boolPtr(true), `"clock_synced":true`},
+		{boolPtr(false), `"clock_synced":false`},
+	} {
+		fp := &publisher.FakePublisher{}
+		if err := publisher.PublishOutage(onBatteryVars, m, time.Now(), tc.synced, cfg, fp); err != nil {
+			t.Fatal(err)
+		}
+		if msg, _ := fp.Find("ups/cyberpower/outage"); !strings.Contains(msg.Payload, tc.want) {
+			t.Errorf("payload %s does not contain %s", msg.Payload, tc.want)
+		}
+	}
+	// Unknown is absent, not false.
+	fp := &publisher.FakePublisher{}
+	if err := publisher.PublishOutage(onBatteryVars, m, time.Now(), nil, cfg, fp); err != nil {
+		t.Fatal(err)
+	}
+	if msg, _ := fp.Find("ups/cyberpower/outage"); strings.Contains(msg.Payload, "clock_synced") {
+		t.Errorf("unknown clock sync published: %s", msg.Payload)
+	}
+}
+
+func boolPtr(b bool) *bool { return &b }
+
+// ── last_outage ────────────────────────────────────────────────────────────
+
+func TestPublishLastOutage(t *testing.T) {
+	start := time.Date(2026, 10, 13, 10, 2, 10, 0, time.UTC)
+	s := outages.Summary{
+		StartedAt:           start,
+		EndedAt:             start.Add(2270 * time.Second),
+		LowBatteryReached:   true,
+		MinBatteryChargePct: func() *float64 { v := 61.0; return &v }(),
+		ClockSynced:         boolPtr(true),
+		SpansRestart:        false,
+		Final:               true,
+	}
+	fp := &publisher.FakePublisher{}
+	cfg := publisher.PublishConfig{Prefix: "ups", UPSName: "site-ups", TelemetryQOS: 0, EventQOS: 1}
+	if err := publisher.PublishLastOutage(s, cfg, fp); err != nil {
+		t.Fatal(err)
+	}
+	msg, ok := fp.Retained("ups/site-ups/last_outage")
+	if !ok {
+		t.Fatal("last_outage not retained")
+	}
+	if msg.QOS != 1 {
+		t.Errorf("QoS = %d, want the event QoS 1", msg.QOS)
+	}
+	want := `{"ups_name":"site-ups","started_at":"2026-10-13T10:02:10Z","ended_at":"2026-10-13T10:40:00Z",` +
+		`"duration_secs":2270,"low_battery_reached":true,"min_battery_charge_pct":61,"clock_synced":true,"spans_restart":false}`
+	if msg.Payload != want {
+		t.Errorf("payload\n got %s\nwant %s", msg.Payload, want)
+	}
+}
+
+// Unknowns are absent, not zero: no charge reading (the Riello iPlug, or
+// across a restart) and no way to tell clock sync.
+func TestPublishLastOutage_UnknownsAbsent(t *testing.T) {
+	start := time.Now()
+	fp := &publisher.FakePublisher{}
+	s := outages.Summary{StartedAt: start, EndedAt: start.Add(time.Minute), SpansRestart: true}
+	if err := publisher.PublishLastOutage(s, publisher.PublishConfig{Prefix: "ups", UPSName: "x"}, fp); err != nil {
+		t.Fatal(err)
+	}
+	msg, _ := fp.Find("ups/x/last_outage")
+	for _, absent := range []string{"min_battery_charge_pct", "clock_synced"} {
+		if strings.Contains(msg.Payload, absent) {
+			t.Errorf("payload has %s: %s", absent, msg.Payload)
+		}
+	}
+	if !strings.Contains(msg.Payload, `"spans_restart":true`) {
+		t.Errorf("payload lacks spans_restart: %s", msg.Payload)
 	}
 }

@@ -497,3 +497,44 @@ func TestSplitQOS_TwoAccepted(t *testing.T) {
 		t.Errorf("Load() = %v, want QoS 2 accepted", err)
 	}
 }
+
+// ── state directory ────────────────────────────────────────────────────────
+
+func TestEffectiveStateDir(t *testing.T) {
+	t.Setenv("STATE_DIRECTORY", "")
+	cfg, err := config.Load(writeTOML(t, "state_dir = \"/srv/ups-mqtt\"\n[nut]\nups_name = \"x\"\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.EffectiveStateDir(); got != "/srv/ups-mqtt" {
+		t.Errorf("from config: %q, want /srv/ups-mqtt", got)
+	}
+
+	t.Setenv("STATE_DIRECTORY", "/var/lib/ups-mqtt:/var/lib/other")
+	if got := cfg.EffectiveStateDir(); got != "/var/lib/ups-mqtt" {
+		t.Errorf("under systemd: %q, want the first $STATE_DIRECTORY entry", got)
+	}
+}
+
+func TestEffectiveStateDir_UnsetMeansNone(t *testing.T) {
+	t.Setenv("STATE_DIRECTORY", "")
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.EffectiveStateDir(); got != "" {
+		t.Errorf("EffectiveStateDir() = %q, want empty by default", got)
+	}
+}
+
+func TestLoad_EnvOverride_StateDir(t *testing.T) {
+	t.Setenv("STATE_DIRECTORY", "")
+	t.Setenv("UPS_MQTT_STATE_DIR", "/tmp/state")
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.EffectiveStateDir(); got != "/tmp/state" {
+		t.Errorf("EffectiveStateDir() = %q, want the env override", got)
+	}
+}

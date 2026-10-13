@@ -20,6 +20,7 @@ github.com/sweeney/ups-mqtt
 
 ```
 cmd/ups-mqtt/main.go           entry point, poll loop, graceful shutdown
+internal/outages/              outage tracking across restarts, last_outage, clock
 internal/config/config.go      Config + TOML loader + env overrides
 internal/nut/                  Poller interface, real client, FakePoller
 internal/metrics/              pure computed metrics (100% test coverage)
@@ -70,6 +71,16 @@ go build ./...                                  # clean compile
   progress). `NewMQTTPublisher` does not dial; it fails only on errors no
   retry can fix (bad CA path), which are fatal, as is a QoS > 2, rejected in
   `config.Load` because paho does not check it. A CONNACK refusal is retried.
+- `{prefix}/{label}/last_outage` is a retained summary published **after** the
+  outage clear when an outage ends; never cleared. `internal/outages.Tracker`
+  owns it: it persists the open outage to `$STATE_DIRECTORY`/`state_dir`
+  (`outage.json`, written on transitions only), resumes it after a restart on
+  battery, and reports an outage that ended while nothing was running with
+  `spans_restart`, ending at boot. Every event is anchored on the monotonic
+  clock and turned into wall time only at publish, so a later NTP sync
+  corrects it; a summary waits for sync (interim after `DefaultSyncWait`,
+  corrected later). Tests use `outages.FakeClock` and `outages.MemoryStore`;
+  `TestRestart*` in `cmd/ups-mqtt` replays the scenarios end to end.
 - `state` is published every poll regardless of change, so it doubles as a
   heartbeat. It is also the LWT topic, so it carries two shapes: a full snapshot
   while alive, `{"online":false,…}` when the broker declares the client dead.
