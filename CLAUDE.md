@@ -26,6 +26,8 @@ internal/nut/                  Poller interface, real client, FakePoller
 internal/metrics/              pure computed metrics (100% test coverage)
 internal/publisher/            Publisher interface, topic routing, JSON, FakePublisher
 internal/integration_test.go   end-to-end: FakePoller → metrics → FakePublisher
+internal/retry/                connect with capped backoff and sparing failure logs
+internal/mqtttest/             real Mosquitto, fault-injecting TCP proxy, recorder (tests only)
 docs/live-tests.md             write-ups of live power-cut tests on real hardware
 testdata/live-tests/<date>/    their raw captures (sanitised), the source for fixtures
 ```
@@ -68,11 +70,24 @@ go build ./...                                  # clean compile
   announcement, the LWT) at `mqtt.event_qos`. Both fall back to `mqtt.qos`.
   Behind a bridged local broker, QoS 1 telemetry would fill the bridge's
   capped queue and get the outage dropped. A new publish must pick its kind.
-- Startup retries the MQTT connect, then the NUT connect, via `retryConnect`
-  (1 s doubling to 60 s; a signal interrupts both the wait and an attempt in
-  progress). `NewMQTTPublisher` does not dial; it fails only on errors no
+- Startup retries the MQTT connect, then the NUT connect, via
+  `retry.Connect` (1 s doubling to 60 s; a signal interrupts both the wait
+  and an attempt in progress; an unchanged failure is logged once, then every
+  5 min). `NewMQTTPublisher` does not dial; it fails only on errors no
   retry can fix (bad CA path), which are fatal, as is a QoS > 2, rejected in
   `config.Load` because paho does not check it. A CONNACK refusal is retried.
+- **Never turn paho's auto-reconnect back on.** While auto-reconnecting,
+  `IsConnected()` is true and QoS 1 publishes are stored and later resent
+  in map order: live, 6½ hours of backlog arrived shuffled in 2 s and every
+  publish waited out its timeout (docs/live-tests.md). `MQTTPublisher`
+  reconnects itself (clean session, so paho's store is emptied), publishes
+  only while `IsConnectionOpen()`, stops waiting on further publishes once
+  one has timed out until it is acked or the connection replaced, and
+  signals `Reconnected()`, on which the poll loop republishes current state
+  at once (re-sending the outage clear). `TestLiveReplay_*` replays the live
+  tests against a real Mosquitto behind `mqtttest.Proxy`, which blackholes
+  or drops the link; they need `mosquitto` installed (CI installs it, and
+  fails rather than skips without it).
 - `{prefix}/{label}/last_outage` is a retained summary published **after** the
   outage clear when an outage ends; never cleared. `internal/outages.Tracker`
   owns it: it persists the open outage to `state_dir`, else systemd's

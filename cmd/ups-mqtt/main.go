@@ -17,6 +17,7 @@ import (
 	"github.com/sweeney/ups-mqtt/internal/nut"
 	"github.com/sweeney/ups-mqtt/internal/outages"
 	"github.com/sweeney/ups-mqtt/internal/publisher"
+	"github.com/sweeney/ups-mqtt/internal/retry"
 )
 
 func main() {
@@ -52,7 +53,7 @@ func main() {
 	// is up.  Exiting and leaning on systemd's restart risks its start-rate
 	// limit, after which nothing is published at all.
 	connectMQTT := func() error { return pub.Connect(ctx) }
-	if err := retryConnect(ctx, "MQTT", connectMQTT, sleepCtx); err != nil {
+	if _, err := retry.Connect(ctx, "MQTT", startupBackoff, connectMQTT, retry.Sleep); err != nil {
 		log.Printf("MQTT connection interrupted: %v", err)
 		return
 	}
@@ -68,21 +69,49 @@ func main() {
 	defer nutClient.Close() //nolint:errcheck
 	log.Printf("connected to NUT at %s:%d", cfg.NUT.Host, cfg.NUT.Port)
 
-	// Main poll loop.
-	ticker := time.NewTicker(cfg.NUT.PollInterval.Duration)
-	defer ticker.Stop()
-
+	d := &daemon{
+		cfg:         cfg,
+		poller:      nutClient,
+		pub:         pub,
+		reconnected: pub.Reconnected(),
+		outage:      outageState{tracker: tracker},
+	}
 	log.Printf("polling every %s", cfg.NUT.PollInterval)
+	d.run(ctx, cfg.NUT.PollInterval.Duration, lwtTopic)
+}
 
-	outage := outageState{tracker: tracker}
+// daemon is the poll loop and what it carries between polls.
+type daemon struct {
+	cfg    *config.Config
+	poller nut.Poller
+	pub    publisher.Publisher
+	// reconnected signals that the broker connection was lost and is back.
+	reconnected <-chan struct{}
+	outage      outageState
+}
+
+// run polls every interval until ctx is cancelled, then makes a final poll
+// and announces the clean shutdown on lwtTopic.
+//
+// After a reconnect it polls at once rather than waiting out the interval,
+// and re-sends the outage clear.  Publishes made while the connection was
+// down failed and were not queued (see publisher.MQTTPublisher), so the
+// broker's retained topics are brought back to the current truth: the
+// outage payload or its clear, state, and any last_outage still due.
+func (d *daemon) run(ctx context.Context, interval time.Duration, lwtTopic string) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
 
 loop:
 	for {
 		select {
 		case <-ticker.C:
-			if err := doPoll(nutClient, pub, cfg, &outage); err != nil {
-				log.Printf("poll error: %v", err)
-			}
+			d.poll()
+		case <-d.reconnected:
+			log.Printf("republishing current state after reconnecting")
+			d.outage.clear = false
+			d.poll()
+			ticker.Reset(interval)
 		case <-ctx.Done():
 			break loop
 		}
@@ -91,17 +120,24 @@ loop:
 	log.Println("shutting down…")
 	ticker.Stop()
 
-	// Attempt a final poll so subscribers see fresh state on exit.
-	if err := doPoll(nutClient, pub, cfg, &outage); err != nil {
+	// Attempt a final poll so subscribers see fresh state on exit.  Against
+	// a dead broker it fails fast rather than holding up the stop.
+	if err := doPoll(d.poller, d.pub, d.cfg, &d.outage); err != nil {
 		log.Printf("final poll failed (%v); skipping final state snapshot", err)
 	}
 
 	// Always publish the offline announcement.
-	if err := publishOffline(pub, lwtTopic, cfg.MQTT.EffectiveEventQOS()); err != nil {
+	if err := publishOffline(d.pub, lwtTopic, d.cfg.MQTT.EffectiveEventQOS()); err != nil {
 		log.Printf("publishing offline announcement: %v", err)
 	}
 
 	log.Println("offline announcement sent, exiting")
+}
+
+func (d *daemon) poll() {
+	if err := doPoll(d.poller, d.pub, d.cfg, &d.outage); err != nil {
+		log.Printf("poll error: %v", err)
+	}
 }
 
 // publishOffline announces a clean shutdown on the state topic, in the same
@@ -119,63 +155,16 @@ func publishOffline(pub publisher.Publisher, topic string, qos byte) error {
 // connectNUT dials upsd, retrying until it succeeds or ctx is cancelled.
 func connectNUT(ctx context.Context, cfg config.NUTConfig) (*nut.Client, error) {
 	var c *nut.Client
-	err := retryConnect(ctx, "NUT", func() error {
+	_, err := retry.Connect(ctx, "NUT", startupBackoff, func() error {
 		var err error
 		c, err = nut.NewClient(cfg.Host, cfg.Port, cfg.Username, cfg.Password, cfg.UPSName)
 		return err
-	}, sleepCtx)
+	}, retry.Sleep)
 	return c, err
 }
 
-// Initial-connection backoff: 1 s, doubling, capped at 60 s.
-const (
-	initialBackoff = time.Second
-	maxBackoff     = 60 * time.Second
-)
-
-// retryConnect calls connect until it succeeds, waiting between attempts with
-// exponential backoff.  Each failure is logged once, with the wait that
-// follows.  wait ends early when ctx is cancelled, and its error — ctx's — is
-// returned, so a signal during backoff exits cleanly.
-func retryConnect(
-	ctx context.Context,
-	what string,
-	connect func() error,
-	wait func(context.Context, time.Duration) error,
-) error {
-	backoff := initialBackoff
-	for {
-		err := connect()
-		if err == nil {
-			return nil
-		}
-		if ctx.Err() != nil {
-			return ctx.Err() // the attempt was cut short by a signal
-		}
-		log.Printf("%s connection failed: %v — retrying in %s", what, err, backoff)
-
-		if err := wait(ctx, backoff); err != nil {
-			return err
-		}
-
-		backoff *= 2
-		if backoff > maxBackoff {
-			backoff = maxBackoff
-		}
-	}
-}
-
-// sleepCtx waits for d, or returns ctx's error if it is cancelled first.
-func sleepCtx(ctx context.Context, d time.Duration) error {
-	t := time.NewTimer(d)
-	defer t.Stop()
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-t.C:
-		return nil
-	}
-}
+// startupBackoff paces the initial connects: 1 s, doubling, capped at 60 s.
+var startupBackoff = retry.Backoff{Initial: time.Second, Max: 60 * time.Second}
 
 // doPoll fetches NUT variables, computes metrics, and publishes everything.
 //

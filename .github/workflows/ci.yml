@@ -20,6 +20,10 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      # The live-test replays run against a real broker.
+      - name: Install Mosquitto
+        run: sudo apt-get update -q && sudo apt-get install -y -q mosquitto
+
       - name: Verify module graph
         run: go mod verify
 

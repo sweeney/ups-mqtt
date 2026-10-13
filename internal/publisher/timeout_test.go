@@ -35,30 +35,56 @@ func (t *fakeToken) Wait() bool { <-t.done; return true }
 // WaitTimeout reports false when the token does not complete in time, which is
 // exactly the stall this timeout exists to bound.
 func (t *fakeToken) WaitTimeout(d time.Duration) bool {
-	if t.completes {
+	select {
+	case <-t.done:
 		return true
+	case <-time.After(d):
+		return false
 	}
-	time.Sleep(d)
-	return false
 }
+
+// complete acknowledges a token that was left pending, as a late PUBACK or a
+// dropped connection would.
+func (t *fakeToken) complete() { close(t.done) }
 
 func (t *fakeToken) Done() <-chan struct{} { return t.done }
 func (t *fakeToken) Error() error          { return t.err }
 
 // fakeClient implements mqtt.Client with only the behaviour Publish needs.
 type fakeClient struct {
-	connected    bool
+	connected bool // the connection is open
+	// reconnecting is paho auto-reconnecting: IsConnected() still says true
+	// while IsConnectionOpen() says false.
+	reconnecting bool
 	token        mqtt.Token
 	publishCalls int
 	publishedQOS []byte
 	connectErr   error
 	connectHangs bool // models a blackholed route: the attempt never ends
+	// connectErrs, when set, scripts successive Connect results; the last
+	// one repeats.  A nil entry connects.
+	connectErrs  []error
+	connectCalls int
 }
 
-func (c *fakeClient) IsConnected() bool      { return c.connected }
+func (c *fakeClient) IsConnected() bool      { return c.connected || c.reconnecting }
 func (c *fakeClient) IsConnectionOpen() bool { return c.connected }
-func (c *fakeClient) Connect() mqtt.Token    { return newFakeToken(!c.connectHangs, c.connectErr) }
-func (c *fakeClient) Disconnect(uint)        {}
+
+func (c *fakeClient) Connect() mqtt.Token {
+	c.connectCalls++
+	if c.connectErrs != nil {
+		err := c.connectErrs[0]
+		if len(c.connectErrs) > 1 {
+			c.connectErrs = c.connectErrs[1:]
+		}
+		if err == nil {
+			c.connected = true
+		}
+		return newFakeToken(true, err)
+	}
+	return newFakeToken(!c.connectHangs, c.connectErr)
+}
+func (c *fakeClient) Disconnect(uint) {}
 
 func (c *fakeClient) Publish(_ string, qos byte, _ bool, _ interface{}) mqtt.Token {
 	c.publishCalls++
