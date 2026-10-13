@@ -41,14 +41,17 @@ separate, deliberate step with its own diff and prompt. `deploy.sh` ships
 deploy ends with the diff and the command to install it:
 
 ```bash
-ssh -t <host> 'sudo bash ~/ups-mqtt/install-unit.sh'
+./deploy.sh --install-unit <host>
 ```
 
-The script keeps the `User=` the installed unit already has, checks the new
+That ships this checkout's unit and the script again, then runs the script on
+the host over `ssh -t`: the prompt needs a terminal, and without one the
+script refuses rather than read an answer nobody was shown a prompt for. The
+script keeps the `User=` the installed unit already has, checks the new
 unit with `systemd-analyze verify`, and prompts before replacing it (`--yes`
 skips the prompt). It then runs `daemon-reload` and restarts ups-mqtt if it is
 running. Re-running it is a no-op. Tests:
-`bash scripts/test/install-unit_test.sh`.
+`bash scripts/test/install-unit_test.sh` and `bash scripts/test/deploy_test.sh`.
 
 ## Start with ups-doctor.sh
 

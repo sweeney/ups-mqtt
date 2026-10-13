@@ -4,6 +4,9 @@
 # Usage:
 #   ./deploy.sh                    # deploy to default host (sweeney@garibaldi)
 #   ./deploy.sh user@host          # deploy to a specific host
+#   ./deploy.sh --install-unit [user@host]
+#                                  # install this checkout's systemd unit
+#                                  # (asks first, needs sudo); no build
 #
 # Prerequisites on the target host (one-time, run first-install.sh):
 #   - /etc/ups-mqtt/config.toml exists
@@ -15,8 +18,29 @@
 # See first-install.sh for the one-time setup procedure.
 set -euo pipefail
 
-TARGET="${1:-sweeney@garibaldi}"
+INSTALL_UNIT=0
+TARGET=""
+for arg in "$@"; do
+  case "$arg" in
+    --install-unit) INSTALL_UNIT=1 ;;
+    -*)             echo "ERROR: unknown argument: $arg" >&2; exit 2 ;;
+    *)              [[ -z "$TARGET" ]] || { echo "ERROR: more than one host given" >&2; exit 2; }
+                    TARGET="$arg" ;;
+  esac
+done
+TARGET="${TARGET:-sweeney@garibaldi}"
 SERVICE="ups-mqtt"
+
+# ---------------------------------------------------------------------------
+# --install-unit: ship the unit and its installer, then run the installer
+# with a terminal so its confirmation prompt (and sudo) can ask.  Quoted as
+# one remote command, so ~ is the remote home, not this machine's.
+# ---------------------------------------------------------------------------
+if [[ $INSTALL_UNIT == 1 ]]; then
+  echo "==> Shipping ${SERVICE}.service and install-unit.sh to ${TARGET}:~/${SERVICE}/..."
+  scp -q "${SERVICE}.service" scripts/install-unit.sh "${TARGET}:~/${SERVICE}/"
+  exec ssh -t "${TARGET}" "sudo bash ~/${SERVICE}/install-unit.sh"
+fi
 KEEP_VERSIONS=3
 VERSION=$(date +%Y%m%d-%H%M%S)
 
@@ -142,7 +166,7 @@ case "${UNIT_CHECK}" in
   1)
     echo ""
     echo "  ⚠  The installed unit differs from this checkout's (diff above). To install it:"
-    echo "       ssh -t ${TARGET} 'sudo bash ~/${SERVICE}/install-unit.sh'"
+    echo "       ./deploy.sh --install-unit ${TARGET}"
     ;;
   *)
     echo ""

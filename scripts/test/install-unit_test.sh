@@ -111,19 +111,27 @@ check "check after apply: exit 0"      '[[ $CODE == 0 ]]'
 # ── the prompt: anything but yes aborts without changes ────────────────────
 r=$(new_fixture prompt_no)
 echo n > "$WORK/no"
-STDIN="$WORK/no" run "$r" "$REPO_UNIT"
+STDIN="$WORK/no" INSTALL_UNIT_TTY=1 run "$r" "$REPO_UNIT"
 check "prompt no: exit 1, aborted"     '[[ $CODE == 1 && $OUT == *"Aborted; nothing changed."* ]]'
 check "prompt no: unit untouched"      '[[ "$(cat "$r/$UNIT_REL")" == "$OLD_UNIT" ]]'
 check "prompt no: no systemctl calls"  '[[ ! -s $r/calls ]]'
 
 r=$(new_fixture prompt_eof)
-run "$r" "$REPO_UNIT"
+INSTALL_UNIT_TTY=1 run "$r" "$REPO_UNIT"
 check "prompt EOF: aborts"             '[[ $CODE == 1 && "$(cat "$r/$UNIT_REL")" == "$OLD_UNIT" ]]'
 
 r=$(new_fixture prompt_yes)
 echo y > "$WORK/yes"
-STDIN="$WORK/yes" run "$r" "$REPO_UNIT"
+STDIN="$WORK/yes" INSTALL_UNIT_TTY=1 run "$r" "$REPO_UNIT"
 check "prompt yes: installs"           '[[ $CODE == 0 && "$(cat "$r/$UNIT_REL")" == "$(expected)" ]]'
+
+# ── no terminal (ssh without -t): refuse up front, even if stdin says yes ──
+r=$(new_fixture no_tty)
+STDIN="$WORK/yes" run "$r" "$REPO_UNIT"
+check "no tty: exit 2, says ssh -t"    '[[ $CODE == 2 && $OUT == *"ssh -t"* && $OUT == *"nothing changed"* ]]'
+check "no tty: no prompt shown"        '[[ $OUT != *"About to:"* ]]'
+check "no tty: unit untouched"         '[[ "$(cat "$r/$UNIT_REL")" == "$OLD_UNIT" ]]'
+check "no tty: no systemctl calls"     '[[ ! -s $r/calls ]]'
 
 # ── default source: the repo layout (script in scripts/, unit at the root) ─
 r=$(new_fixture default_source)

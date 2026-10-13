@@ -476,6 +476,7 @@ Subsequent deployments:
 ```bash
 ./deploy.sh              # default host (TARGET in deploy.sh)
 ./deploy.sh user@host    # specific host
+./deploy.sh --install-unit user@host   # install a changed systemd unit (asks first)
 ```
 
 The script:

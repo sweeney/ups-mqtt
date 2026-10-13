@@ -23,8 +23,13 @@
 # Exit codes: 0 up to date (or installed), 1 changes needed (--check) or
 # aborted at the prompt, 2 error.
 #
+# The prompt needs a terminal: over ssh, that means ssh -t.  Without one (and
+# without --yes) it refuses before changing anything, rather than reading an
+# answer from a stdin nobody can see a prompt on.
+#
 # INSTALL_UNIT_ROOT prefixes the install path, so tests can run against a
-# fixture tree.  See scripts/test/install-unit_test.sh.
+# fixture tree; INSTALL_UNIT_TTY=1 lets them answer the prompt from a file.
+# See scripts/test/install-unit_test.sh.
 set -euo pipefail
 
 SERVICE="ups-mqtt"
@@ -105,6 +110,9 @@ fi
 # ── Apply ──────────────────────────────────────────────────────────────────
 if [[ -z "$ROOT" && $EUID -ne 0 ]]; then
   die "installing needs root: run with sudo (or use --check)"
+fi
+if [[ $YES == 0 && ! -t 0 && -z "${INSTALL_UNIT_TTY:-}" ]]; then
+  die "no terminal to ask for confirmation on; nothing changed. Over ssh, use ssh -t (or pass --yes)"
 fi
 
 echo "About to:"
