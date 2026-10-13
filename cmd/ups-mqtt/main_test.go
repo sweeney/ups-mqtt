@@ -87,6 +87,33 @@ func (t *topicFailPublisher) Publish(msg publisher.Message) error {
 	return t.FakePublisher.Publish(msg)
 }
 
+// The state says whether the clock behind its timestamp is synced, as the
+// clock reports it at each poll: false after a reboot without an RTC, true
+// once NTP has stepped it.
+func TestDoPoll_StateCarriesClockSync(t *testing.T) {
+	outage, clk, _ := newOutageStateWith(&outages.MemoryStore{})
+	clk.IsSynced = false
+	poll := func() string {
+		t.Helper()
+		fpub := &publisher.FakePublisher{}
+		if err := doPoll(&nut.FakePoller{Variables: sampleVars}, fpub, testCfg, outage); err != nil {
+			t.Fatalf("doPoll: %v", err)
+		}
+		msg, ok := fpub.Find("ups/cyberpower/state")
+		if !ok {
+			t.Fatal("state not published")
+		}
+		return msg.Payload
+	}
+	if p := poll(); !strings.Contains(p, `"clock_synced":false`) {
+		t.Errorf("before sync: %s", p)
+	}
+	clk.Step(17 * time.Minute)
+	if p := poll(); !strings.Contains(p, `"clock_synced":true`) {
+		t.Errorf("after sync: %s", p)
+	}
+}
+
 func TestDoPoll_Success(t *testing.T) {
 	fp := &nut.FakePoller{Variables: sampleVars}
 	fpub := &publisher.FakePublisher{}

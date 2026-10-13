@@ -47,15 +47,23 @@ type PublishConfig struct {
 	// EventQOS is used for the outage topic, its clear, and the offline
 	// announcement — things that happen once and must not be lost.
 	EventQOS byte
+	// ClockSynced is whether the wall clock is synced now, so whether the
+	// state's timestamp can be trusted; nil where it cannot be determined.
+	ClockSynced *bool
 }
 
 // StateMessage is the JSON payload for the combined state topic.
 // Computed uses metrics.Metrics directly — its JSON tags define the wire format.
 type StateMessage struct {
-	Timestamp string            `json:"timestamp"`
-	UPSName   string            `json:"ups_name"`
-	Variables map[string]string `json:"variables"`
-	Computed  metrics.Metrics   `json:"computed"`
+	Timestamp string `json:"timestamp"`
+	UPSName   string `json:"ups_name"`
+	// ClockSynced says whether timestamp can be trusted.  After a reboot
+	// without an RTC the clock is wrong until NTP syncs, and states stamped
+	// meanwhile can reach a bridged broker late.  Absent where sync cannot
+	// be determined.
+	ClockSynced *bool             `json:"clock_synced,omitempty"`
+	Variables   map[string]string `json:"variables"`
+	Computed    metrics.Metrics   `json:"computed"`
 }
 
 // OnlineState is the LWT / online-announcement payload.
@@ -317,10 +325,11 @@ func publishState(
 	pub Publisher,
 ) error {
 	state := StateMessage{
-		Timestamp: time.Now().UTC().Format(time.RFC3339),
-		UPSName:   cfg.UPSName,
-		Variables: publishableVariables(vars),
-		Computed:  m,
+		Timestamp:   time.Now().UTC().Format(time.RFC3339),
+		UPSName:     cfg.UPSName,
+		ClockSynced: cfg.ClockSynced,
+		Variables:   publishableVariables(vars),
+		Computed:    m,
 	}
 	payload, err := json.Marshal(state)
 	if err != nil {

@@ -209,6 +209,40 @@ func TestPublishAll_StateTopic_Structure(t *testing.T) {
 	}
 }
 
+// clock_synced on the state says whether its timestamp can be trusted; it is
+// absent, not false, where sync cannot be determined.
+func TestPublishAll_StateClockSynced(t *testing.T) {
+	yes, no := true, false
+	for _, tc := range []struct {
+		name   string
+		synced *bool
+		want   string // substring of the payload; "" means the key is absent
+	}{
+		{"synced", &yes, `"clock_synced":true`},
+		{"unsynced", &no, `"clock_synced":false`},
+		{"unknown", nil, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fp := &publisher.FakePublisher{}
+			cfg := publisher.PublishConfig{Prefix: "ups", UPSName: "cyberpower", ClockSynced: tc.synced}
+			if err := publisher.PublishAll(sampleVars, metrics.Compute(sampleVars), cfg, fp); err != nil {
+				t.Fatalf("PublishAll: %v", err)
+			}
+			msg, ok := fp.Find("ups/cyberpower/state")
+			if !ok {
+				t.Fatal("state topic not published")
+			}
+			if tc.want == "" {
+				if strings.Contains(msg.Payload, "clock_synced") {
+					t.Errorf("clock_synced present with sync unknown: %s", msg.Payload)
+				}
+			} else if !strings.Contains(msg.Payload, tc.want) {
+				t.Errorf("payload lacks %s: %s", tc.want, msg.Payload)
+			}
+		})
+	}
+}
+
 // ---- StateTopic helper ----------------------------------------------------
 
 func TestStateTopic(t *testing.T) {

@@ -483,6 +483,10 @@ func (t *Tracker) startSynced(ep *episode) *bool {
 	return &ok
 }
 
+// ClockSynced reports whether the wall clock is synced now; nil where that
+// cannot be determined.
+func (t *Tracker) ClockSynced() *bool { return t.syncedNow() }
+
 func (t *Tracker) syncedNow() *bool {
 	synced, known := t.clock.Synced()
 	if !known {

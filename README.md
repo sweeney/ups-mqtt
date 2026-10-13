@@ -69,6 +69,7 @@ A single combined JSON snapshot on `{prefix}/{label}/state`, published every pol
 {
   "timestamp": "2026-02-23T16:40:18Z",
   "ups_name": "office-ups",
+  "clock_synced": true,
   "variables": {
     "ups.status": "OL",
     "ups.load": "8",
@@ -87,6 +88,14 @@ A single combined JSON snapshot on `{prefix}/{label}/state`, published every pol
   }
 }
 ```
+
+`clock_synced` says whether `timestamp` can be trusted: it is `false` from boot
+until NTP syncs, which on a host without a real-time clock means a wrong time
+after a power-loss reboot, and a bridged local broker can forward states
+stamped meanwhile, after the power returns, among older retained values (see
+[the live tests](docs/live-tests.md), test 5). Judge a state by `timestamp` and
+`clock_synced`, not by arrival order. Absent where sync cannot be determined
+(anywhere but Linux).
 
 `variables` carries every NUT variable except two families, which are excluded
 because they describe NUT itself or hardware the device does not have:

@@ -295,6 +295,7 @@ func publishSample(varMap map[string]string, m metrics.Metrics, pub publisher.Pu
 		Retained:     cfg.MQTT.Retained,
 		TelemetryQOS: cfg.MQTT.EffectiveTelemetryQOS(),
 		EventQOS:     cfg.MQTT.EffectiveEventQOS(),
+		ClockSynced:  outage.tracker.ClockSynced(),
 	}
 
 	outageErr := publishOutageState(varMap, m, pubCfg, pub, outage)

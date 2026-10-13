@@ -123,6 +123,9 @@ go build ./...                                  # clean compile
 - `state` is published every poll regardless of change, so it doubles as a
   heartbeat. It is also the LWT topic, so it carries two shapes: a full snapshot
   while alive, `{"online":false,…}` when the broker declares the client dead.
+  The snapshot carries `clock_synced`, the clock's sync at that poll: after a
+  power cut a bridged broker can forward states stamped by an unsynced clock
+  among stale retained values (docs/live-tests.md, test 5).
 - `publisher.noisyVariableFamilies` denylists `driver.*` and
   `output.L2.*`/`output.L3.*` from `state.variables`. Never filter
   `battery.charge` or `input.voltage` — statehouse's ups adapter reads both
