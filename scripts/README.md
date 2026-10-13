@@ -12,6 +12,7 @@ builds or ships anything.
 | [`recover-ups-usb.sh`](recover-ups-usb.sh) | Forces a sleep/wake cycle to re-enumerate USB. Largely superseded — see below. | yes |
 | [`soc-power-probe.sh`](soc-power-probe.sh) | Spot-check real power draw at the SoC, for when `ups.load` reads 0 %. | no |
 | [`persist-journal.sh`](persist-journal.sh) | Keep the systemd journal across power loss on Raspberry Pi OS. | yes (`--check`: no) |
+| [`install-unit.sh`](install-unit.sh) | Bring the installed systemd unit up to date with the repo's. | yes (`--check`: no) |
 
 ## Keep the journal across a power cut
 
@@ -29,6 +30,24 @@ It adds a drop-in that overrides the RPi default with `Storage=persistent`,
 `SyncIntervalSec=10s` (the 5 min default would lose the run-up to a sudden
 power loss) and `SystemMaxUse=64M`. Re-running it is a no-op. Tests:
 `bash scripts/test/persist-journal_test.sh`.
+
+## Update the systemd unit
+
+`deploy.sh` replaces the binary but cannot replace the unit, because the
+deploy user's sudoers entry covers only `systemctl`, `journalctl` and the
+config file. Instead, it ships `ups-mqtt.service` and this script to
+`~/ups-mqtt/` and runs `--check`. When the installed unit is out of date, the
+deploy ends with the diff and the command to install it:
+
+```bash
+ssh -t <host> 'sudo bash ~/ups-mqtt/install-unit.sh'
+```
+
+The script keeps the `User=` the installed unit already has, checks the new
+unit with `systemd-analyze verify`, and prompts before replacing it (`--yes`
+skips the prompt). It then runs `daemon-reload` and restarts ups-mqtt if it is
+running. Re-running it is a no-op. Tests:
+`bash scripts/test/install-unit_test.sh`.
 
 ## Start with ups-doctor.sh
 

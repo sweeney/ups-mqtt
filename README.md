@@ -148,7 +148,7 @@ Messages fall into two kinds, each with its own QoS:
 
 Both fall back to `mqtt.qos`, so a config that sets only `qos` behaves as before. The split matters behind a local broker bridged to a remote one. While the bridge is down, Mosquitto queues QoS 1 messages for it and drops QoS 0 ones. Its queue is capped, and once the cap is reached it drops the *newest* messages. If telemetry were sent at QoS 1, it would fill the queue with readings the next poll supersedes, and the outage message would be the one dropped. For that setup use `telemetry_qos = 0` and `event_qos = 1`. The first poll after the bridge reconnects refreshes every retained telemetry topic.
 
-Behind a bridge, the LWT only fires when the daemon loses its connection to the *local* broker. A remote subscriber does not see `online:false` when the site's uplink drops; the retained `state` simply stops updating. Configure the bridge's `notification_topic` if remote consumers need to notice that.
+**Liveness behind a bridge.** Behind a bridged local broker, `online:false` only covers this process dying: the LWT fires when the daemon loses its connection to the *local* broker. When the site's uplink drops, remote subscribers do not see `online:false`; the retained `state` simply stops updating. To tell whether the site is reachable, watch the bridge's notification topic (e.g. `sites/<site>/bridge`, a retained `1`/`0` published by Mosquitto when the bridge has `notification_topic` set).
 
 ---
 
@@ -426,12 +426,12 @@ The script:
 
 #### systemd unit
 
-The service file (`ups-mqtt.service`) is installed to `/etc/systemd/system/` via a symlink on first deploy. Key settings:
+The service file (`ups-mqtt.service`) is installed to `/etc/systemd/system/` on first deploy. Later changes to it are shipped by `deploy.sh` but installed with `scripts/install-unit.sh` (see [scripts/README.md](scripts/README.md#update-the-systemd-unit)). Key settings:
 
 ```ini
 [Unit]
 After=network-online.target tailscaled.service mosquitto.service
-Wants=network-online.target mosquitto.service
+Wants=network-online.target
 
 [Service]
 Type=simple

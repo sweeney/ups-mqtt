@@ -61,6 +61,9 @@ trap 'rm -f "${LOCAL_BIN}"' EXIT
 # ---------------------------------------------------------------------------
 echo "==> Uploading to ${TARGET}:~/${SERVICE}/${REMOTE_BIN}..."
 scp -q "${LOCAL_BIN}" "${TARGET}:~/${SERVICE}/${REMOTE_BIN}"
+# The unit and its installer travel with every deploy, but installing the unit
+# needs root, which this script deliberately does not have.  Step 9 checks it.
+scp -q "${SERVICE}.service" scripts/install-unit.sh "${TARGET}:~/${SERVICE}/"
 
 # ---------------------------------------------------------------------------
 # 5. Atomic swap: make executable and repoint the symlink
@@ -120,8 +123,20 @@ ssh "${TARGET}" "
 "
 
 # ---------------------------------------------------------------------------
-# 8. Done
+# 9. Unit file — report only; installing it needs root
+# ---------------------------------------------------------------------------
+echo "==> Checking the installed unit against this checkout's..."
+UNIT_CHECK=0
+ssh "${TARGET}" "bash ~/${SERVICE}/install-unit.sh --check" || UNIT_CHECK=$?
+
+# ---------------------------------------------------------------------------
+# 10. Done
 # ---------------------------------------------------------------------------
 echo ""
 echo "==> Deployed ${VERSION} to ${TARGET} [${SUFFIX}]"
 ssh "${TARGET}" "sudo systemctl status ${SERVICE} --no-pager -l"
+if [ "${UNIT_CHECK}" != 0 ]; then
+  echo ""
+  echo "  ⚠  The installed unit differs from this checkout's (diff above). To install it:"
+  echo "       ssh -t ${TARGET} 'sudo bash ~/${SERVICE}/install-unit.sh'"
+fi
