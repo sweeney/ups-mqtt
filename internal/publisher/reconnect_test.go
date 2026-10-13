@@ -212,3 +212,76 @@ func TestNewMQTTPublisher_ManualReconnectCleanSession(t *testing.T) {
 		t.Errorf("reconnect cap = %s, want 30s", p.reconnect.Max)
 	}
 }
+
+// A shutdown whose offline announcement failed must not disconnect cleanly:
+// a clean DISCONNECT makes the broker discard the will, and the retained
+// state would go on saying online.
+func TestClose_SkipsCleanDisconnectAfterFailedPublish(t *testing.T) {
+	captureLog(t)
+	c := &fakeClient{connected: true, token: newFakeToken(false, nil)}
+	p := &MQTTPublisher{client: c, timeout: 10 * time.Millisecond}
+	if err := p.Publish(testMsg()); err == nil {
+		t.Fatal("expected the publish to time out")
+	}
+	p.Close() //nolint:errcheck
+	if c.disconnects != 0 {
+		t.Error("disconnected cleanly after a failed offline announcement; the broker would drop the will")
+	}
+}
+
+func TestClose_DisconnectsCleanlyAfterSuccessfulPublish(t *testing.T) {
+	c := &fakeClient{connected: true, token: newFakeToken(true, nil)}
+	p := &MQTTPublisher{client: c, timeout: time.Second}
+	if err := p.Publish(testMsg()); err != nil {
+		t.Fatal(err)
+	}
+	p.Close() //nolint:errcheck
+	if c.disconnects != 1 {
+		t.Errorf("disconnects = %d, want a clean disconnect", c.disconnects)
+	}
+}
+
+// A stall that outlasts the keep-alive means the broker answers pings but
+// not publishes.  Waiting will not help; the connection is replaced.
+func TestPublish_WedgedStallReplacesConnection(t *testing.T) {
+	buf := captureLog(t)
+	c := &fakeClient{connected: true, token: newFakeToken(false, nil), connectErrs: []error{nil}}
+	var waits []time.Duration
+	p := newTestPublisher(c, &waits)
+	p.timeout = 10 * time.Millisecond
+	p.wedgeAfter = 30 * time.Millisecond
+
+	if err := p.Publish(testMsg()); err == nil {
+		t.Fatal("expected a timeout")
+	}
+	if err := p.Publish(testMsg()); err == nil || !strings.Contains(err.Error(), "unacknowledged") {
+		t.Fatalf("Publish() = %v, want a fast skip while stalled", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+	p.Publish(testMsg()) //nolint:errcheck // notices the wedge
+
+	select {
+	case <-p.Reconnected():
+	case <-time.After(2 * time.Second):
+		t.Fatal("wedged connection not replaced")
+	}
+	if c.disconnects != 1 || c.connectCalls != 1 {
+		t.Errorf("disconnects %d, connects %d; want the connection dropped and remade once", c.disconnects, c.connectCalls)
+	}
+	if !strings.Contains(buf.String(), "has not acknowledged a publish") {
+		t.Errorf("wedge not logged:\n%s", buf.String())
+	}
+}
+
+// A connection lost after Close does not start a reconnect.
+func TestConnectionLost_AfterCloseDoesNotReconnect(t *testing.T) {
+	captureLog(t)
+	c := &fakeClient{connected: true, connectErrs: []error{nil}}
+	var waits []time.Duration
+	p := newTestPublisher(c, &waits)
+	p.Close() //nolint:errcheck
+	p.connectionLost(c, errors.New("EOF"))
+	if c.connectCalls != 0 {
+		t.Errorf("connect called %d times after Close", c.connectCalls)
+	}
+}

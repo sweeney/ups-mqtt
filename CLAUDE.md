@@ -82,7 +82,10 @@ go build ./...                                  # clean compile
   publish waited out its timeout (docs/live-tests.md). `MQTTPublisher`
   reconnects itself (clean session, so paho's store is emptied), publishes
   only while `IsConnectionOpen()`, stops waiting on further publishes once
-  one has timed out until it is acked or the connection replaced, and
+  one has timed out until it is acked or the connection replaced (a stall
+  past keep-alive plus ping timeout replaces it), skips the clean
+  DISCONNECT in `Close` when the last publish failed so the broker fires the
+  LWT instead of the lost offline announcement, and
   signals `Reconnected()`, on which the poll loop republishes current state
   at once (re-sending the outage clear). `TestLiveReplay_*` replays the live
   tests against a real Mosquitto behind `mqtttest.Proxy`, which blackholes

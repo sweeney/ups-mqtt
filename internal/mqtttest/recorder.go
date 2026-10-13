@@ -54,6 +54,21 @@ func (r *Recorder) Messages() []Received {
 	return append([]Received(nil), r.got...)
 }
 
+// WaitQuiet waits until nothing has arrived for quiet, or for at most
+// within, so the messages in flight are counted.
+func (r *Recorder) WaitQuiet(quiet, within time.Duration) {
+	deadline := time.Now().Add(within)
+	n := len(r.Messages())
+	for time.Now().Before(deadline) {
+		time.Sleep(quiet)
+		m := len(r.Messages())
+		if m == n {
+			return
+		}
+		n = m
+	}
+}
+
 // On returns the messages received on topic, in order.
 func (r *Recorder) On(topic string) []Received {
 	var out []Received

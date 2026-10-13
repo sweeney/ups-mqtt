@@ -93,7 +93,20 @@ type MQTTPublisher struct {
 	// it completes, or the connection is replaced, further publishes fail at
 	// once: a link that swallowed one message will swallow the rest, and
 	// waiting out the timeout on each is what stretched the polls.
-	stalled mqtt.Token
+	stalled   mqtt.Token
+	stalledAt time.Time
+	// wedgeAfter is how long a stall may last before the connection is
+	// replaced.  Past KeepAlive plus PingTimeout the link has proved itself
+	// alive (or paho would have dropped it) yet still not acknowledged the
+	// publish, so waiting longer will not help.
+	wedgeAfter time.Duration
+
+	// lastFailed is whether the most recent publish failed.  Close then
+	// leaves without a clean DISCONNECT, so the broker publishes the will:
+	// the offline announcement it stands in for did not get through.
+	lastFailed bool
+	// closed stops a reconnect in flight from outliving Close.
+	closed bool
 }
 
 // NewMQTTPublisher creates an MQTT client with DefaultTuning but does not
@@ -114,6 +127,7 @@ func NewMQTTPublisherWith(cfg config.MQTTConfig, lwtTopic, lwtPayload string, tn
 		reconnect:   tn.Reconnect,
 		wait:        retry.Sleep,
 		reconnected: make(chan struct{}, 1),
+		wedgeAfter:  tn.KeepAlive + tn.PingTimeout,
 	}
 
 	opts := mqtt.NewClientOptions()
@@ -125,6 +139,9 @@ func NewMQTTPublisherWith(cfg config.MQTTConfig, lwtTopic, lwtPayload string, tn
 	}
 	opts.SetKeepAlive(tn.KeepAlive)
 	opts.SetPingTimeout(tn.PingTimeout)
+	// Without a write timeout paho's Publish can block for up to 30 s
+	// handing a message to a writer stuck on a full socket buffer.
+	opts.SetWriteTimeout(tn.PublishTimeout)
 	opts.SetCleanSession(true)
 	opts.SetAutoReconnect(false)
 	opts.SetConnectionLostHandler(p.connectionLost)
@@ -189,13 +206,17 @@ func (p *MQTTPublisher) connectionLost(_ mqtt.Client, err error) {
 	p.reconnectLoop(time.Now())
 }
 
-// reconnectLoop retries until connected or the publisher's context ends.
+// reconnectLoop retries until connected, the publisher's context ends, or
+// it is closed.
 func (p *MQTTPublisher) reconnectLoop(lostAt time.Time) {
 	p.mu.Lock()
-	ctx := p.ctx
+	ctx, closed := p.ctx, p.closed
 	p.mu.Unlock()
 	if ctx == nil {
 		ctx = context.Background()
+	}
+	if closed || ctx.Err() != nil {
+		return // shutting down
 	}
 
 	res, err := retry.Connect(ctx, "MQTT", p.reconnect, func() error { return p.connectOnce(ctx) }, p.wait)
@@ -204,8 +225,13 @@ func (p *MQTTPublisher) reconnectLoop(lostAt time.Time) {
 	}
 
 	p.mu.Lock()
+	closed = p.closed
 	p.stalled = nil // its connection is gone; the new one starts clean
 	p.mu.Unlock()
+	if closed {
+		p.client.Disconnect(0) // connected just as Close ran
+		return
+	}
 	log.Printf("reconnected to MQTT broker %s after %s (%d attempts)",
 		p.broker, time.Since(lostAt).Round(time.Second), res.Attempts)
 
@@ -225,6 +251,14 @@ func (p *MQTTPublisher) reconnectLoop(lostAt time.Time) {
 // lost by giving up: the caller republishes current state on Reconnected,
 // which is what a subscriber wants.
 func (p *MQTTPublisher) Publish(msg Message) error {
+	err := p.publish(msg)
+	p.mu.Lock()
+	p.lastFailed = err != nil
+	p.mu.Unlock()
+	return err
+}
+
+func (p *MQTTPublisher) publish(msg Message) error {
 	if !p.client.IsConnectionOpen() {
 		return fmt.Errorf("publishing to %q: not connected to broker", msg.Topic)
 	}
@@ -234,14 +268,15 @@ func (p *MQTTPublisher) Publish(msg Message) error {
 	token := p.client.Publish(msg.Topic, msg.QOS, msg.Retained, msg.Payload)
 	if !token.WaitTimeout(p.timeout) {
 		p.mu.Lock()
-		p.stalled = token
+		p.stalled, p.stalledAt = token, time.Now()
 		p.mu.Unlock()
 		return fmt.Errorf("publishing to %q: timed out after %s", msg.Topic, p.timeout)
 	}
 	return token.Error()
 }
 
-// isStalled reports whether a timed-out publish is still unacknowledged.
+// isStalled reports whether a timed-out publish is still unacknowledged.  A
+// stall that outlasts wedgeAfter replaces the connection.
 func (p *MQTTPublisher) isStalled() bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -253,12 +288,32 @@ func (p *MQTTPublisher) isStalled() bool {
 		p.stalled = nil // acknowledged late, or failed with the connection
 		return false
 	default:
-		return true
 	}
+	if p.wedgeAfter > 0 && time.Since(p.stalledAt) > p.wedgeAfter && !p.closed {
+		log.Printf("MQTT broker %s has not acknowledged a publish for %s although the connection looks open — reconnecting",
+			p.broker, time.Since(p.stalledAt).Round(time.Second))
+		p.stalled = nil
+		go func() {
+			p.client.Disconnect(0)
+			p.reconnectLoop(time.Now())
+		}()
+	}
+	return true
 }
 
-// Close disconnects from the broker gracefully.
+// Close disconnects from the broker.  The disconnect is a clean one only if
+// the last publish — normally the offline announcement — got through.
+// Otherwise the connection is left for the process exit to drop, without a
+// DISCONNECT, so the broker publishes the will in its place.
 func (p *MQTTPublisher) Close() error {
+	p.mu.Lock()
+	p.closed = true
+	failed := p.lastFailed
+	p.mu.Unlock()
+	if failed && p.client.IsConnectionOpen() {
+		log.Printf("leaving MQTT without a clean disconnect so the broker publishes the will")
+		return nil
+	}
 	p.client.Disconnect(250)
 	return nil
 }

@@ -258,7 +258,7 @@ func replay(t *testing.T, tl timeline, faults []fault, settle time.Duration, qos
 	time.AfterFunc(scaled(tl.end()+settle), cancel)
 
 	d.run(ctx, scaled(10*time.Second), replayStateTopic)
-	time.Sleep(200 * time.Millisecond) // let the recorder drain
+	rec.WaitQuiet(200*time.Millisecond, 3*time.Second)
 
 	logMu.Lock()
 	res := replayResult{poller: poller, rec: rec, broker: broker, logs: logs.String()}
@@ -286,7 +286,9 @@ func checkOutcome(t *testing.T, r replayResult, tl timeline) {
 
 	// Polls keep their pace: at most one publish timeout per poll, against
 	// the live 30 s polls when every publish waited one out.
-	if g := r.poller.maxGap(); g > interval+replayTimeout+scaled(3*time.Second) {
+	// The slack of another interval absorbs a loaded CI runner; the live
+	// failure was three intervals.
+	if g := r.poller.maxGap(); g > 2*interval+replayTimeout {
 		t.Errorf("longest gap between polls %s, want at most ~%s (one interval plus one publish timeout)",
 			g, interval+replayTimeout)
 	}

@@ -65,6 +65,7 @@ type fakeClient struct {
 	// one repeats.  A nil entry connects.
 	connectErrs  []error
 	connectCalls int
+	disconnects  int
 }
 
 func (c *fakeClient) IsConnected() bool      { return c.connected || c.reconnecting }
@@ -84,7 +85,10 @@ func (c *fakeClient) Connect() mqtt.Token {
 	}
 	return newFakeToken(!c.connectHangs, c.connectErr)
 }
-func (c *fakeClient) Disconnect(uint) {}
+func (c *fakeClient) Disconnect(uint) {
+	c.disconnects++
+	c.connected = false
+}
 
 func (c *fakeClient) Publish(_ string, qos byte, _ bool, _ interface{}) mqtt.Token {
 	c.publishCalls++
