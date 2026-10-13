@@ -1,8 +1,11 @@
 package outages
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"log"
+	"strings"
 	"testing"
 	"time"
 )
@@ -729,4 +732,36 @@ func TestTracker_LBAfterResumeAcrossReboot_ProcessRestartResumes(t *testing.T) {
 		t.Errorf("OnBattery = start %s, new %v; want the outage from %s resumed", o.StartedAt, isNew, t0)
 	}
 	assertNotDue(t, tr)
+}
+
+// Outages ending faster than their summaries are published — power flapping
+// between publishes — are logged once, not once per outage, with a count
+// when one is finally published.
+func TestOnMains_SupersededSummariesLoggedOnce(t *testing.T) {
+	var buf bytes.Buffer
+	out, flags := log.Writer(), log.Flags()
+	log.SetOutput(&buf)
+	log.SetFlags(0)
+	t.Cleanup(func() { log.SetOutput(out); log.SetFlags(flags) })
+
+	clk := syncedClock()
+	tr := NewTracker(clk, &MemoryStore{})
+	tr.Restore(false)
+	for i := 0; i < 4; i++ {
+		tr.OnBattery(false, nil)
+		clk.Advance(2 * time.Second)
+		tr.OnMains()
+		clk.Advance(2 * time.Second)
+	}
+	if n := strings.Count(buf.String(), "dropping unpublished summary"); n != 1 {
+		t.Errorf("logged %d times for 3 superseded summaries, want once:\n%s", n, buf.String())
+	}
+	s, ok := tr.Due()
+	if !ok {
+		t.Fatal("no summary due")
+	}
+	tr.Published(s)
+	if !strings.Contains(buf.String(), "3 outage summaries were superseded") {
+		t.Errorf("the count was not logged on publishing:\n%s", buf.String())
+	}
 }

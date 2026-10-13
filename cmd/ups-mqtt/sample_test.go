@@ -263,3 +263,43 @@ func TestSample_PollErrorLoggedOncePerPoll(t *testing.T) {
 		t.Errorf("recovery not logged:\n%s", buf.String())
 	}
 }
+
+// Low battery flapping with mains — a flat battery and a flickering supply —
+// publishes at most twice a poll: the scheduled publish and one exempt
+// low-battery onset.
+func TestSample_LowBatteryFlappingStaysWithinTheCap(t *testing.T) {
+	ol, lb := reading("OL", "5"), reading("OB DISCHRG LB", "5")
+	var seq [][]nut.Variable
+	for i := 0; i < 31; i++ {
+		if i%2 == 0 {
+			seq = append(seq, ol)
+		} else {
+			seq = append(seq, lb)
+		}
+	}
+	d, pub, clk := samplingDaemon(seq...)
+	sampleAt(d, clk, time.Now(), len(seq))
+	if got := count(pub, sampleStateTopic); got > 13 {
+		t.Errorf("state published %d times in 60 s, want at most two a poll (13)", got)
+	}
+}
+
+// A second outage gets its own first low battery published at once, even
+// when it starts right after the first ended: the first outage's low battery
+// does not count against it.
+func TestSample_NewOutageLowBatteryNotHeldBack(t *testing.T) {
+	ol, ob, lb := reading("OL", "50"), reading("OB DISCHRG", "50"), reading("OB DISCHRG LB", "10")
+	d, pub, clk := samplingDaemon(lb, ol, ob, lb)
+	t0 := time.Now()
+	d.sample(t0, false) // outage 1, low battery: published
+	for _, at := range []time.Duration{10, 12} {
+		clk.Advance(10 * time.Second)
+		d.sample(t0.Add(at*time.Second), false) // 10 s: mains, published; 12 s: outage 2, held back
+	}
+	before := count(pub, sampleOutageTopic)
+	clk.Advance(2 * time.Second)
+	d.sample(t0.Add(14*time.Second), false) // outage 2 reaches low battery
+	if count(pub, sampleOutageTopic) == before {
+		t.Error("the second outage's low battery was held back")
+	}
+}

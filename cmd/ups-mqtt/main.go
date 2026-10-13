@@ -187,8 +187,10 @@ func (d *daemon) sample(now time.Time, force bool) {
 	changed := m.OnBattery != d.lastOnBattery || m.LowBattery != d.lastLow
 	changeAllowed := now.Sub(d.lastChangePublish) >= poll-slack
 	// Low battery is the warning that the host is about to lose power, so
-	// its first onset in an outage is never held back.  It can only happen
-	// once per outage, so it cannot flap.
+	// its first onset in an outage is not held back.  Like any change it
+	// must differ from what was last published, so even low battery
+	// flapping with mains publishes at most twice a poll: the scheduled
+	// publish and one exempt change.
 	firstLow := m.LowBattery && !d.lowAnnounced
 
 	if !force && d.published && !due && !(changed && (changeAllowed || firstLow)) {
@@ -196,8 +198,6 @@ func (d *daemon) sample(now time.Time, force bool) {
 	}
 	if m.LowBattery {
 		d.lowAnnounced = true
-	} else if !m.OnBattery {
-		d.lowAnnounced = false
 	}
 	if changed {
 		d.lastChangePublish = now
@@ -222,6 +222,7 @@ func (d *daemon) track(varMap map[string]string, m metrics.Metrics) {
 	}
 	if tr.OnMains() {
 		log.Printf("power restored")
+		d.lowAnnounced = false // the next outage's low battery is news
 	}
 }
 

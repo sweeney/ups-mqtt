@@ -138,6 +138,9 @@ type Tracker struct {
 	restoreDone bool
 	open        *episode
 	pending     *ended
+	// superseded counts summaries replaced before any was published, so a
+	// burst of them is logged once rather than per outage.
+	superseded int
 }
 
 // NewTracker returns a Tracker persisting to store.
@@ -337,9 +340,15 @@ func (t *Tracker) OnMains() bool {
 	// last_outage is the most recent outage.  If the previous one's summary
 	// never got out — its publishes failed throughout this outage too — it
 	// is superseded, not queued: say so rather than lose it silently.
+	// Power flapping faster than the poll interval does the same: each
+	// short outage replaces the last before a publish.
 	if old := t.pending; old != nil {
-		log.Printf("dropping unpublished summary of the outage started %s; superseded by the one that just ended",
-			t.startWall(&old.ep).UTC().Format(time.RFC3339))
+		if t.superseded == 0 {
+			log.Printf("dropping unpublished summary of the outage started %s; superseded by the one that just ended "+
+				"(its publishes failed, or power is flapping faster than the poll interval)",
+				t.startWall(&old.ep).UTC().Format(time.RFC3339))
+		}
+		t.superseded++
 	}
 	t.pending = &ended{ep: ep, endMono: &mono, since: mono}
 	return true
@@ -385,6 +394,10 @@ func (t *Tracker) Published(s Summary) {
 		return
 	}
 	t.pending = nil
+	if t.superseded > 1 {
+		log.Printf("%d outage summaries were superseded before this one was published; last_outage reports the latest", t.superseded)
+	}
+	t.superseded = 0
 	if t.open == nil {
 		t.remove()
 	}
