@@ -6,8 +6,8 @@ one directory per test.
 
 Identifiers are replaced: the host is `ups-host`, the label `site-ups`, the
 broker host `broker`, Tailscale addresses `100.64.0.x`, LAN addresses
-`192.0.2.x`. Times in log lines are the Pi's local time (BST, UTC+1);
-payload timestamps are UTC.
+`192.0.2.x`, the site `site`, a public endpoint `198.51.100.1`. Times in log
+lines are the Pi's local time (BST, UTC+1); payload timestamps are UTC.
 
 | File | What |
 |---|---|
@@ -19,6 +19,16 @@ payload timestamps are UTC.
 | `timeouts-per-minute.txt` | ups-mqtt publish timeouts per minute, standing in for the thousands of identical journal lines it replaces |
 
 Test 1 has no `ups.log` or `net.log`; its `broker-state.log` has the
-`variables` object elided. Test 3 has no `kernel.log`: the kernel logged
-nothing during it, and its `net.log` adds name resolution and broker
-connections.
+`variables` object elided. Tests 3 and 4 have no `kernel.log`: the kernel
+logged nothing during them, and their `net.log` adds name resolution and
+broker connections.
+
+Test 4 was recorded with `scripts/live-test.sh`, so its files differ. Its
+`ups.log` and `net.log` have a sample about every 1.05 s, not exactly every
+1 s. `broker.log` adds the retain flag (`%r`) after the receive time, and holds
+only this UPS's `ups/…` topics and the site's `sites/…` (bridge and network
+state), not the broker's other UPSes. The flag is 1 only for the retained
+copies delivered when the subscriber connected; everything after arrived
+live, so shows 0, retained or not. `resolv.log` is `resolv.conf` at the
+start; it did not change. Apart from tailscaled path lines, removed because
+they carry node keys, only ups-mqtt logged anything, and the kernel nothing.

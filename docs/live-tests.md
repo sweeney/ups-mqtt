@@ -40,9 +40,10 @@ scripts/live-test.sh scrub ~/ups-live-test.sed live-test-runs/<name> testdata/li
 
 Data: [`testdata/live-tests/2026-10-13/`](../testdata/live-tests/2026-10-13/).
 
-Production config at the time: poll 10 s, broker `tcp://broker:1883` by
+Production config for tests 1–3: poll 10 s, broker `tcp://broker:1883` by
 Tailscale MagicDNS short name, paho auto-reconnect with default backoff,
-5 s publish timeout, events at QoS 1.
+5 s publish timeout, events at QoS 1. Test 4 ran later that evening, after
+the fixes they led to.
 
 ### 1. Network gear unpowered (`1-network-unpowered/`)
 
@@ -121,6 +122,39 @@ Link, internet, DNS and the broker connection held in every 1 s sample; no
 publish timed out; no undervoltage. Start and end each lag the UPS by under
 one poll (7 s and 9 s), so `last_outage` overstates by 2.5 s. Every `state`
 arrived at a 10 s interval.
+
+### 4. Clean cut through the local bridge (`4-bridged-cut/`)
+
+The fixes deployed: poll 10 s, sample 2 s, ups-mqtt publishing to the Pi's
+local Mosquitto (`127.0.0.1`), bridged to the main broker; telemetry at
+QoS 0, events at QoS 1; ups-mqtt's own reconnect, not paho's. Network gear
+on battery outlets. Recorded on the main broker, where subscribers are.
+
+| Time | Event |
+|---|---|
+| 21:38:19.8 | `upsc`: OB, 13.5 → 13.0 V |
+| 21:38:21.0 | ups-mqtt: outage detected; `outage`, `computed/on_battery`, `state` on the main broker the same second |
+| 21:38:21–21:41:31 | `outage` every 10 s, `outage_duration_secs` 0 → 189; battery 13.0 V at first, then 12.4–12.5 V |
+| 21:41:32.1 | `upsc`: OL CHRG, 12.8 V (3 m 12.3 s on battery) |
+| 21:41:33.1 | ups-mqtt: power restored; `outage` cleared, then retained `last_outage` 20:38:21Z → 20:41:33Z, 191 s, then `state` |
+
+Detection lagged the UPS by 1.3 s at the start and 1.0 s at the end, against
+up to a full 10 s poll before sampling (7 s and 9 s in test 3). Each publish
+reached the main broker, through the bridge, within the second it was sent.
+`state` arrived every 10 s, plus once at each transition, after which the
+poll re-anchors on it. `outage.json` was first seen in the state directory
+in the 21:38:22 sample and was gone by 21:41:33.
+
+Link, internet, name resolution and the 5 port-1883 connections held in
+every sample (about one a second); the bridge stayed connected (one retained
+`sites/site/bridge 1`, never repeated) and the site's network state stayed
+`ok`. ups-mqtt logged three lines (outage detected, power restored,
+published `last_outage`) and nothing else: no publish timed
+out, no reconnect. The kernel logged nothing, so no undervoltage.
+
+Not covered: the network going down with the power, which is where the
+bridge's queue matters (failure modes 1, 3 and 4 below). The bridged
+replays (`TestBridgedReplay_*`) cover those until a cut does.
 
 ### Failure modes to cover
 

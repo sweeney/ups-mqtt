@@ -1,0 +1,3 @@
+Oct 13 21:38:21.049767 ups-host ups-mqtt[61624]: 2026/10/13 21:38:21 power outage detected — UPS on battery
+Oct 13 21:41:33.137145 ups-host ups-mqtt[61624]: 2026/10/13 21:41:33 power restored
+Oct 13 21:41:33.161405 ups-host ups-mqtt[61624]: 2026/10/13 21:41:33 published last_outage: 2026-10-13T20:38:21Z → 2026-10-13T20:41:33Z (3m11.999770964s, spans restart: false)
