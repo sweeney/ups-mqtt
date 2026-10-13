@@ -1,13 +1,18 @@
 [Unit]
 Description=UPS MQTT Bridge (NUT)
-After=network-online.target tailscaled.service
-Wants=network-online.target
+After=network-online.target tailscaled.service mosquitto.service
+Wants=network-online.target mosquitto.service
 
 # tailscaled is listed only for ordering: where the broker is reached over
-# Tailscale, starting before the tunnel exists means the first connect fails
-# and the process exits. Restart=on-failure recovers either way, but this
-# avoids a restart cycle at every boot. On hosts without Tailscale the unit
-# does not exist and the ordering is simply ignored.
+# Tailscale, starting before the tunnel exists means the first connect fails.
+# The daemon retries until it succeeds, so this only saves a few retries at
+# boot. On hosts without Tailscale the unit does not exist and the ordering
+# is simply ignored.
+#
+# mosquitto is for hosts that publish to a local broker. Wants= starts it
+# with this service, and After= means the first connect usually succeeds. On
+# hosts without Mosquitto, Wants= on a missing unit is harmless. On a host
+# where Mosquitto is installed but deliberately disabled, this WILL start it.
 
 [Service]
 Type=simple

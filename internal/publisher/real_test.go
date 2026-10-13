@@ -117,3 +117,53 @@ func TestNewMQTTPublisher_WithCredentials_TLSError(t *testing.T) {
 		t.Fatal("expected TLS error even with credentials set")
 	}
 }
+
+// ── NewMQTTPublisher ─────────────────────────────────────────────────────────
+
+// NewMQTTPublisher must not dial: an unreachable broker is the caller's to
+// retry, not a construction error.
+func TestNewMQTTPublisher_DoesNotConnect(t *testing.T) {
+	cfg := config.MQTTConfig{Broker: "tcp://127.0.0.1:1", ClientID: "test"}
+	start := time.Now()
+	p, err := NewMQTTPublisher(cfg, "ups/x/state", "{}")
+	if err != nil {
+		t.Fatalf("NewMQTTPublisher() = %v, want nil for an unreachable broker", err)
+	}
+	if p.client.IsConnected() {
+		t.Error("client is connected before Connect was called")
+	}
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Errorf("took %s — construction must not wait on the network", elapsed)
+	}
+}
+
+// The LWT is the broker announcing this client dead: an event, so it goes at
+// the event QoS even when telemetry is QoS 0.
+func TestNewMQTTPublisher_WillUsesEventQOS(t *testing.T) {
+	telemetry, event := byte(0), byte(1)
+	cfg := config.MQTTConfig{
+		Broker: "tcp://127.0.0.1:1", ClientID: "test",
+		QOS: 0, TelemetryQOS: &telemetry, EventQOS: &event,
+	}
+	p, err := NewMQTTPublisher(cfg, "ups/x/state", `{"online":false}`)
+	if err != nil {
+		t.Fatalf("NewMQTTPublisher() = %v", err)
+	}
+	opts := p.client.OptionsReader()
+	if !opts.WillEnabled() || opts.WillTopic() != "ups/x/state" || !opts.WillRetained() {
+		t.Errorf("will = enabled %v topic %q retained %v, want a retained will on ups/x/state",
+			opts.WillEnabled(), opts.WillTopic(), opts.WillRetained())
+	}
+	if got := opts.WillQos(); got != 1 {
+		t.Errorf("will QoS = %d, want event QoS 1", got)
+	}
+}
+
+// A bad CA path is a configuration error: no retry can fix it, so it must
+// surface from construction rather than from Connect.
+func TestNewMQTTPublisher_BadCACertFails(t *testing.T) {
+	cfg := config.MQTTConfig{Broker: "ssl://127.0.0.1:1", TLSCACert: "/nonexistent/ca.pem"}
+	if _, err := NewMQTTPublisher(cfg, "t", "p"); err == nil {
+		t.Error("expected an error for an unreadable CA cert")
+	}
+}

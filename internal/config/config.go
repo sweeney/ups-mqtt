@@ -58,6 +58,29 @@ type MQTTConfig struct {
 	Retained    bool   `toml:"retained"`
 	QOS         byte   `toml:"qos"`
 	TLSCACert   string `toml:"tls_ca_cert"`
+
+	// TelemetryQOS and EventQOS split QOS by message kind: telemetry (state,
+	// computed/*) is superseded every poll, events (outage, its clear, the
+	// offline announcement and the LWT) are not.  Each falls back to QOS when
+	// unset; they are pointers so that an explicit 0 still counts as set.
+	TelemetryQOS *byte `toml:"telemetry_qos"`
+	EventQOS     *byte `toml:"event_qos"`
+}
+
+// EffectiveTelemetryQOS returns TelemetryQOS if set, otherwise QOS.
+func (c MQTTConfig) EffectiveTelemetryQOS() byte {
+	if c.TelemetryQOS != nil {
+		return *c.TelemetryQOS
+	}
+	return c.QOS
+}
+
+// EffectiveEventQOS returns EventQOS if set, otherwise QOS.
+func (c MQTTConfig) EffectiveEventQOS() byte {
+	if c.EventQOS != nil {
+		return *c.EventQOS
+	}
+	return c.QOS
 }
 
 // Config is the top-level configuration struct.
@@ -158,14 +181,31 @@ func applyEnvOverrides(cfg *Config) {
 	if v := os.Getenv("UPS_MQTT_MQTT_RETAINED"); v != "" {
 		cfg.MQTT.Retained = v == "true" || v == "1"
 	}
-	if v := os.Getenv("UPS_MQTT_MQTT_QOS"); v != "" {
-		if q, err := strconv.ParseUint(v, 10, 8); err == nil {
-			cfg.MQTT.QOS = byte(q)
-		} else {
-			log.Printf("config: ignoring invalid UPS_MQTT_MQTT_QOS=%q: %v", v, err)
-		}
+	if q, ok := envQOS("UPS_MQTT_MQTT_QOS"); ok {
+		cfg.MQTT.QOS = q
+	}
+	if q, ok := envQOS("UPS_MQTT_MQTT_TELEMETRY_QOS"); ok {
+		cfg.MQTT.TelemetryQOS = &q
+	}
+	if q, ok := envQOS("UPS_MQTT_MQTT_EVENT_QOS"); ok {
+		cfg.MQTT.EventQOS = &q
 	}
 	if v := os.Getenv("UPS_MQTT_MQTT_TLS_CA_CERT"); v != "" {
 		cfg.MQTT.TLSCACert = v
 	}
+}
+
+// envQOS reads a QoS level from the named environment variable.  ok is false
+// when the variable is unset or invalid; an invalid value is logged.
+func envQOS(name string) (byte, bool) {
+	v := os.Getenv(name)
+	if v == "" {
+		return 0, false
+	}
+	q, err := strconv.ParseUint(v, 10, 8)
+	if err != nil {
+		log.Printf("config: ignoring invalid %s=%q: %v", name, v, err)
+		return 0, false
+	}
+	return byte(q), true
 }

@@ -17,6 +17,9 @@ type Message struct {
 	Topic    string
 	Payload  string
 	Retained bool
+	// QOS is chosen per message, not per client: telemetry and events are
+	// published at different levels.  See PublishConfig.
+	QOS byte
 }
 
 // Publisher is the minimal interface the rest of the codebase uses to send
@@ -27,11 +30,22 @@ type Publisher interface {
 }
 
 // PublishConfig groups the MQTT routing parameters so callers don't need to
-// thread three separate arguments through every function.
+// thread separate arguments through every function.
+//
+// Telemetry and events go out at separate QoS levels.  Behind a local broker
+// bridged to a remote one, the bridge queues QoS 1 messages while its link is
+// down, up to a cap, and drops the newest once the cap is reached.  Telemetry
+// at QoS 1 would fill that queue with readings the next poll supersedes, and
+// the outage it exists to report would be the message dropped.
 type PublishConfig struct {
 	Prefix   string
 	UPSName  string
 	Retained bool
+	// TelemetryQOS is used for state and computed/* — superseded every poll.
+	TelemetryQOS byte
+	// EventQOS is used for the outage topic, its clear, and the offline
+	// announcement — things that happen once and must not be lost.
+	EventQOS byte
 }
 
 // StateMessage is the JSON payload for the combined state topic.
@@ -122,6 +136,7 @@ func PublishOutage(
 		Topic:    OutageTopic(cfg.Prefix, cfg.UPSName),
 		Payload:  string(payload),
 		Retained: true,
+		QOS:      cfg.EventQOS,
 	})
 }
 
@@ -132,6 +147,7 @@ func ClearOutage(cfg PublishConfig, pub Publisher) error {
 		Topic:    OutageTopic(cfg.Prefix, cfg.UPSName),
 		Payload:  "",
 		Retained: true,
+		QOS:      cfg.EventQOS,
 	})
 }
 
@@ -214,7 +230,7 @@ func PublishAll(
 	// --- computed metric topics ---
 	for name, payload := range m.AsTopicMap() {
 		topic := fmt.Sprintf("%s/%s/computed/%s", cfg.Prefix, cfg.UPSName, name)
-		if err := pub.Publish(Message{Topic: topic, Payload: payload, Retained: cfg.Retained}); err != nil {
+		if err := pub.Publish(Message{Topic: topic, Payload: payload, Retained: cfg.Retained, QOS: cfg.TelemetryQOS}); err != nil {
 			errs = append(errs, fmt.Errorf("publishing %q: %w", topic, err))
 		}
 	}
@@ -262,5 +278,6 @@ func publishState(
 		Topic:    StateTopic(cfg.Prefix, cfg.UPSName),
 		Payload:  string(payload),
 		Retained: cfg.Retained,
+		QOS:      cfg.TelemetryQOS,
 	})
 }

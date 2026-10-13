@@ -24,16 +24,19 @@ import (
 // cannot finish before the next one begins is of no use to anyone.
 const DefaultPublishTimeout = 5 * time.Second
 
-// MQTTPublisher wraps paho.mqtt.golang and implements Publisher.
+// MQTTPublisher wraps paho.mqtt.golang and implements Publisher.  Each
+// message carries its own QoS (see PublishConfig).
 type MQTTPublisher struct {
 	client  mqtt.Client
-	qos     byte
+	broker  string
 	timeout time.Duration
 }
 
-// NewMQTTPublisher creates a connected MQTT client.
+// NewMQTTPublisher creates an MQTT client but does not connect it; call
+// Connect.  It fails only on configuration errors, which no retry can fix.
 // lwtTopic and lwtPayload are used for the Last Will and Testament message,
-// published by the broker if the client disconnects unexpectedly.
+// published by the broker if the client disconnects unexpectedly.  The LWT is
+// an event, so it goes at the event QoS.
 func NewMQTTPublisher(cfg config.MQTTConfig, lwtTopic, lwtPayload string) (*MQTTPublisher, error) {
 	opts := mqtt.NewClientOptions()
 	opts.AddBroker(cfg.Broker)
@@ -49,7 +52,7 @@ func NewMQTTPublisher(cfg config.MQTTConfig, lwtTopic, lwtPayload string) (*MQTT
 	opts.SetKeepAlive(30 * time.Second)
 	opts.SetCleanSession(true)
 	opts.SetAutoReconnect(true)
-	opts.SetWill(lwtTopic, lwtPayload, cfg.QOS, true)
+	opts.SetWill(lwtTopic, lwtPayload, cfg.EffectiveEventQOS(), true)
 
 	if cfg.TLSCACert != "" {
 		tlsCfg, err := newTLSConfig(cfg.TLSCACert)
@@ -59,11 +62,21 @@ func NewMQTTPublisher(cfg config.MQTTConfig, lwtTopic, lwtPayload string) (*MQTT
 		opts.SetTLSConfig(tlsCfg)
 	}
 
-	client := mqtt.NewClient(opts)
-	if token := client.Connect(); token.Wait() && token.Error() != nil {
-		return nil, fmt.Errorf("connecting to MQTT broker %q: %w", cfg.Broker, token.Error())
+	return &MQTTPublisher{
+		client:  mqtt.NewClient(opts),
+		broker:  cfg.Broker,
+		timeout: DefaultPublishTimeout,
+	}, nil
+}
+
+// Connect makes one attempt to connect to the broker.  The caller retries:
+// at boot the broker may not be up yet, or its name may not resolve.  Once
+// connected, paho's auto-reconnect takes over.
+func (p *MQTTPublisher) Connect() error {
+	if token := p.client.Connect(); token.Wait() && token.Error() != nil {
+		return fmt.Errorf("connecting to MQTT broker %q: %w", p.broker, token.Error())
 	}
-	return &MQTTPublisher{client: client, qos: cfg.QOS, timeout: DefaultPublishTimeout}, nil
+	return nil
 }
 
 // Publish sends a single MQTT message and waits for the broker to acknowledge,
@@ -78,7 +91,7 @@ func (p *MQTTPublisher) Publish(msg Message) error {
 	if !p.client.IsConnected() {
 		return fmt.Errorf("publishing to %q: not connected to broker", msg.Topic)
 	}
-	token := p.client.Publish(msg.Topic, p.qos, msg.Retained, msg.Payload)
+	token := p.client.Publish(msg.Topic, msg.QOS, msg.Retained, msg.Payload)
 	if !token.WaitTimeout(p.timeout) {
 		return fmt.Errorf("publishing to %q: timed out after %s", msg.Topic, p.timeout)
 	}

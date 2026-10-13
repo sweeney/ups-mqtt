@@ -60,6 +60,14 @@ go build ./...                                  # clean compile
   host lost power), so the first poll on mains clears it unconditionally.
   `TestRestartAfterOutage_*` replays that against the Riello fixture with
   `FakePublisher.Retained` standing in for the broker.
+- QoS is per message, not per client: telemetry (`state`, `computed/*`) goes
+  at `mqtt.telemetry_qos`; events (`outage` and its clear, the offline
+  announcement, the LWT) at `mqtt.event_qos`. Both fall back to `mqtt.qos`.
+  Behind a bridged local broker, QoS 1 telemetry would fill the bridge's
+  capped queue and get the outage dropped. A new publish must pick its kind.
+- Startup retries the MQTT connect, then the NUT connect, via `retryConnect`
+  (1 s doubling to 60 s, interruptible by signal). `NewMQTTPublisher` does not
+  dial; it fails only on config errors, which are fatal.
 - `state` is published every poll regardless of change, so it doubles as a
   heartbeat. It is also the LWT topic, so it carries two shapes: a full snapshot
   while alive, `{"online":false,…}` when the broker declares the client dead.

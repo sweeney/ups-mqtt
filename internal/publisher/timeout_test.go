@@ -49,15 +49,18 @@ type fakeClient struct {
 	connected    bool
 	token        mqtt.Token
 	publishCalls int
+	publishedQOS []byte
+	connectErr   error
 }
 
 func (c *fakeClient) IsConnected() bool      { return c.connected }
 func (c *fakeClient) IsConnectionOpen() bool { return c.connected }
-func (c *fakeClient) Connect() mqtt.Token    { return newFakeToken(true, nil) }
+func (c *fakeClient) Connect() mqtt.Token    { return newFakeToken(true, c.connectErr) }
 func (c *fakeClient) Disconnect(uint)        {}
 
-func (c *fakeClient) Publish(string, byte, bool, interface{}) mqtt.Token {
+func (c *fakeClient) Publish(_ string, qos byte, _ bool, _ interface{}) mqtt.Token {
 	c.publishCalls++
+	c.publishedQOS = append(c.publishedQOS, qos)
 	return c.token
 }
 
@@ -83,7 +86,7 @@ func testMsg() Message {
 
 func TestPublish_Success(t *testing.T) {
 	c := &fakeClient{connected: true, token: newFakeToken(true, nil)}
-	p := &MQTTPublisher{client: c, qos: 1, timeout: time.Second}
+	p := &MQTTPublisher{client: c, timeout: time.Second}
 
 	if err := p.Publish(testMsg()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -97,7 +100,7 @@ func TestPublish_Success(t *testing.T) {
 // never completes blocked the poll loop for ever.
 func TestPublish_TimesOutRatherThanBlocking(t *testing.T) {
 	c := &fakeClient{connected: true, token: newFakeToken(false, nil)}
-	p := &MQTTPublisher{client: c, qos: 1, timeout: 50 * time.Millisecond}
+	p := &MQTTPublisher{client: c, timeout: 50 * time.Millisecond}
 
 	done := make(chan error, 1)
 	start := time.Now()
@@ -123,7 +126,7 @@ func TestPublish_TimesOutRatherThanBlocking(t *testing.T) {
 // waiting out the timeout on each would stall the loop for minutes.
 func TestPublish_DisconnectedFailsImmediately(t *testing.T) {
 	c := &fakeClient{connected: false, token: newFakeToken(false, nil)}
-	p := &MQTTPublisher{client: c, qos: 1, timeout: 30 * time.Second}
+	p := &MQTTPublisher{client: c, timeout: 30 * time.Second}
 
 	start := time.Now()
 	err := p.Publish(testMsg())
@@ -147,7 +150,7 @@ func TestPublish_DisconnectedFailsImmediately(t *testing.T) {
 func TestPublish_TokenErrorPropagated(t *testing.T) {
 	want := errors.New("broker rejected the message")
 	c := &fakeClient{connected: true, token: newFakeToken(true, want)}
-	p := &MQTTPublisher{client: c, qos: 1, timeout: time.Second}
+	p := &MQTTPublisher{client: c, timeout: time.Second}
 
 	if err := p.Publish(testMsg()); !errors.Is(err, want) {
 		t.Errorf("error = %v, want %v", err, want)
@@ -158,7 +161,7 @@ func TestPublish_TokenErrorPropagated(t *testing.T) {
 // than multiplying the timeout by the message count.
 func TestPublish_FullPollAgainstDeadBrokerIsFast(t *testing.T) {
 	c := &fakeClient{connected: false, token: newFakeToken(false, nil)}
-	p := &MQTTPublisher{client: c, qos: 1, timeout: 5 * time.Second}
+	p := &MQTTPublisher{client: c, timeout: 5 * time.Second}
 
 	start := time.Now()
 	for i := 0; i < 52; i++ {
@@ -175,5 +178,40 @@ func TestDefaultPublishTimeout_ShorterThanTypicalPoll(t *testing.T) {
 	if DefaultPublishTimeout >= 10*time.Second {
 		t.Errorf("DefaultPublishTimeout = %s, must be shorter than the 10s poll interval",
 			DefaultPublishTimeout)
+	}
+}
+
+// Each message goes at its own QoS, not one fixed for the client: telemetry
+// and events share a connection but not a delivery guarantee.
+func TestPublish_UsesPerMessageQOS(t *testing.T) {
+	c := &fakeClient{connected: true, token: newFakeToken(true, nil)}
+	p := &MQTTPublisher{client: c, timeout: time.Second}
+
+	for _, q := range []byte{0, 1, 2} {
+		msg := testMsg()
+		msg.QOS = q
+		if err := p.Publish(msg); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+	if got := string(c.publishedQOS); got != string([]byte{0, 1, 2}) {
+		t.Errorf("published at QoS %v, want [0 1 2]", c.publishedQOS)
+	}
+}
+
+func TestConnect_ErrorNamesBroker(t *testing.T) {
+	c := &fakeClient{connectErr: errors.New("no such host")}
+	p := &MQTTPublisher{client: c, broker: "tcp://broker.invalid:1883"}
+
+	err := p.Connect()
+	if err == nil || !strings.Contains(err.Error(), "tcp://broker.invalid:1883") {
+		t.Errorf("Connect() = %v, want an error naming the broker", err)
+	}
+}
+
+func TestConnect_Success(t *testing.T) {
+	p := &MQTTPublisher{client: &fakeClient{}}
+	if err := p.Connect(); err != nil {
+		t.Errorf("Connect() = %v, want nil", err)
 	}
 }

@@ -37,9 +37,19 @@ func main() {
 
 	pub, err := publisher.NewMQTTPublisher(cfg.MQTT, lwtTopic, lwtPayload)
 	if err != nil {
-		log.Fatalf("connecting to MQTT broker: %v", err)
+		log.Fatalf("configuring MQTT: %v", err)
+	}
+
+	// The broker may not be reachable yet at boot: a local one still
+	// starting, or a remote one whose name does not resolve until the network
+	// is up.  Exiting and leaning on systemd's restart risks its start-rate
+	// limit, after which nothing is published at all.
+	if err := retryConnect(ctx, "MQTT", pub.Connect, sleepCtx); err != nil {
+		log.Printf("MQTT connection interrupted: %v", err)
+		return
 	}
 	defer pub.Close() //nolint:errcheck
+	log.Printf("connected to MQTT broker %s", cfg.MQTT.Broker)
 
 	// Connect to NUT with exponential backoff, interruptible by signal.
 	nutClient, err := connectNUT(ctx, cfg.NUT)
@@ -79,41 +89,80 @@ loop:
 	}
 
 	// Always publish the offline announcement.
-	offMsg := publisher.Message{
-		Topic:    lwtTopic,
-		Payload:  publisher.FormatOffline(),
-		Retained: true,
-	}
-	if err := pub.Publish(offMsg); err != nil {
+	if err := publishOffline(pub, lwtTopic, cfg.MQTT.EffectiveEventQOS()); err != nil {
 		log.Printf("publishing offline announcement: %v", err)
 	}
 
 	log.Println("offline announcement sent, exiting")
 }
 
-// connectNUT dials upsd with exponential backoff (1 s → 60 s cap).
-// Each sleep is interruptible via ctx cancellation.
+// publishOffline announces a clean shutdown on the state topic, in the same
+// shape the broker would publish as the LWT.  It is an event, so it goes at
+// the event QoS like the LWT it stands in for.
+func publishOffline(pub publisher.Publisher, topic string, qos byte) error {
+	return pub.Publish(publisher.Message{
+		Topic:    topic,
+		Payload:  publisher.FormatOffline(),
+		Retained: true,
+		QOS:      qos,
+	})
+}
+
+// connectNUT dials upsd, retrying until it succeeds or ctx is cancelled.
 func connectNUT(ctx context.Context, cfg config.NUTConfig) (*nut.Client, error) {
-	backoff := time.Second
-	const maxBackoff = 60 * time.Second
+	var c *nut.Client
+	err := retryConnect(ctx, "NUT", func() error {
+		var err error
+		c, err = nut.NewClient(cfg.Host, cfg.Port, cfg.Username, cfg.Password, cfg.UPSName)
+		return err
+	}, sleepCtx)
+	return c, err
+}
 
+// Initial-connection backoff: 1 s, doubling, capped at 60 s.
+const (
+	initialBackoff = time.Second
+	maxBackoff     = 60 * time.Second
+)
+
+// retryConnect calls connect until it succeeds, waiting between attempts with
+// exponential backoff.  Each failure is logged once, with the wait that
+// follows.  wait ends early when ctx is cancelled, and its error — ctx's — is
+// returned, so a signal during backoff exits cleanly.
+func retryConnect(
+	ctx context.Context,
+	what string,
+	connect func() error,
+	wait func(context.Context, time.Duration) error,
+) error {
+	backoff := initialBackoff
 	for {
-		c, err := nut.NewClient(cfg.Host, cfg.Port, cfg.Username, cfg.Password, cfg.UPSName)
+		err := connect()
 		if err == nil {
-			return c, nil
+			return nil
 		}
-		log.Printf("NUT connection failed: %v — retrying in %s", err, backoff)
+		log.Printf("%s connection failed: %v — retrying in %s", what, err, backoff)
 
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(backoff):
+		if err := wait(ctx, backoff); err != nil {
+			return err
 		}
 
 		backoff *= 2
 		if backoff > maxBackoff {
 			backoff = maxBackoff
 		}
+	}
+}
+
+// sleepCtx waits for d, or returns ctx's error if it is cancelled first.
+func sleepCtx(ctx context.Context, d time.Duration) error {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
 	}
 }
 
@@ -136,9 +185,11 @@ func doPoll(poller nut.Poller, pub publisher.Publisher, cfg *config.Config, outa
 	m := metrics.Compute(varMap)
 
 	pubCfg := publisher.PublishConfig{
-		Prefix:   cfg.MQTT.TopicPrefix,
-		UPSName:  cfg.NUT.EffectiveLabel(),
-		Retained: cfg.MQTT.Retained,
+		Prefix:       cfg.MQTT.TopicPrefix,
+		UPSName:      cfg.NUT.EffectiveLabel(),
+		Retained:     cfg.MQTT.Retained,
+		TelemetryQOS: cfg.MQTT.EffectiveTelemetryQOS(),
+		EventQOS:     cfg.MQTT.EffectiveEventQOS(),
 	}
 
 	outageErr := publishOutageState(varMap, m, pubCfg, pub, outage)

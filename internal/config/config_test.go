@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -378,5 +379,89 @@ func TestEffectiveLabel_FallsBackToUPSName(t *testing.T) {
 	c := config.NUTConfig{UPSName: "apc"}
 	if got := c.EffectiveLabel(); got != "apc" {
 		t.Errorf("EffectiveLabel() = %q, want %q", got, "apc")
+	}
+}
+
+// writeTOML writes body to a temp config file and returns its path.
+func writeTOML(t *testing.T, body string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+	return path
+}
+
+// TestSplitQOS_FallsBackToQOS: a config that predates the split keeps
+// publishing everything at its single qos.
+func TestSplitQOS_FallsBackToQOS(t *testing.T) {
+	cfg, err := config.Load(writeTOML(t, "[mqtt]\nqos = 2\n"))
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if got := cfg.MQTT.EffectiveTelemetryQOS(); got != 2 {
+		t.Errorf("telemetry QoS = %d, want qos 2", got)
+	}
+	if got := cfg.MQTT.EffectiveEventQOS(); got != 2 {
+		t.Errorf("event QoS = %d, want qos 2", got)
+	}
+}
+
+// TestSplitQOS_ExplicitZeroWins: telemetry_qos = 0 must override qos = 1 —
+// that is the local-broker configuration, and a plain byte could not tell an
+// explicit 0 from an absent key.
+func TestSplitQOS_ExplicitZeroWins(t *testing.T) {
+	cfg, err := config.Load(writeTOML(t, "[mqtt]\nqos = 1\ntelemetry_qos = 0\nevent_qos = 1\n"))
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if got := cfg.MQTT.EffectiveTelemetryQOS(); got != 0 {
+		t.Errorf("telemetry QoS = %d, want 0", got)
+	}
+	if got := cfg.MQTT.EffectiveEventQOS(); got != 1 {
+		t.Errorf("event QoS = %d, want 1", got)
+	}
+}
+
+// TestSplitQOS_OnlyOneSet: setting one kind leaves the other on qos.
+func TestSplitQOS_OnlyOneSet(t *testing.T) {
+	cfg, err := config.Load(writeTOML(t, "[mqtt]\nqos = 1\nevent_qos = 2\n"))
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if got := cfg.MQTT.EffectiveTelemetryQOS(); got != 1 {
+		t.Errorf("telemetry QoS = %d, want qos 1", got)
+	}
+	if got := cfg.MQTT.EffectiveEventQOS(); got != 2 {
+		t.Errorf("event QoS = %d, want 2", got)
+	}
+}
+
+func TestSplitQOS_EnvOverrides(t *testing.T) {
+	t.Setenv("UPS_MQTT_MQTT_TELEMETRY_QOS", "0")
+	t.Setenv("UPS_MQTT_MQTT_EVENT_QOS", "2")
+	cfg, err := config.Load(writeTOML(t, "[mqtt]\ntelemetry_qos = 1\nevent_qos = 1\n"))
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if got := cfg.MQTT.EffectiveTelemetryQOS(); got != 0 {
+		t.Errorf("telemetry QoS = %d, want env 0", got)
+	}
+	if got := cfg.MQTT.EffectiveEventQOS(); got != 2 {
+		t.Errorf("event QoS = %d, want env 2", got)
+	}
+}
+
+func TestSplitQOS_BadEnvIgnored(t *testing.T) {
+	t.Setenv("UPS_MQTT_MQTT_TELEMETRY_QOS", "zero")
+	cfg, err := config.Load(writeTOML(t, "[mqtt]\nqos = 1\n"))
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if cfg.MQTT.TelemetryQOS != nil {
+		t.Errorf("TelemetryQOS = %d, want unset", *cfg.MQTT.TelemetryQOS)
+	}
+	if got := cfg.MQTT.EffectiveTelemetryQOS(); got != 1 {
+		t.Errorf("telemetry QoS = %d, want qos 1", got)
 	}
 }

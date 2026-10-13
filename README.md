@@ -137,6 +137,19 @@ The message is always published **retained** so a subscriber that connects mid-o
 
 All other messages are published with configurable QoS and retain flag. An LWT (last will and testament) of `{"online":false,"timestamp":"…"}` is registered at startup so MQTT subscribers see the device go offline immediately if the daemon dies unexpectedly.
 
+### QoS: telemetry and events
+
+Messages fall into two kinds, each with its own QoS:
+
+| Kind | Topics | Config key |
+|------|--------|------------|
+| telemetry | `state` snapshots, `computed/*` | `mqtt.telemetry_qos` |
+| events | `outage` and its clear, the shutdown offline announcement, the LWT | `mqtt.event_qos` |
+
+Both fall back to `mqtt.qos`, so a config that sets only `qos` behaves as before. The split matters behind a local broker bridged to a remote one. While the bridge is down, Mosquitto queues QoS 1 messages for it and drops QoS 0 ones. Its queue is capped, and once the cap is reached it drops the *newest* messages. If telemetry were sent at QoS 1, it would fill the queue with readings the next poll supersedes, and the outage message would be the one dropped. For that setup use `telemetry_qos = 0` and `event_qos = 1`. The first poll after the bridge reconnects refreshes every retained telemetry topic.
+
+Behind a bridge, the LWT only fires when the daemon loses its connection to the *local* broker. A remote subscriber does not see `online:false` when the site's uplink drops; the retained `state` simply stops updating. Configure the bridge's `notification_topic` if remote consumers need to notice that.
+
 ---
 
 ## Configuration
@@ -161,6 +174,8 @@ client_id     = "ups-mqtt"             # must be unique per broker when running 
 topic_prefix  = "ups"
 retained      = true
 qos           = 1
+# telemetry_qos = 0                    # optional: state + computed/*; defaults to qos
+# event_qos     = 1                    # optional: outage, offline, LWT; defaults to qos
 tls_ca_cert   = ""                     # path to custom CA cert; empty = system CAs
 ```
 
@@ -188,6 +203,8 @@ Every field has a `UPS_MQTT_` override (useful for Docker / secrets):
 | `UPS_MQTT_MQTT_TOPIC_PREFIX` | `mqtt.topic_prefix` |
 | `UPS_MQTT_MQTT_RETAINED` | `mqtt.retained` |
 | `UPS_MQTT_MQTT_QOS` | `mqtt.qos` |
+| `UPS_MQTT_MQTT_TELEMETRY_QOS` | `mqtt.telemetry_qos` |
+| `UPS_MQTT_MQTT_EVENT_QOS` | `mqtt.event_qos` |
 | `UPS_MQTT_MQTT_TLS_CA_CERT` | `mqtt.tls_ca_cert` |
 
 Invalid values (e.g. a non-numeric port) are logged and ignored, leaving the default in place.
@@ -413,8 +430,8 @@ The service file (`ups-mqtt.service`) is installed to `/etc/systemd/system/` via
 
 ```ini
 [Unit]
-After=network-online.target
-Wants=network-online.target
+After=network-online.target tailscaled.service mosquitto.service
+Wants=network-online.target mosquitto.service
 
 [Service]
 Type=simple
@@ -606,9 +623,9 @@ On `SIGTERM`/`SIGINT`:
 
 Subscribers see the final state before the offline announcement, so there's no gap in the timeline.
 
-### NUT connection resilience
+### Connection resilience
 
-On startup, the daemon retries the NUT connection with exponential backoff (1 s → 2 s → 4 s → … capped at 60 s), each sleep interruptible by a signal. This means the service can be started before NUT is ready (e.g. at boot, race between systemd units) and will connect as soon as NUT is available.
+On startup, the daemon connects to the MQTT broker and then to NUT. It retries each with exponential backoff (1 s → 2 s → 4 s → … capped at 60 s), and a signal interrupts any wait. The service can therefore start before either is ready, for example in a boot race between systemd units or while the broker's name does not resolve yet. It connects as soon as each becomes available, rather than exiting and relying on systemd's restart, which can hit the start-rate limit and give up. A configuration error, such as an unreadable `tls_ca_cert`, still exits immediately. Once connected, paho reconnects to the broker by itself.
 
 If `Poll()` returns an error during normal operation (NUT restart, USB disconnect), the error is logged and the next tick retries automatically.
 
