@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # install-unit.sh — bring the installed ups-mqtt systemd unit up to date.
 #
-# deploy.sh replaces the binary but not the unit: the deploy user's sudoers
-# entry is deliberately narrow, so a change to ups-mqtt.service (ordering,
-# StateDirectory=, …) would never reach a host that is already installed.
+# deploy.sh replaces the binary but not the unit, so a change to
+# ups-mqtt.service (ordering, StateDirectory=, …) would never reach a host
+# that is already installed.  Installing the unit is kept a separate,
+# deliberate step with its own diff and prompt.
 # deploy.sh ships this script next to the unit file and runs --check, which
 # says when it is needed.
 #

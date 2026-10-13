@@ -33,9 +33,9 @@ power loss) and `SystemMaxUse=64M`. Re-running it is a no-op. Tests:
 
 ## Update the systemd unit
 
-`deploy.sh` replaces the binary but cannot replace the unit, because the
-deploy user's sudoers entry covers only `systemctl`, `journalctl` and the
-config file. Instead, it ships `ups-mqtt.service` and this script to
+`deploy.sh` replaces the binary but not the unit. Installing the unit is a
+separate, deliberate step with its own diff and prompt. `deploy.sh` ships
+`ups-mqtt.service` and this script to
 `~/ups-mqtt/` and runs `--check`. When the installed unit is out of date, the
 deploy ends with the diff and the command to install it:
 

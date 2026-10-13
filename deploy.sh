@@ -135,8 +135,18 @@ ssh "${TARGET}" "bash ~/${SERVICE}/install-unit.sh --check" || UNIT_CHECK=$?
 echo ""
 echo "==> Deployed ${VERSION} to ${TARGET} [${SUFFIX}]"
 ssh "${TARGET}" "sudo systemctl status ${SERVICE} --no-pager -l"
-if [ "${UNIT_CHECK}" != 0 ]; then
-  echo ""
-  echo "  ⚠  The installed unit differs from this checkout's (diff above). To install it:"
-  echo "       ssh -t ${TARGET} 'sudo bash ~/${SERVICE}/install-unit.sh'"
-fi
+# install-unit.sh --check: 0 up to date, 1 differs, 2 error (no installed
+# unit, no User=, or systemd-analyze rejects the new one).
+case "${UNIT_CHECK}" in
+  0) ;;
+  1)
+    echo ""
+    echo "  ⚠  The installed unit differs from this checkout's (diff above). To install it:"
+    echo "       ssh -t ${TARGET} 'sudo bash ~/${SERVICE}/install-unit.sh'"
+    ;;
+  *)
+    echo ""
+    echo "  ⚠  install-unit.sh --check failed (exit ${UNIT_CHECK}); see its output above."
+    echo "     Do not install the unit until that is resolved."
+    ;;
+esac
