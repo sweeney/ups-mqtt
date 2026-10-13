@@ -182,10 +182,35 @@ func (c realClock) BootID() string                  { return "test-boot" }
 
 // replayResult is what a replay left behind.
 type replayResult struct {
-	poller *scriptedPoller
-	rec    *mqtttest.Recorder
-	broker *mqtttest.Broker
-	logs   string
+	poller  *scriptedPoller
+	rec     *mqtttest.Recorder
+	observe string // URL of the broker subscribers read
+	logs    string
+}
+
+// topology is where the daemon publishes, where subscribers read, and how
+// the link between them is failed.
+type topology struct {
+	publishTo string
+	observe   string
+	setLink   func(mqtttest.Mode)
+}
+
+// direct is the topology of the live tests: ups-mqtt publishing straight
+// to the broker over the failing link.
+func direct(t *testing.T) topology {
+	broker := mqtttest.StartBroker(t, "")
+	proxy := mqtttest.StartProxy(t, broker.Addr)
+	return topology{publishTo: proxy.URL(), observe: broker.URL(), setLink: proxy.SetMode}
+}
+
+// bridged is the topology since the cutover: ups-mqtt publishing to a local
+// broker on its own host, bridged over the failing link to the main one.
+func bridged(t *testing.T) topology {
+	remote := mqtttest.StartBroker(t, "")
+	proxy := mqtttest.StartProxy(t, remote.Addr)
+	local := mqtttest.StartBridged(t, proxy.Addr)
+	return topology{publishTo: local.URL(), observe: remote.URL(), setLink: proxy.SetMode}
 }
 
 const (
@@ -197,9 +222,18 @@ const (
 )
 
 // replay runs the daemon through tl with the link failed as faults says,
-// for settle (live time) after the timeline ends.  qos is the client's QoS
-// for everything, as configured at the time of the test.
+// for settle (live time) after the timeline ends, publishing straight to the
+// broker.  qos is the client's QoS for everything, as configured at the
+// time of the test.
 func replay(t *testing.T, tl timeline, faults []fault, settle time.Duration, qos byte) replayResult {
+	t.Helper()
+	return replayOn(t, direct, tl, faults, settle, func(c *config.MQTTConfig) { c.QOS = qos })
+}
+
+// replayOn is replay over a given topology, with the MQTT config adjusted
+// by mqttCfg.
+func replayOn(t *testing.T, topo func(*testing.T) topology, tl timeline, faults []fault, settle time.Duration,
+	mqttCfg func(*config.MQTTConfig)) replayResult {
 	t.Helper()
 	if testing.Short() {
 		t.Skip("live-test replay takes seconds")
@@ -216,9 +250,8 @@ func replay(t *testing.T, tl timeline, faults []fault, settle time.Duration, qos
 	log.SetFlags(log.Lmicroseconds)
 	t.Cleanup(func() { log.SetOutput(out); log.SetFlags(flags) })
 
-	broker := mqtttest.StartBroker(t, "")
-	proxy := mqtttest.StartProxy(t, broker.Addr)
-	rec := mqtttest.Record(t, broker.URL(), "ups/#")
+	top := topo(t)
+	rec := mqtttest.Record(t, top.observe, "#")
 
 	cfg := &config.Config{
 		NUT: config.NUTConfig{
@@ -227,10 +260,11 @@ func replay(t *testing.T, tl timeline, faults []fault, settle time.Duration, qos
 			SampleInterval: config.Duration{Duration: scaled(2 * time.Second)},
 		},
 		MQTT: config.MQTTConfig{
-			Broker: proxy.URL(), ClientID: "ups-mqtt-replay",
-			TopicPrefix: "ups", Retained: true, QOS: qos,
+			Broker: top.publishTo, ClientID: "ups-mqtt-replay",
+			TopicPrefix: "ups", Retained: true,
 		},
 	}
+	mqttCfg(&cfg.MQTT)
 	pub, err := publisher.NewMQTTPublisherWith(cfg.MQTT, replayStateTopic, publisher.FormatOffline(), publisher.Tuning{
 		KeepAlive:      time.Second,
 		PingTimeout:    time.Second,
@@ -257,7 +291,7 @@ func replay(t *testing.T, tl timeline, faults []fault, settle time.Duration, qos
 		f := f
 		time.AfterFunc(scaled(f.at), func() {
 			log.Printf("replay: link %s", f.mode)
-			proxy.SetMode(f.mode)
+			top.setLink(f.mode)
 		})
 	}
 	time.AfterFunc(scaled(tl.end()+settle), cancel)
@@ -266,7 +300,7 @@ func replay(t *testing.T, tl timeline, faults []fault, settle time.Duration, qos
 	rec.WaitQuiet(200*time.Millisecond, 3*time.Second)
 
 	logMu.Lock()
-	res := replayResult{poller: poller, rec: rec, broker: broker, logs: logs.String()}
+	res := replayResult{poller: poller, rec: rec, observe: top.observe, logs: logs.String()}
 	logMu.Unlock()
 	t.Cleanup(func() {
 		if t.Failed() {
@@ -299,10 +333,10 @@ func checkOutcome(t *testing.T, r replayResult, tl timeline) {
 	}
 
 	// The broker ends with the outage cleared and the summary retained.
-	if p, ok := mqtttest.Retained(t, r.broker.URL(), replayOutageTopic); ok {
+	if p, ok := mqtttest.Retained(t, r.observe, replayOutageTopic); ok {
 		t.Errorf("broker still retains an outage after mains returned: %s", p)
 	}
-	if _, ok := mqtttest.Retained(t, r.broker.URL(), replayLastOutTopic); !ok {
+	if _, ok := mqtttest.Retained(t, r.observe, replayLastOutTopic); !ok {
 		t.Error("no last_outage retained")
 	}
 

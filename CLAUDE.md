@@ -94,6 +94,11 @@ go build ./...                                  # clean compile
   plus one publish timeout against a dead broker; `TestShutdown_Bounded*`)
   and the unit's `TimeoutStopSec=20s` relies on it: on a battery shutdown
   the UPS cuts power a fixed 70 s after the host halts.
+  `TestBridgedReplay_*` run the same
+  timelines through the production local-broker and bridge config, mirrored
+  (identifiers removed) in `internal/mqtttest/bridge/` from the separate
+  host-setup project; `mqtttest.StartBridged` fails if a substitution it
+  makes no longer matches, and the mirror must be kept in step by hand.
 - `{prefix}/{label}/last_outage` is a retained summary published **after** the
   outage clear when an outage ends; never cleared. `internal/outages.Tracker`
   owns it: it persists the open outage to `state_dir`, else systemd's

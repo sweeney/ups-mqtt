@@ -1,6 +1,7 @@
-// Package mqtttest runs real brokers for tests: a Mosquitto process, a TCP
-// proxy in front of it that can fail the way real links do, and a recorder
-// that subscribes and keeps everything it receives.
+// Package mqtttest runs real brokers for tests: a Mosquitto process, the
+// production local broker bridged to another (StartBridged), a TCP proxy
+// that can fail the way real links do, and a recorder that subscribes and
+// keeps everything it receives.
 //
 // Faults are injected at the TCP level against a real broker because the
 // failures seen live (docs/live-tests.md) live in the interplay of paho, the
