@@ -32,9 +32,12 @@ jobs:
 
       - name: Run tests
         run: |
+          # PIPESTATUS must be read straight after the pipeline: any command
+          # in between (an echo) replaces it, and a failing run passed.
           go test -v -race -coverprofile=coverage.out -json ./... | tee test-results.json
-          echo "Exit code: ${PIPESTATUS[0]}"
-          test "${PIPESTATUS[0]}" -eq 0
+          status=${PIPESTATUS[0]}
+          echo "Exit code: $status"
+          exit "$status"
 
       - name: Script tests
         run: |
