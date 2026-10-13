@@ -1,0 +1,37 @@
+Oct 13 22:52:52.983117 ups-host systemd[1]: Starting systemd-timesyncd.service - Network Time Synchronization...
+Oct 13 22:52:53.341248 ups-host systemd[1]: Started systemd-timesyncd.service - Network Time Synchronization.
+Oct 13 22:53:01.499946 ups-host systemd[1]: Starting nut-driver@iplug.service - Network UPS Tools - device driver for NUT device 'iplug'...
+Oct 13 22:53:01.984783 ups-host nut-driver@iplug[635]: Network UPS Tools - Riello USB driver 0.11 (2.8.1)
+Oct 13 22:53:04.574219 ups-host riello_usb[738]: Startup successful
+Oct 13 22:53:04.576559 ups-host nut-driver@iplug[573]: Network UPS Tools - UPS driver controller 2.8.1
+Oct 13 22:53:05.716371 ups-host systemd[1]: Started nut-driver@iplug.service - Network UPS Tools - device driver for NUT device 'iplug'.
+Oct 13 22:53:14.074527 ups-host systemd[1]: Starting nut-server.service - Network UPS Tools - power devices information server...
+Oct 13 22:53:14.211757 ups-host systemd[1]: Started nut-server.service - Network UPS Tools - power devices information server.
+Oct 13 22:53:14.653230 ups-host nut-server[1059]: listening on ::1 port 3493
+Oct 13 22:53:14.653734 ups-host nut-server[1059]: listening on 127.0.0.1 port 3493
+Oct 13 22:53:14.653429 ups-host upsd[1059]: listening on ::1 port 3493
+Oct 13 22:53:14.653582 ups-host upsd[1059]: listening on 127.0.0.1 port 3493
+Oct 13 22:53:14.654854 ups-host nut-server[1059]: Connected to UPS [iplug]: riello_usb-iplug
+Oct 13 22:53:14.654854 ups-host nut-server[1059]: Found 1 UPS defined in ups.conf
+Oct 13 22:53:14.654424 ups-host upsd[1059]: Connected to UPS [iplug]: riello_usb-iplug
+Oct 13 22:53:14.654530 ups-host upsd[1059]: Found 1 UPS defined in ups.conf
+Oct 13 22:53:15.739138 ups-host riello_usb[738]: sock_connect: enabling asynchronous mode (auto)
+Oct 13 22:53:49.630758 ups-host systemd[1]: Starting mosquitto.service - Mosquitto MQTT Broker...
+Oct 13 22:53:49.972091 ups-host mosquitto[1192]: 1791928429: Loading config file /etc/mosquitto/conf.d/10-local.conf
+Oct 13 22:53:49.973455 ups-host mosquitto[1192]: 1791928429: Loading config file /etc/mosquitto/conf.d/20-bridge-broker.conf
+Oct 13 22:53:49.979194 ups-host mosquitto[1192]: 1791928429: Warning: Error resolving bridge address: Temporary failure in name resolution.
+Oct 13 22:53:49.994543 ups-host systemd[1]: Started mosquitto.service - Mosquitto MQTT Broker.
+Oct 13 22:53:50.027901 ups-host systemd[1]: Started ups-mqtt.service - UPS MQTT Bridge (NUT).
+Oct 13 22:53:50.701055 ups-host ups-mqtt[1196]: 2026/10/13 22:53:50 ups-mqtt starting (NUT: localhost:3493, UPS: iplug, label: site-ups, MQTT: tcp://127.0.0.1:1883)
+Oct 13 22:53:50.701055 ups-host ups-mqtt[1196]: 2026/10/13 22:53:50 outage state: /var/lib/ups-mqtt/outage.json (from $STATE_DIRECTORY)
+Oct 13 22:53:50.898037 ups-host ups-mqtt[1196]: 2026/10/13 22:53:50 connected to MQTT broker tcp://127.0.0.1:1883
+Oct 13 22:53:50.898037 ups-host ups-mqtt[1196]: 2026/10/13 22:53:50 connected to NUT at localhost:3493
+Oct 13 22:53:50.898037 ups-host ups-mqtt[1196]: 2026/10/13 22:53:50 polling every 10s, sampling every 2s
+Oct 13 22:53:50.898037 ups-host ups-mqtt[1196]: 2026/10/13 22:53:50 outage started 2026-10-13T21:36:53+01:00 ran the battery low and the host has rebooted since; it ended at boot
+Oct 13 23:11:20.574110 ups-host systemd-timesyncd[315]: Contacted time server 203.0.113.123:123 (2.debian.pool.ntp.org).
+Oct 13 23:11:20.574422 ups-host systemd-timesyncd[315]: Initial clock synchronization to Tue 2026-10-13 23:11:20.573617 BST.
+Oct 13 23:11:29.560663 ups-host ups-mqtt[1196]: 2026/10/13 23:11:29 published last_outage: 2026-10-13T20:36:53Z → 2026-10-13T22:09:32Z (1h32m39.111473089s, spans restart: true)
+Oct 13 22:52:56.654455 ups-host kernel: hwmon hwmon1: Undervoltage detected!
+Oct 13 22:53:02.702379 ups-host kernel: hwmon hwmon1: Voltage normalised
+Oct 13 22:53:14.802455 ups-host kernel: hwmon hwmon1: Undervoltage detected!
+Oct 13 22:53:20.846378 ups-host kernel: hwmon hwmon1: Voltage normalised

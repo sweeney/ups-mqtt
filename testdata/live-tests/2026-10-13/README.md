@@ -32,3 +32,15 @@ copies delivered when the subscriber connected; everything after arrived
 live, so shows 0, retained or not. `resolv.log` is `resolv.conf` at the
 start; it did not change. Apart from tailscaled path lines, removed because
 they carry node keys, only ups-mqtt logged anything, and the kernel nothing.
+
+Test 5 is recorded the same way as test 4, without
+`sites/site/network/state` in `broker.log` (the host-setup project's network
+monitor, every 10 s, not needed here). The Pi's files stop when it lost
+power (`ups.log` at 22:57:40, `net.log` at 22:57:45); null bytes the power
+loss left at their ends are removed. `journal.log` is what the recorder took
+from the Pi's journal before the death (the journal itself, read later, ends
+at 22:54:25; the rest was lost); `journal-after-boot.log` is the next boot's
+for ups-mqtt, mosquitto, NTP, the NUT driver and server, and kernel
+undervoltage, read after the test. Its times before 23:11:20 are the
+unsynced clock's, about 16¾ min slow, as are mosquitto's own epoch stamps.
+The NTP server is `203.0.113.123`.

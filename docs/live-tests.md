@@ -42,8 +42,8 @@ Data: [`testdata/live-tests/2026-10-13/`](../testdata/live-tests/2026-10-13/).
 
 Production config for tests 1–3: poll 10 s, broker `tcp://broker:1883` by
 Tailscale MagicDNS short name, paho auto-reconnect with default backoff,
-5 s publish timeout, events at QoS 1. Test 4 ran later that evening, after
-the fixes they led to.
+5 s publish timeout, events at QoS 1. Tests 4 and 5 ran later that evening,
+after the fixes they led to.
 
 ### 1. Network gear unpowered (`1-network-unpowered/`)
 
@@ -132,18 +132,18 @@ on battery outlets. Recorded on the main broker, where subscribers are.
 
 | Time | Event |
 |---|---|
-| 21:38:19.8 | `upsc`: OB, 13.5 → 13.0 V |
-| 21:38:21.0 | ups-mqtt: outage detected; `outage`, `computed/on_battery`, `state` on the main broker the same second |
-| 21:38:21–21:41:31 | `outage` every 10 s, `outage_duration_secs` 0 → 189; battery 13.0 V at first, then 12.4–12.5 V |
-| 21:41:32.1 | `upsc`: OL CHRG, 12.8 V (3 m 12.3 s on battery) |
-| 21:41:33.1 | ups-mqtt: power restored; `outage` cleared, then retained `last_outage` 20:38:21Z → 20:41:33Z, 191 s, then `state` |
+| 20:38:19.8 | `upsc`: OB, 13.5 → 13.0 V |
+| 20:38:21.0 | ups-mqtt: outage detected; `outage`, `computed/on_battery`, `state` on the main broker the same second |
+| 20:38:21–20:41:31 | `outage` every 10 s, `outage_duration_secs` 0 → 189; battery 13.0 V at first, then 12.4–12.5 V |
+| 20:41:32.1 | `upsc`: OL CHRG, 12.8 V (3 m 12.3 s on battery) |
+| 20:41:33.1 | ups-mqtt: power restored; `outage` cleared, then retained `last_outage` 19:38:21Z → 19:41:33Z, 191 s, then `state` |
 
 Detection lagged the UPS by 1.3 s at the start and 1.0 s at the end, against
 up to a full 10 s poll before sampling (7 s and 9 s in test 3). Each publish
 reached the main broker, through the bridge, within the second it was sent.
 `state` arrived every 10 s, plus once at each transition, after which the
 poll re-anchors on it. `outage.json` was first seen in the state directory
-in the 21:38:22 sample and was gone by 21:41:33.
+in the 20:38:22 sample and was gone by 20:41:33.
 
 Link, internet, name resolution and the 5 port-1883 connections held in
 every sample (about one a second); the bridge stayed connected (one retained
@@ -155,6 +155,60 @@ out, no reconnect. The kernel logged nothing, so no undervoltage.
 Not covered: the network going down with the power, which is where the
 bridge's queue matters (failure modes 1, 3 and 4 below). The bridged
 replays (`TestBridgedReplay_*`) cover those until a cut does.
+
+### 5. Run to empty (`5-run-to-empty/`)
+
+Same config as test 4, mains left off until the UPS died. The Pi has no
+upsmon shutdown, so it lost power uncleanly; it has no real-time clock, so
+it booted on its last saved time. Recorded on the main broker from another
+machine, so that side outlived the Pi; the Pi's own recorder stops at the
+death.
+
+| Time | Event |
+|---|---|
+| 21:36:53.0 | ups-mqtt: outage detected (the 1 s `upsc` sample shows OB, 13.1 V, at 21:36:53.5); `outage` on the main broker the same second |
+| 21:36:53–22:57:47 | `outage` every 10 s, 487 of them, none missed; battery 12.1 V after 30 min, 11.8 V after 50, 11.2 V after 70 |
+| 21:40:00, 22:48:35 | kernel: undervoltage, 4 s each |
+| 22:54:17.6 | `upsc`: OB LB, 10.8 V, the first LB this UPS has reported. ups-mqtt published `outage` with `low_battery: true` the same second, 4 s after the poll before, and `outage.json` recorded it |
+| 22:57:47 | last publish reaches the main broker: OB LB, 10.3 V, `outage_duration_secs` 4854 (the Pi's journal, read on it after the test, ends at 22:54:25; the rest was lost in the cut) |
+| 22:58:35 | the bridge's notification `sites/site/bridge 0` on the main broker, 48 s after the last publish |
+| 23:09:32 | mains back; the Pi boots with its clock about 16¾ min slow (it reads 22:52) |
+| shortly after | ups-mqtt starts (22:53:50 by the slow clock): "outage started 21:36:53 ran the battery low and the host has rebooted since; it ended at boot"; clears `outage` on the local broker. Two more undervoltage events while booting on the flat battery |
+| 23:11:20 | NTP: first clock sync |
+| 23:11:28 | uplink up; bridge reconnects (`sites/site/bridge 1`) and forwards what it holds (below) |
+| 23:11:29 | ups-mqtt: retained `last_outage` 20:36:53Z → 22:09:32Z (exactly boot), 5559 s, `low_battery_reached: true`, `spans_restart: true`, `clock_synced: true` |
+
+ups-mqtt did what it is meant to on every step. The low battery went out at
+once rather than at the next poll. After the reboot it ended the outage at
+boot, since the record was from an earlier boot and had seen LB, and held
+`last_outage` until the clock synced; the times in it come from the
+monotonic clock and the boot time, so the 16¾ min clock error did not
+reach them.
+
+When the bridge came back, the main broker received, in the same second and
+before the fresh values:
+- the `outage` from 22:56:37 (OB LB), then its clear;
+- three `state` from the new boot, stamped 21:54:00Z, 21:54:10Z and
+  21:54:30Z by the unsynced clock, so they look 17 min old;
+- test 4's `last_outage` four times, and the host-setup project's
+  `network/outage` three times.
+
+All were superseded within the second, and the retained values ended right:
+`outage` empty, the new `last_outage`, a current `state`. The local broker
+saves to disk every `autosave_interval` (300 s); its last save before the
+death was at 22:56:38, a second after that stale `outage`, and the restored
+snapshot was forwarded when the bridge connected. Its log shows a single
+bridge connect, at 23:11:28: until then it had sat connecting to the
+uplink's address, unreachable until Tailscale was up. So the repeats were
+not reconnects, and ups-mqtt published `last_outage` once; where the copies
+came from is not known. The three pre-sync `state`, published at 22:54:00, 22:54:10
+and 22:54:30 by the slow clock, are from around when the host-setup
+project's monitor saw the local broker stop acknowledging (a QoS 1 publish
+at 22:54:14 timed out, and its next only went through at 23:11:29). Every
+other `state` of that window was dropped, as QoS 0 with no bridge
+connected should be; why those three were kept is not known. Consumers should judge `outage` and `state` by the payload's
+`timestamp` and `clock_synced`, not by arrival order, across a power
+cycle.
 
 ### Failure modes to cover
 
