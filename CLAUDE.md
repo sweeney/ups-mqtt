@@ -90,7 +90,10 @@ go build ./...                                  # clean compile
   at once (re-sending the outage clear). `TestLiveReplay_*` replays the live
   tests against a real Mosquitto behind `mqtttest.Proxy`, which blackholes
   or drops the link; they need `mosquitto` installed (CI installs it, and
-  fails rather than skips without it).
+  fails rather than skips without it). Stopping is bounded (one NUT poll
+  plus one publish timeout against a dead broker; `TestShutdown_Bounded*`)
+  and the unit's `TimeoutStopSec=20s` relies on it: on a battery shutdown
+  the UPS cuts power a fixed 180 s after the host halts.
 - `{prefix}/{label}/last_outage` is a retained summary published **after** the
   outage clear when an outage ends; never cleared. `internal/outages.Tracker`
   owns it: it persists the open outage to `state_dir`, else systemd's

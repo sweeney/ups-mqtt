@@ -20,6 +20,12 @@ User=SERVICE_USER
 ExecStart=/usr/local/bin/ups-mqtt --config /etc/ups-mqtt/config.toml
 Restart=on-failure
 RestartSec=10s
+# Stopping makes one final poll and announces going offline.  Against a dead
+# broker that costs at most one NUT poll and one publish timeout (5 s each),
+# so 20 s is ample.  It is bounded because on a battery-powered shutdown the
+# UPS cuts its output a fixed time after the host halts: every unit must be
+# down well inside that, not at systemd's default 90 s.
+TimeoutStopSec=20s
 # /var/lib/ups-mqtt, owned by User=, exported as $STATE_DIRECTORY.  Holds the
 # outage in progress, so a restart or power loss does not forget it.
 StateDirectory=ups-mqtt

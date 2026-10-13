@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"math"
 	"path/filepath"
@@ -420,4 +421,59 @@ func checkReconnectLogged(t *testing.T, r replayResult) {
 			t.Errorf("daemon log lacks %q", want)
 		}
 	}
+}
+
+// Stopping against a dead broker is bounded: the final poll costs at most one
+// publish timeout, and the offline announcement fails fast after it.  On a
+// battery shutdown the UPS cuts power a fixed time after the host halts, so
+// ups-mqtt must stop well inside the unit's TimeoutStopSec.
+func TestShutdown_BoundedAgainstDeadBroker(t *testing.T) {
+	if testing.Short() {
+		t.Skip("needs a broker")
+	}
+	captureLogTo(t)
+	broker := mqtttest.StartBroker(t, "")
+	proxy := mqtttest.StartProxy(t, broker.Addr)
+	cfg := &config.Config{
+		NUT: config.NUTConfig{UPSName: "iplug", Label: replayLabel},
+		MQTT: config.MQTTConfig{
+			Broker: proxy.URL(), ClientID: "ups-mqtt-stop",
+			TopicPrefix: "ups", Retained: true, QOS: 1,
+		},
+	}
+	const publishTimeout = time.Second
+	pub, err := publisher.NewMQTTPublisherWith(cfg.MQTT, replayStateTopic, publisher.FormatOffline(), publisher.Tuning{
+		KeepAlive: 30 * time.Second, PingTimeout: 10 * time.Second,
+		PublishTimeout: publishTimeout,
+		Reconnect:      retry.Backoff{Initial: time.Second, Max: 30 * time.Second},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	if err := pub.Connect(ctx); err != nil {
+		t.Fatal(err)
+	}
+	poller := &nut.FakePoller{Variables: []nut.Variable{{Name: "ups.status", Value: "OB DISCHRG"}}}
+	st, _, _ := newOutageStateWith(&outages.MemoryStore{})
+	d := &daemon{cfg: cfg, poller: poller, pub: pub, reconnected: pub.Reconnected(), outage: *st}
+
+	// The link dies half-open, as when the network loses power with mains;
+	// the keep-alive has not noticed yet when the stop comes.
+	proxy.SetMode(mqtttest.Blackhole)
+	cancel()
+	start := time.Now()
+	d.run(ctx, 10*time.Second, replayStateTopic)
+	pub.Close() //nolint:errcheck
+	if took := time.Since(start); took > 2*publishTimeout+time.Second {
+		t.Errorf("stopping took %s against a dead broker, want about one publish timeout (%s)", took, publishTimeout)
+	}
+}
+
+// captureLogTo silences the standard logger for the rest of the test.
+func captureLogTo(t *testing.T) {
+	t.Helper()
+	out := log.Writer()
+	log.SetOutput(io.Discard)
+	t.Cleanup(func() { log.SetOutput(out) })
 }
