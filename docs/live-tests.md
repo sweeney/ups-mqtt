@@ -5,6 +5,37 @@ watching what ups-mqtt, the host and the broker actually do. Each entry
 records what happened and the failure modes it exposed; the raw captures
 are under `testdata/live-tests/<date>/` as the source for test fixtures.
 
+## Running one
+
+`scripts/live-test.sh` records a run. From your machine, before the cut:
+
+```bash
+scripts/live-test.sh --broker <main-broker> <user@ups-host> start <name>
+```
+
+This records, every second on the host:
+- the UPS status and battery voltage;
+- the link, internet and broker-name resolution, plus the TCP connections on port 1883 and the ups-mqtt state directory;
+- every change to `resolv.conf`;
+- the journal and kernel log.
+
+It also subscribes to `ups/#` and `sites/#` on the broker. Behind the local bridge, point `--broker` at the main broker: that is where subscribers see the result.
+
+When power has been back long enough:
+
+```bash
+scripts/live-test.sh <user@ups-host> stop <name>
+scripts/live-test.sh <user@ups-host> collect <name>
+```
+
+The run is now under `live-test-runs/<name>/` here, which is ignored by git. To add it as a fixture, sanitise it with a sed map that you keep *outside* the repo, since the map names what it removes:
+
+```bash
+scripts/live-test.sh scrub ~/ups-live-test.sed live-test-runs/<name> testdata/live-tests/<date>/<n>-<what>
+```
+
+`scrub` refuses to write if a pattern from the map, or an address outside the documentation ranges, is still there. Then review the result, and add a section below for the run.
+
 ## 2026-10-13: mains cut, UPS feeding the Pi (Riello iPlug)
 
 Data: [`testdata/live-tests/2026-10-13/`](../testdata/live-tests/2026-10-13/).

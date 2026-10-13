@@ -18,3 +18,4 @@ config.toml
 
 # Claude Code internals
 .claude/
+live-test-runs/

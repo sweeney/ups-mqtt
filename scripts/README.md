@@ -13,6 +13,7 @@ builds or ships anything.
 | [`soc-power-probe.sh`](soc-power-probe.sh) | Spot-check real power draw at the SoC, for when `ups.load` reads 0 %. | no |
 | [`persist-journal.sh`](persist-journal.sh) | Keep the systemd journal across power loss on Raspberry Pi OS. | yes (`--check`: no) |
 | [`install-unit.sh`](install-unit.sh) | Bring the installed systemd unit up to date with the repo's. | yes (`--check`: no) |
+| [`live-test.sh`](live-test.sh) | Record a live power-cut test (run from your machine; ships [`live-test-watch.sh`](live-test-watch.sh) to the host), then sanitise it for `testdata/`. | no |
 
 ## Keep the journal across a power cut
 
