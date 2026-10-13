@@ -18,6 +18,7 @@ OUTDIR="$WORK/runs"
 BIN="$WORK/bin"
 mkdir -p "$FAKEHOME" "$BIN" "$WORK/state"
 echo "nameserver 100.100.100.100" > "$WORK/resolv.conf"
+echo "boot-a" > "$WORK/boot_id"
 
 cleanup() {
   # Stop anything a failed test left running.
@@ -31,15 +32,19 @@ trap cleanup EXIT
 
 stub() { printf '#!/usr/bin/env bash\n%s\n' "$2" > "$BIN/$1"; chmod +x "$BIN/$1"; }
 
-# ssh [-o opt]... HOST CMD... runs CMD locally with the fake home.
-stub ssh 'while [[ $1 == -o ]]; do shift 2; done; shift
+# ssh [-n] [-o opt]... HOST CMD... runs CMD locally with the fake home.
+# Without -n it reads stdin, as real ssh does, so a controller that forgets
+# -n loses the answer to its prompt.
+stub ssh 'n=0; while [[ $1 == -o || $1 == -n ]]; do if [[ $1 == -n ]]; then n=1; shift; else shift 2; fi; done; shift
+[[ $n == 1 ]] || cat > /dev/null
 HOME="'"$FAKEHOME"'" exec bash -c "$*"'
 # scp [-q] [-r] SRC DST, with HOST:path meaning the fake home.
 stub scp 'args=(); for a in "$@"; do case $a in -q) ;; -r) ;; *:*) args+=("'"$FAKEHOME"'/${a#*:}") ;; *) args+=("$a") ;; esac; done
 cp -R "${args[0]}" "${args[1]}"'
 stub upsc 'case "$*" in "-l localhost") echo iplug ;; *ups.status) echo OL ;; *battery.voltage) echo 13.4 ;; esac'
-stub journalctl 'exec sleep 1000'
-stub mosquitto_sub 'echo "2026-10-13T20:00:00+0100 1 ups/site-ups/state {}"; exec sleep 1000'
+stub journalctl 'case " $* " in *" -f "*) exec sleep 1000 ;; esac'
+# Keeps its own name in ps, as the real one does (no exec).
+stub mosquitto_sub 'echo "2026-10-13T20:00:00+0100 1 ups/site-ups/state {}"; while :; do sleep 1; done'
 stub ip 'echo "default via 192.0.2.1 dev eth0"'
 stub ping 'exit 0'
 stub getent 'exit 0'
@@ -48,7 +53,7 @@ stub ss 'echo "ESTAB 0 0 127.0.0.1:5000 127.0.0.1:1883"'
 # run executes live-test.sh; sets OUT and CODE.
 run() {
   set +e
-  OUT=$(PATH="$BIN:$PATH" WATCH_STATE_DIR="$WORK/state" WATCH_RESOLV="$WORK/resolv.conf" \
+  OUT=$(PATH="$BIN:$PATH" WATCH_STATE_DIR="$WORK/state" WATCH_RESOLV="$WORK/resolv.conf" WATCH_BOOT_ID="$WORK/boot_id" \
         bash "$SCRIPT" --out "$OUTDIR" "$@" 2>&1 < "${STDIN:-/dev/null}")
   CODE=$?
   set -e
@@ -179,13 +184,80 @@ check "dest exists, no answer: aborts" '[[ $CODE == 1 && $OUT == *"Aborted"* ]]'
 run --yes scrub "$WORK/map.sed" "$SRC" "$DEST"
 check "dest exists, --yes: replaces"   '[[ $CODE == 0 ]]'
 
-cp "$WORK/map.sed" "$HERE/../../.live-test-map.sed"
-run scrub "$HERE/../../.live-test-map.sed" "$SRC" "$WORK/clean4"
-rm -f "$HERE/../../.live-test-map.sed"
+REPO_MAP="$HERE/../../.live-test-map.sed"
+trap 'rm -f "$REPO_MAP"; cleanup' EXIT
+cp "$WORK/map.sed" "$REPO_MAP"
+run scrub "$REPO_MAP" "$SRC" "$WORK/clean4"
+rm -f "$REPO_MAP"
 check "map inside repo: refused"       '[[ $CODE == 2 && $OUT == *"outside the repo"* && ! -e $WORK/clean4 ]]'
 
 run scrub "$WORK/nope.sed" "$SRC" "$DEST"
 check "missing map: exit 2"            '[[ $CODE == 2 && $OUT == *"map not found"* ]]'
+
+# ── scrub: what slips past a naive check ───────────────────────────────────
+SRC2="$WORK/raw2"
+mkdir -p "$SRC2"
+printf 'dhcp from 10.9.8.7\0binary\n' > "$SRC2/binary.log"
+run scrub "$WORK/map.sed" "$SRC2" "$WORK/c5"
+check "binary file IP: caught"         '[[ $CODE == 2 && $OUT == *"10.9.8.7"* && ! -e $WORK/c5 ]]'
+
+rm -rf "$SRC2"; mkdir -p "$SRC2"
+echo "mdns: SECRET-HOST.local" > "$SRC2/a.log"
+run scrub "$WORK/map.sed" "$SRC2" "$WORK/c6"
+check "other case: caught"             '[[ $CODE == 2 && $OUT == *"ignoring case"* && ! -e $WORK/c6 ]]'
+
+rm -rf "$SRC2"; mkdir -p "$SRC2"
+echo "link fe80::ba27:ebff:fe69:2e10 hw b8:27:eb:69:2e:10 ts fd7a:115c:a1e0::53" > "$SRC2/a.log"
+run scrub "$WORK/map.sed" "$SRC2" "$WORK/c7"
+check "IPv6 and MAC: caught"           '[[ $CODE == 2 && $OUT == *"b8:27:eb:69:2e:10"* && $OUT == *"ba27:ebff:fe69:2e10"* ]]'
+check "  Tailscale resolver allowed"   '[[ $OUT != *"fd7a:115c:a1e0::53"* ]]'
+
+rm -rf "$SRC2"; mkdir -p "$SRC2"
+echo "fine" > "$SRC2/secret-host.log"
+run scrub "$WORK/map.sed" "$SRC2" "$WORK/c8"
+check "file name scrubbed"             '[[ $CODE == 0 && -f $WORK/c8/ups-host.log && ! -e $WORK/c8/secret-host.log ]]'
+
+printf 's/a\\/b/x/g\n' > "$WORK/escaped.sed"
+run scrub "$WORK/escaped.sed" "$SRC" "$WORK/c9"
+check "escaped delimiter: refused"     '[[ $CODE == 2 && $OUT == *"escaped delimiter"* ]]'
+printf 's/a/b/;s/c/d/\n' > "$WORK/two.sed"
+run scrub "$WORK/two.sed" "$SRC" "$WORK/c9"
+check "two commands a line: refused"   '[[ $CODE == 2 && $OUT == *"one s command per line"* ]]'
+printf '# a comment\n\ns|secret-host|ups-host|g\ns|10\\.1\\.2\\.3|192.0.2.3|\n' > "$WORK/pipes.sed"
+run scrub "$WORK/pipes.sed" "$SRC" "$WORK/c10"
+check "comments and | delimiter: ok"   '[[ $CODE == 0 ]]'
+
+# ── host-side guards ───────────────────────────────────────────────────────
+run host start run2
+check "run2: started"                  '[[ $CODE == 0 ]] && alive "$FAKEHOME/live-tests/run2/pids"'
+echo "boot-b" > "$WORK/boot_id"   # the host rebooted
+run host status run2
+check "after reboot: stopped"          '[[ $OUT == *"host:   stopped"* ]]'
+run host stop run2
+check "after reboot: stop is a no-op"  '[[ $CODE == 0 && $OUT == *"not recording"* ]]'
+check "  …and signals nothing"         'alive "$FAKEHOME/live-tests/run2/pids"'
+echo "boot-a" > "$WORK/boot_id"
+run host stop run2
+
+run --check host stop run2
+check "check stop, nothing running"    '[[ $CODE == 0 && $OUT == *"Nothing to stop"* ]]'
+
+# A prompt answered on stdin still gets its answer: ssh must not eat it.
+echo y > "$WORK/yes"
+STDIN="$WORK/yes" run host start run2
+check "piped yes reaches the prompt"   '[[ $CODE == 0 ]] && alive "$FAKEHOME/live-tests/run2/pids"'
+run host stop run2
+
+# The subscriber failing at once is an error, not "subscribed".
+stub mosquitto_sub 'echo "Error: Connection refused" >&2; exit 1'
+run host start run3
+check "subscriber fails: exit 2"       '[[ $CODE == 2 && $OUT == *"Connection refused"* && $OUT == *"stop it with"* ]]'
+run host stop run3
+
+# A host whose upsc lists no UPS is refused before anything starts.
+stub upsc 'exit 0'
+run host start run4
+check "no UPS: refused"                '[[ $CODE == 2 && $OUT == *"lists no UPS"* && ! -e $FAKEHOME/live-tests/run4/pids ]]'
 
 echo "live-test: $PASS passed, $FAIL failed"
 [[ $FAIL == 0 ]]

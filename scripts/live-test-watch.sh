@@ -22,18 +22,28 @@
 #   kernel.log   kernel messages (link up/down, undervoltage)
 #   started-at, stopped-at   epoch seconds;  pids   the recorders
 #
-# WATCH_STATE_DIR (default /var/lib/ups-mqtt) and WATCH_RESOLV (default
-# /etc/resolv.conf) exist so tests can point it at fixtures.
+# A run is tied to the boot it started in (DIR/boot-id): after the host
+# reboots — a run flat battery does that — its PIDs belong to other
+# processes, so it counts as stopped and nothing is signalled.
+#
+# WATCH_STATE_DIR (default /var/lib/ups-mqtt), WATCH_RESOLV (default
+# /etc/resolv.conf) and WATCH_BOOT_ID (default the kernel's boot_id) exist so
+# tests can point it at fixtures.
 set -euo pipefail
 
 STATE_DIR="${WATCH_STATE_DIR:-/var/lib/ups-mqtt}"
 RESOLV="${WATCH_RESOLV:-/etc/resolv.conf}"
+BOOT_ID_FILE="${WATCH_BOOT_ID:-/proc/sys/kernel/random/boot_id}"
 
 die() { echo "ERROR: $*" >&2; exit 2; }
+
+boot_id() { cat "$BOOT_ID_FILE" 2>/dev/null || echo unknown; }
 
 running() {
   local dir=$1 pid
   [[ -s "$dir/pids" ]] || return 1
+  # PIDs from an earlier boot name other processes now.
+  [[ "$(cat "$dir/boot-id" 2>/dev/null)" == "$(boot_id)" ]] || return 1
   while read -r pid; do
     kill -0 "$pid" 2>/dev/null && return 0
   done < "$dir/pids"
@@ -61,7 +71,7 @@ record() {
       carrier=$(cat "/sys/class/net/${iface:-eth0}/carrier" 2>/dev/null || echo "?")
       inet=$(ping -c1 -W1 1.1.1.1 >/dev/null 2>&1 && echo up || echo DOWN)
       dns=$(getent hosts "$broker" >/dev/null 2>&1 && echo ok || echo FAIL)
-      conns=$(ss -tn state established 2>/dev/null | grep -c ':1883' || true)
+      conns=$(ss -tn state established 2>/dev/null | grep -cE ':1883( |$)' || true)
       state=$(ls "$STATE_DIR" 2>&1 | tr '\n' ' ')
       echo "$(date +%T) carrier=$carrier inet=$inet dns=$dns mqtt_conns=$conns state=[$state]"
       sleep 1
@@ -102,8 +112,11 @@ case "$cmd" in
     for tool in upsc journalctl; do
       command -v "$tool" >/dev/null || die "$tool not found on this host"
     done
+    [[ -n "$(upsc -l localhost 2>/dev/null | head -1)" ]] || die "upsc -l localhost lists no UPS"
+    journalctl -q -n1 >/dev/null 2>&1 || die "this user cannot read the journal (needs the adm or systemd-journal group)"
     mkdir -p "$dir"
     date +%s > "$dir/started-at"
+    boot_id > "$dir/boot-id"
     # nohup and closed stdio so the recorders outlive the ssh session.
     nohup bash "$0" _record "$dir" "$broker" > "$dir/watch.err" 2>&1 < /dev/null &
     echo $! > "$dir/main.pid"
