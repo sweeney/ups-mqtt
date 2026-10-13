@@ -176,7 +176,7 @@ A host without a real-time clock (a Raspberry Pi) boots after a power loss with 
 
 #### State file
 
-The outage in progress is kept in `outage.json`, written only on transitions (start, low battery first seen, end) to spare the SD card, and synced to disk. The directory is `state_dir` (or `UPS_MQTT_STATE_DIR`) when set, otherwise `$STATE_DIRECTORY`, which systemd sets from `StateDirectory=ups-mqtt` in the unit (`/var/lib/ups-mqtt`). The startup log names the one in use. With neither, outages are not persisted, and a warning is logged. On macOS, set `state_dir`.
+The outage in progress is kept in `outage.json`, written only on transitions (start, low battery first seen, end) to spare the SD card, and synced to disk. The directory is `state_dir` (or `UPS_MQTT_STATE_DIR`) when set, otherwise `$STATE_DIRECTORY`, which systemd sets from `StateDirectory=ups-mqtt` in the unit (`/var/lib/ups-mqtt`). The startup log names the one in use. With neither, outages are not persisted, and a warning is logged. On macOS the LaunchAgent plist sets `$STATE_DIRECTORY` to `~/Library/Application Support/ups-mqtt`, which `install-macos.sh` creates.
 
 "Published" means the broker sent PUBACK. Behind a bridged local broker that is the local one, and from there delivery is up to the bridge's queue, which Mosquitto saves to disk only every `autosave_interval`. A power loss within that window can lose a queued `last_outage` after the state file is gone. Tighten the broker config if that matters.
 
@@ -214,8 +214,8 @@ Every QoS key must be 0, 1 or 2; anything else is a startup error.
 Configuration is TOML, with environment variable overrides for all values. On startup the daemon looks for a config file at the path given by `--config` (default `/etc/ups-mqtt/config.toml`), falling back to `./config.toml` if the primary path doesn't exist.
 
 ```toml
-state_dir     = ""            # where an outage in progress is persisted; under systemd
-                              # leave empty and StateDirectory= in the unit provides it
+state_dir     = ""            # where an outage in progress is persisted; leave empty
+                              # under systemd (the unit's StateDirectory=) or macOS (the plist)
 
 [nut]
 host          = "localhost"   # upsd hostname

@@ -10,6 +10,14 @@
         <string>--config</string>
         <string>/etc/ups-mqtt/config.toml</string>
     </array>
+    <!-- Where an outage in progress is kept across restarts: the same
+         variable systemd's StateDirectory= sets on Linux.  install-macos.sh
+         creates it.  An explicit state_dir in the config still wins. -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>STATE_DIRECTORY</key>
+        <string>HOME_DIR/Library/Application Support/ups-mqtt</string>
+    </dict>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>

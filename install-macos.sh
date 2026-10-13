@@ -30,6 +30,9 @@ OLD_PLIST_DST="${AGENT_DIR}/org.ups-mqtt.plist"
 APP_BUNDLE="${HOME_DIR}/Applications/ups-mqtt.app"
 APP_BIN="${APP_BUNDLE}/Contents/MacOS/${SERVICE}"
 CONFIG_DST="/etc/${SERVICE}/config.toml"
+# Outage state, passed as $STATE_DIRECTORY by the plist (as systemd's
+# StateDirectory= does on Linux), so an outage survives a restart.
+STATE_DIR="${HOME_DIR}/Library/Application Support/${SERVICE}"
 
 # Previous binaries are archived here so a bad deploy can be undone.
 # deploy.sh (Linux) gets this for free by symlinking a versioned binary; the
@@ -71,9 +74,16 @@ case "$(uname -m)" in
     *) echo "Unsupported architecture: $(uname -m)"; exit 1 ;;
 esac
 
+# The LaunchAgent plist is rendered and checked first, so a bad one stops the
+# install before the bundle, config or job is touched.
+PATCHED_PLIST="$(mktemp /tmp/net.swee.ups-mqtt.XXXXXX.plist)"
+trap 'rm -f "${PATCHED_PLIST}"' EXIT
+sed "s|HOME_DIR|${HOME_DIR}|g" "${PLIST_TEMPLATE}" > "${PATCHED_PLIST}"
+plutil -lint -s "${PATCHED_PLIST}" || { echo "  ERROR: the rendered plist is invalid; nothing changed."; exit 1; }
+
 echo "==> Building for darwin/${GOARCH}..."
+trap 'rm -f "./${SERVICE}" "${PATCHED_PLIST}"' EXIT
 GOOS=darwin GOARCH="${GOARCH}" go build -ldflags="-s -w" -o "${SERVICE}" ./cmd/${SERVICE}/
-trap 'rm -f "./${SERVICE}"' EXIT
 
 # ---------------------------------------------------------------------------
 # 2. App bundle (no sudo — ~/Applications is user-owned)
@@ -143,10 +153,7 @@ fi
 # ---------------------------------------------------------------------------
 # 4. LaunchAgent plist — points into the app bundle
 # ---------------------------------------------------------------------------
-mkdir -p "${AGENT_DIR}"
-PATCHED_PLIST="$(mktemp /tmp/net.swee.ups-mqtt.XXXXXX.plist)"
-trap 'rm -f "./${SERVICE}" "${PATCHED_PLIST}"' EXIT
-sed "s|HOME_DIR|${HOME_DIR}|g" "${PLIST_TEMPLATE}" > "${PATCHED_PLIST}"
+mkdir -p "${AGENT_DIR}" "${STATE_DIR}"
 
 GUI_DOMAIN="gui/$(id -u)"
 
@@ -192,6 +199,7 @@ echo "==> ${SERVICE} installed."
 echo "    Bundle:  ${APP_BUNDLE}"
 echo "    Config:  ${CONFIG_DST}"
 echo "    Logs:    ${HOME_DIR}/Library/Logs/${SERVICE}.log"
+echo "    State:   ${STATE_DIR}"
 echo ""
 echo "  If this is the first install, run the binary once from the terminal"
 echo "  to trigger the macOS Local Network permission prompt:"

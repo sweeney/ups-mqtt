@@ -308,7 +308,7 @@ func publishSample(varMap map[string]string, m metrics.Metrics, pub publisher.Pu
 func outageStore(cfg *config.Config) outages.Store {
 	dir, source := cfg.EffectiveStateDir()
 	if dir == "" {
-		log.Printf("warning: no state directory (StateDirectory= in the unit, or state_dir); " +
+		log.Printf("warning: no state directory (state_dir, or $STATE_DIRECTORY from the unit or plist); " +
 			"an outage in progress will be forgotten across a restart")
 		return outages.NopStore{}
 	}

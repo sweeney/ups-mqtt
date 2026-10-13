@@ -111,8 +111,9 @@ func (c MQTTConfig) EffectiveEventQOS() byte {
 // Config is the top-level configuration struct.
 type Config struct {
 	// StateDir is where an outage in progress is persisted, so it survives a
-	// restart or power loss.  Under systemd it can be left empty:
-	// $STATE_DIRECTORY (from StateDirectory= in the unit) is the fallback.
+	// restart or power loss.  Under systemd or launchd it can be left empty:
+	// $STATE_DIRECTORY (from StateDirectory= in the unit, or the macOS
+	// plist's EnvironmentVariables) is the fallback.
 	// See EffectiveStateDir.
 	StateDir string     `toml:"state_dir"`
 	NUT      NUTConfig  `toml:"nut"`
