@@ -39,8 +39,20 @@ TARGET="${TARGET:-sweeney@garibaldi}"
 SERVICE="ups-mqtt"
 
 # The unit and the root-only installers travel with every deploy; installing
-# needs root, which this script deliberately does not have unattended.
-SHIPPED=("${SERVICE}.service" scripts/install-unit.sh scripts/install-sudoers.sh)
+# needs root, which this script deliberately does not have unattended.  They
+# go to ~/ups-mqtt/setup/, never to ~/ups-mqtt/ups-mqtt.service: hosts set
+# up by an early first-install.sh have the installed unit symlinked to that
+# file, and overwriting it with the repo's unit (User=SERVICE_USER) broke
+# the live unit there.  install-unit.sh replaces such a symlink with a file.
+SETUP_DIR="setup"
+STAGE=$(mktemp -d "${TMPDIR:-/tmp}/ups-mqtt-deploy.XXXXXX")
+trap 'rm -rf "${STAGE}"' EXIT
+mkdir "${STAGE}/${SETUP_DIR}"
+cp "${SERVICE}.service" scripts/install-unit.sh scripts/install-sudoers.sh "${STAGE}/${SETUP_DIR}/"
+ship_setup() {
+  echo "==> Shipping the unit and installers to ${TARGET}:~/${SERVICE}/${SETUP_DIR}/..."
+  scp -q -r "${STAGE}/${SETUP_DIR}" "${TARGET}:~/${SERVICE}/"
+}
 
 # ---------------------------------------------------------------------------
 # --install-unit / --install-sudoers: ship, then run that installer with a
@@ -48,9 +60,11 @@ SHIPPED=("${SERVICE}.service" scripts/install-unit.sh scripts/install-sudoers.sh
 # as one remote command, so ~ is the remote home, not this machine's.
 # ---------------------------------------------------------------------------
 if [[ -n "$INSTALL" ]]; then
-  echo "==> Shipping ${SHIPPED[*]} to ${TARGET}:~/${SERVICE}/..."
-  scp -q "${SHIPPED[@]}" "${TARGET}:~/${SERVICE}/"
-  exec ssh -t "${TARGET}" "sudo bash ~/${SERVICE}/${INSTALL}"
+  ship_setup
+  # Not exec: the EXIT trap must still remove the staging directory.
+  rc=0
+  ssh -t "${TARGET}" "sudo bash ~/${SERVICE}/${SETUP_DIR}/${INSTALL}" || rc=$?
+  exit "${rc}"
 fi
 KEEP_VERSIONS=3
 VERSION=$(date +%Y%m%d-%H%M%S)
@@ -89,7 +103,7 @@ REMOTE_BIN="${SERVICE}-${VERSION}"
 echo "==> Building ${LOCAL_BIN}..."
 GOOS="${GOOS}" GOARCH="${GOARCH}" GOARM="${GOARM}" \
   go build -ldflags="-s -w" -o "${LOCAL_BIN}" ./cmd/${SERVICE}/
-trap 'rm -f "${LOCAL_BIN}"' EXIT
+trap 'rm -f "${LOCAL_BIN}"; rm -rf "${STAGE}"' EXIT
 
 # ---------------------------------------------------------------------------
 # 4. Upload
@@ -97,7 +111,7 @@ trap 'rm -f "${LOCAL_BIN}"' EXIT
 echo "==> Uploading to ${TARGET}:~/${SERVICE}/${REMOTE_BIN}..."
 scp -q "${LOCAL_BIN}" "${TARGET}:~/${SERVICE}/${REMOTE_BIN}"
 # Step 9 checks whether the shipped unit needs installing.
-scp -q "${SHIPPED[@]}" "${TARGET}:~/${SERVICE}/"
+ship_setup
 
 # ---------------------------------------------------------------------------
 # 5. Atomic swap: make executable and repoint the symlink
@@ -162,7 +176,7 @@ ssh "${TARGET}" "
 # ---------------------------------------------------------------------------
 echo "==> Checking the installed unit against this checkout's..."
 UNIT_CHECK=0
-ssh "${TARGET}" "bash ~/${SERVICE}/install-unit.sh --check" || UNIT_CHECK=$?
+ssh "${TARGET}" "bash ~/${SERVICE}/${SETUP_DIR}/install-unit.sh --check" || UNIT_CHECK=$?
 
 # ---------------------------------------------------------------------------
 # 10. Done

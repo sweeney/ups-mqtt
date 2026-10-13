@@ -42,11 +42,14 @@ trap 'rm -f "${LOCAL_BIN}"' EXIT
 # 3. Upload binary, service file, setup script, and config
 # ---------------------------------------------------------------------------
 echo "==> Uploading files to ${TARGET}:~/${SERVICE}/..."
-ssh "${TARGET}" "mkdir -p ~/${SERVICE}"
+# The unit and installers go in setup/, as deploy.sh ships them: never to
+# ~/ups-mqtt/ups-mqtt.service, which an early install symlinked the live
+# unit to.
+ssh "${TARGET}" "mkdir -p ~/${SERVICE}/setup"
 scp -q "${LOCAL_BIN}"       "${TARGET}:~/${SERVICE}/${REMOTE_BIN}"
-scp -q "${SERVICE}.service" "${TARGET}:~/${SERVICE}/${SERVICE}.service"
 scp -q remote-setup.sh      "${TARGET}:~/${SERVICE}/remote-setup.sh"
-scp -q scripts/install-sudoers.sh "${TARGET}:~/${SERVICE}/install-sudoers.sh"
+scp -q "${SERVICE}.service" scripts/install-unit.sh scripts/install-sudoers.sh \
+  "${TARGET}:~/${SERVICE}/setup/"
 
 # Activate the versioned symlink (no sudo needed — it's in the user's home).
 ssh "${TARGET}" "

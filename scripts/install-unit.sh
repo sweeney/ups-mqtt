@@ -83,7 +83,11 @@ sed "s/^${PLACEHOLDER}\$/User=${user}/" "$SOURCE" > "$RENDERED"
 # ── Compare ────────────────────────────────────────────────────────────────
 say "installed: ${INSTALLED#"$ROOT"} (User=${user})"
 say "source:    ${SOURCE}"
-if cmp -s "$INSTALLED" "$RENDERED"; then
+# A symlink is replaced even when its target matches: what it points at is
+# not root's to control (deploys used to overwrite it with the repo's unit).
+if [[ -L "$INSTALLED" ]]; then
+  say "installed unit is a symlink to $(readlink "$INSTALLED"); it will be replaced by a file"
+elif cmp -s "$INSTALLED" "$RENDERED"; then
   say "up to date — nothing to do"
   exit 0
 fi

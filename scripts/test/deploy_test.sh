@@ -19,7 +19,11 @@ mkdir -p "$WORK/bin"
 for tool in ssh scp go; do
   cat > "$WORK/bin/$tool" <<EOF
 #!/usr/bin/env bash
-{ echo "== $tool"; printf '%s\n' "\$@"; } >> "$WORK/calls"
+if [[ $tool == scp ]]; then
+  rm -rf -- "$WORK/shipped"
+  for a in "\$@"; do [[ -d "\$a" && "\$a" == */setup ]] && cp -R "\$a" "$WORK/shipped"; done
+fi
+{ echo "== $tool"; for a in "\$@"; do [[ "\$a" == */setup ]] && a=SETUP; printf '%s\n' "\$a"; done; } >> "$WORK/calls"
 [[ $tool != scp || -z "\${STUB_SCP_FAIL:-}" ]] || exit 1
 [[ $tool != ssh ]] || exit "\${STUB_SSH_EXIT:-0}"
 EOF
@@ -52,14 +56,20 @@ check() {
 
 # The remote command must reach ssh as one argument, so ~ is expanded on the
 # host: unquoted, the local shell turned it into this machine's home.
-SCP_CALL=$'== scp\n-q\nups-mqtt.service\nscripts/install-unit.sh\nscripts/install-sudoers.sh\npi@host:~/ups-mqtt/'
-SSH_CALL=$'== ssh\n-t\npi@host\nsudo bash ~/ups-mqtt/install-unit.sh'
+# scp gets one directory, setup/, holding the unit and both installers; the
+# stub records it as SETUP and copies its contents to $WORK/shipped.
+SCP_CALL=$'== scp\n-q\n-r\nSETUP\npi@host:~/ups-mqtt/'
+SSH_CALL=$'== ssh\n-t\npi@host\nsudo bash ~/ups-mqtt/setup/install-unit.sh'
 
 # ── --install-unit: ship, then run the installer with a terminal ───────────
-run --install-unit pi@host
+mkdir -p "$WORK/tmp"
+TMPDIR="$WORK/tmp" run --install-unit pi@host
+check "install-unit: staging removed"   '[[ -z "$(ls -A "$WORK/tmp")" ]]'
 check "install-unit: exit 0"            '[[ $CODE == 0 ]]'
 check "install-unit: ships, then ssh -t" '[[ $CALLS == "$SCP_CALL"$'"'"'\n'"'"'"$SSH_CALL" ]]'
 check "install-unit: builds nothing"    '[[ $CALLS != *"== go"* ]]'
+check "install-unit: ships all three"   '[[ "$(ls "$WORK/shipped" | tr "\n" " ")" == "install-sudoers.sh install-unit.sh ups-mqtt.service " ]]'
+check "  …the repo's unit, unchanged"    'cmp -s "$WORK/shipped/ups-mqtt.service" "$REPO/ups-mqtt.service"'
 
 run pi@host --install-unit
 check "install-unit: host first too"    '[[ $CODE == 0 && $CALLS == "$SCP_CALL"$'"'"'\n'"'"'"$SSH_CALL" ]]'
@@ -75,7 +85,7 @@ check "install-unit: scp fails, no ssh" '[[ $CODE != 0 && $CALLS != *"== ssh"* ]
 
 # ── --install-sudoers: the same, running the sudoers installer ────────────
 run --install-sudoers pi@host
-check "install-sudoers: ships, ssh -t"  '[[ $CODE == 0 && $CALLS == "$SCP_CALL"$'"'"'\n== ssh\n-t\npi@host\nsudo bash ~/ups-mqtt/install-sudoers.sh'"'"' ]]'
+check "install-sudoers: ships, ssh -t"  '[[ $CODE == 0 && $CALLS == "$SCP_CALL"$'"'"'\n== ssh\n-t\npi@host\nsudo bash ~/ups-mqtt/setup/install-sudoers.sh'"'"' ]]'
 
 run --install-sudoers --install-unit pi@host
 check "two installs: exit 2, no calls"  '[[ $CODE == 2 && $OUT == *"one --install-* at a time"* && -z $CALLS ]]'
@@ -103,7 +113,7 @@ case "\$cmd" in
 esac
 exit 0
 EOF
-printf '#!/usr/bin/env bash\nexit 0\n' > "$FULL/bin/scp"
+printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$@" >> "%s"\n' "$WORK/fullscp" > "$FULL/bin/scp"
 printf '#!/usr/bin/env bash\nexit 0\n' > "$FULL/bin/sleep"
 printf '#!/usr/bin/env bash\nwhile [[ $# -gt 0 ]]; do [[ $1 == -o ]] && : > "$2"; shift; done\n' > "$FULL/bin/go"
 chmod +x "$FULL/bin/"*
@@ -115,6 +125,11 @@ set -e
 CALLS=$(cat "$WORK/remote")
 check "full deploy: completes"          '[[ $CODE == 0 && $OUT == *"Deployed"* ]]'
 check "full deploy: reached the tee"    '[[ $CALLS == *"sudo tee /etc/ups-mqtt/config.toml"* ]]'
+# Hosts with the installed unit symlinked to ~/ups-mqtt/ups-mqtt.service had
+# it overwritten by the repo's unit; nothing may be copied there again.
+# The unit may only travel inside the staged setup/ directory: copied on its
+# own, to ~/ups-mqtt/ or to the file there, it lands on the old path.
+check "full deploy: unit only in setup/" '[[ -s $WORK/fullscp ]] && ! grep -qE "(^|/|:)ups-mqtt\.service\$" "$WORK/fullscp" && grep -qE "/setup\$" "$WORK/fullscp"'
 set +e
 OUT=$(cd "$FULL" && STUB_STATUS=failed PATH="$FULL/bin:$PATH" bash ./deploy.sh pi@host 2>&1 < /dev/null)
 CODE=$?

@@ -37,8 +37,11 @@ power loss) and `SystemMaxUse=64M`. Re-running it is a no-op. Tests:
 
 `deploy.sh` replaces the binary but not the unit. Installing the unit is a
 separate, deliberate step with its own diff and prompt. `deploy.sh` ships
-`ups-mqtt.service` and this script to
-`~/ups-mqtt/` and runs `--check`. When the installed unit is out of date, the
+`ups-mqtt.service` and this script to `~/ups-mqtt/setup/` and runs `--check`.
+(Not to `~/ups-mqtt/` itself: hosts set up by an early `first-install.sh`
+have the installed unit symlinked to `~/ups-mqtt/ups-mqtt.service`, so
+writing the repo's unit there changed the live unit. Installing replaces such
+a symlink with a file.) When the installed unit is out of date, the
 deploy ends with the diff and the command to install it:
 
 ```bash

@@ -31,14 +31,19 @@ fi
 ln -sf "${INSTALL_HOME}/${SERVICE}/${SERVICE}" /usr/local/bin/${SERVICE}
 echo "  Symlinked binary  → /usr/local/bin/${SERVICE}"
 
-# Patch the service file's User= placeholder, then symlink it.
+# Patch the service file's User= placeholder and install it as a root-owned
+# file.  Rendered beside the target and renamed: an early install symlinked
+# the unit into the user's home, and writing through that link would change
+# (or, redirecting onto its own source, empty) the user's copy instead.
+UNIT_DST="/etc/systemd/system/${SERVICE}.service"
 sed "s/User=SERVICE_USER/User=${INSTALL_USER}/" \
-    "${INSTALL_HOME}/${SERVICE}/${SERVICE}.service" \
-    > /etc/systemd/system/${SERVICE}.service
+    "${INSTALL_HOME}/${SERVICE}/setup/${SERVICE}.service" > "${UNIT_DST}.tmp"
+chmod 644 "${UNIT_DST}.tmp"
+mv -f "${UNIT_DST}.tmp" "${UNIT_DST}"
 echo "  Installed service → /etc/systemd/system/${SERVICE}.service (User=${INSTALL_USER})"
 
 # Passwordless sudo for exactly the root commands deploy.sh runs, no more.
-bash "$(dirname "$0")/install-sudoers.sh" --yes --user "${INSTALL_USER}"
+bash "$(dirname "$0")/setup/install-sudoers.sh" --yes --user "${INSTALL_USER}"
 
 # Enable and start.
 systemctl daemon-reload

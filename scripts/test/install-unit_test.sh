@@ -158,6 +158,18 @@ check "symlink: exit 0"                '[[ $CODE == 0 ]]'
 check "symlink: now a regular file"    '[[ -f $r/$UNIT_REL && ! -L $r/$UNIT_REL ]]'
 check "symlink: target untouched"      '[[ "$(cat "$r/target.service")" == "$OLD_UNIT" ]]'
 
+# ── a symlink is replaced even when its target already matches ─────────────
+r=$(new_fixture symlink_same)
+expected > "${r:?}/target.service"
+mv "${r:?}/$UNIT_REL" "${r:?}/old.service"
+ln -s "${r:?}/target.service" "${r:?}/$UNIT_REL"
+run "$r" --check "$REPO_UNIT"
+check "symlink, same: --check exit 1"  '[[ $CODE == 1 && $OUT == *"is a symlink"* ]]'
+run "$r" --yes "$REPO_UNIT"
+check "symlink, same: now a file"      '[[ $CODE == 0 && -f $r/$UNIT_REL && ! -L $r/$UNIT_REL && "$(cat "$r/$UNIT_REL")" == "$(expected)" ]]'
+run "$r" --yes "$REPO_UNIT"
+check "symlink, same: then up to date" '[[ $CODE == 0 && $OUT == *"up to date"* ]]'
+
 # ── systemd-analyze rejects the unit: error, nothing changed ───────────────
 r=$(new_fixture verify_fails)
 STUB_VERIFY_FAIL=1 run "$r" --yes "$REPO_UNIT"
