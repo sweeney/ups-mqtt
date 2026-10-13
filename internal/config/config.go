@@ -38,6 +38,30 @@ type NUTConfig struct {
 	UPSName      string   `toml:"ups_name"`
 	Label        string   `toml:"label"`
 	PollInterval Duration `toml:"poll_interval"`
+
+	// SampleInterval is how often the UPS is read between publishes, so a
+	// change of power state is seen — and published — within a sample
+	// rather than a whole poll.  Publishing still follows PollInterval.
+	// Zero means DefaultSampleInterval; either way it is capped at
+	// PollInterval.
+	SampleInterval Duration `toml:"sample_interval"`
+}
+
+// DefaultSampleInterval is the sample interval when none is configured.  A
+// sample is one LIST VAR round trip to upsd, normally on the same host.
+const DefaultSampleInterval = 2 * time.Second
+
+// EffectiveSampleInterval returns SampleInterval, or DefaultSampleInterval
+// when unset, capped at PollInterval.
+func (c NUTConfig) EffectiveSampleInterval() time.Duration {
+	d := c.SampleInterval.Duration
+	if d <= 0 {
+		d = DefaultSampleInterval
+	}
+	if c.PollInterval.Duration > 0 && d > c.PollInterval.Duration {
+		d = c.PollInterval.Duration
+	}
+	return d
 }
 
 // EffectiveLabel returns Label if set, otherwise UPSName.
@@ -209,6 +233,13 @@ func applyEnvOverrides(cfg *Config) {
 			cfg.NUT.PollInterval = Duration{d}
 		} else {
 			log.Printf("config: ignoring invalid UPS_MQTT_NUT_POLL_INTERVAL=%q: %v", v, err)
+		}
+	}
+	if v := os.Getenv("UPS_MQTT_NUT_SAMPLE_INTERVAL"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			cfg.NUT.SampleInterval = Duration{d}
+		} else {
+			log.Printf("config: ignoring invalid UPS_MQTT_NUT_SAMPLE_INTERVAL=%q: %v", v, err)
 		}
 	}
 	if v := os.Getenv("UPS_MQTT_MQTT_BROKER"); v != "" {

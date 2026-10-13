@@ -221,7 +221,11 @@ func replay(t *testing.T, tl timeline, faults []fault, settle time.Duration, qos
 	rec := mqtttest.Record(t, broker.URL(), "ups/#")
 
 	cfg := &config.Config{
-		NUT: config.NUTConfig{UPSName: "iplug", Label: replayLabel},
+		NUT: config.NUTConfig{
+			UPSName: "iplug", Label: replayLabel,
+			PollInterval:   config.Duration{Duration: scaled(10 * time.Second)},
+			SampleInterval: config.Duration{Duration: scaled(2 * time.Second)},
+		},
 		MQTT: config.MQTTConfig{
 			Broker: proxy.URL(), ClientID: "ups-mqtt-replay",
 			TopicPrefix: "ups", Retained: true, QOS: qos,
@@ -258,7 +262,7 @@ func replay(t *testing.T, tl timeline, faults []fault, settle time.Duration, qos
 	}
 	time.AfterFunc(scaled(tl.end()+settle), cancel)
 
-	d.run(ctx, scaled(10*time.Second), replayStateTopic)
+	d.run(ctx, replayStateTopic)
 	rec.WaitQuiet(200*time.Millisecond, 3*time.Second)
 
 	logMu.Lock()
@@ -283,15 +287,15 @@ var lastOutageLogRE = regexp.MustCompile(`published last_outage: \S+ → \S+ \((
 // summary's duration matches the UPS's, and nothing arrived out of order.
 func checkOutcome(t *testing.T, r replayResult, tl timeline) {
 	t.Helper()
-	interval := scaled(10 * time.Second)
+	sample := scaled(2 * time.Second)
 
-	// Polls keep their pace: at most one publish timeout per poll, against
-	// the live 30 s polls when every publish waited one out.
-	// The slack of another interval absorbs a loaded CI runner; the live
-	// failure was three intervals.
-	if g := r.poller.maxGap(); g > 2*interval+replayTimeout {
-		t.Errorf("longest gap between polls %s, want at most ~%s (one interval plus one publish timeout)",
-			g, interval+replayTimeout)
+	// Samples keep their pace: at most one publish timeout per sample,
+	// against the live 30 s polls when every publish waited one out.  The
+	// slack of a poll interval absorbs a loaded CI runner; the live failure
+	// was three poll intervals.
+	if g := r.poller.maxGap(); g > sample+replayTimeout+scaled(10*time.Second) {
+		t.Errorf("longest gap between samples %s, want at most ~%s (one sample plus one publish timeout)",
+			g, sample+replayTimeout)
 	}
 
 	// The broker ends with the outage cleared and the summary retained.
@@ -302,7 +306,8 @@ func checkOutcome(t *testing.T, r replayResult, tl timeline) {
 		t.Error("no last_outage retained")
 	}
 
-	// The summary's duration is the UPS's, to within a poll at each end.
+	// The summary's duration is the UPS's, to within a sample at each end
+	// (the capture itself was sampled every 1–2 s).
 	m := lastOutageLogRE.FindStringSubmatch(r.logs)
 	if m == nil {
 		t.Fatal("no last_outage published")
@@ -312,8 +317,8 @@ func checkOutcome(t *testing.T, r replayResult, tl timeline) {
 		t.Fatal(err)
 	}
 	_, ups := tl.onBattery(t)
-	if diff := time.Duration(math.Abs(float64(got - scaled(ups)))); diff > interval+scaled(time.Second) {
-		t.Errorf("last_outage lasted %s (live %s), UPS was on battery %s live; off by more than a poll",
+	if diff := time.Duration(math.Abs(float64(got - scaled(ups)))); diff > 2*sample+scaled(2*time.Second) {
+		t.Errorf("last_outage lasted %s (live %s), UPS was on battery %s live; off by more than a sample at each end",
 			got, got*compress, ups)
 	}
 
@@ -352,7 +357,25 @@ func TestLiveReplay_Clean(t *testing.T) {
 	r := replay(t, tl, nil, 15*time.Second, 1)
 	checkOutcome(t, r, tl)
 
-	_, dur := tl.onBattery(t)
+	start, dur := tl.onBattery(t)
+
+	// The outage reaches the broker within a sample of the UPS going on
+	// battery, not at the next poll.
+	var first time.Time
+	for _, m := range r.rec.On(replayOutageTopic) {
+		if m.Payload != "" {
+			first = m.At
+			break
+		}
+	}
+	if first.IsZero() {
+		t.Fatal("no outage message reached the broker")
+	}
+	if lag := first.Sub(r.poller.start.Add(scaled(start))); lag > scaled(2*time.Second)+scaled(3*time.Second) {
+		t.Errorf("outage reached the broker %s (live %s) after the UPS went on battery, want within a sample",
+			lag, lag*compress)
+	}
+
 	payloads := 0
 	for _, m := range r.rec.On(replayOutageTopic) {
 		if m.Payload != "" {

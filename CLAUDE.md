@@ -107,6 +107,11 @@ go build ./...                                  # clean compile
   corrects it; a summary waits for sync (interim after `DefaultSyncWait`,
   corrected later). Tests use `outages.FakeClock` and `outages.MemoryStore`;
   `TestRestart*` in `cmd/ups-mqtt` replays the scenarios end to end.
+- The UPS is read every `nut.sample_interval` (default 2 s, capped at
+  `poll_interval`) but published every `poll_interval`, plus at once when a
+  sample sees on/off battery or low battery (`daemon.sample`). Keep the
+  publish rate: the Pi's bridged local broker queues one QoS 1 `outage` per
+  publish while its uplink is down, and its cap was sized for 10 s polls.
 - `state` is published every poll regardless of change, so it doubles as a
   heartbeat. It is also the LWT topic, so it carries two shapes: a full snapshot
   while alive, `{"online":false,…}` when the broker declares the client dead.

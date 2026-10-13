@@ -107,7 +107,7 @@ subscriber would otherwise read as a flat battery. See
 
 ### 3. Outage topic
 
-When the UPS switches to battery (`ups.status` contains `OB`), a call-to-action message is published to `{prefix}/{label}/outage` on every poll:
+When the UPS switches to battery (`ups.status` contains `OB`), a call-to-action message is published to `{prefix}/{label}/outage` at once and then on every poll:
 
 ```json
 {
@@ -225,6 +225,7 @@ password      = ""
 ups_name      = "cyberpower"  # name as shown in upsc -l
 label         = "network-ups" # optional: MQTT topic name; defaults to ups_name
 poll_interval = "30s"
+sample_interval = "2s"        # optional; see Sampling below
 
 [mqtt]
 broker        = "tcp://localhost:1883"  # use "ssl://" for TLS
@@ -243,6 +244,12 @@ The `label` field decouples the MQTT topic name from the NUT device identifier. 
 
 If you run multiple instances against the same broker, each must have a distinct `client_id`. Duplicate IDs cause the broker to disconnect the older client when a new one connects.
 
+### Sampling
+
+`poll_interval` sets how often everything is published. Between publishes the daemon reads the UPS every `sample_interval` (default 2 s, never longer than `poll_interval`). When a sample finds the UPS has gone on battery, come back to mains, or reached low battery, everything is published straight away rather than at the next poll. Outage start and end times, and so `last_outage`, are then accurate to a sample rather than a poll, and the lowest battery charge counts readings between publishes too.
+
+The publish rate is unchanged, which matters behind a bridged local broker: while its uplink is down the bridge queues the QoS 1 outage messages, one per poll. A sample is a single `LIST VAR` round trip to upsd, normally on the same host. A NUT error is logged when it starts and then once per poll interval, not on every sample.
+
 ### Environment variable overrides
 
 Every field has a `UPS_MQTT_` override (useful for Docker / secrets):
@@ -257,6 +264,7 @@ Every field has a `UPS_MQTT_` override (useful for Docker / secrets):
 | `UPS_MQTT_NUT_UPS_NAME` | `nut.ups_name` |
 | `UPS_MQTT_NUT_LABEL` | `nut.label` |
 | `UPS_MQTT_NUT_POLL_INTERVAL` | `nut.poll_interval` |
+| `UPS_MQTT_NUT_SAMPLE_INTERVAL` | `nut.sample_interval` |
 | `UPS_MQTT_MQTT_BROKER` | `mqtt.broker` |
 | `UPS_MQTT_MQTT_USERNAME` | `mqtt.username` |
 | `UPS_MQTT_MQTT_PASSWORD` | `mqtt.password` |

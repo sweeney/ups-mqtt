@@ -76,11 +76,11 @@ func main() {
 		reconnected: pub.Reconnected(),
 		outage:      outageState{tracker: tracker},
 	}
-	log.Printf("polling every %s", cfg.NUT.PollInterval)
-	d.run(ctx, cfg.NUT.PollInterval.Duration, lwtTopic)
+	log.Printf("polling every %s, sampling every %s", cfg.NUT.PollInterval, cfg.NUT.EffectiveSampleInterval())
+	d.run(ctx, lwtTopic)
 }
 
-// daemon is the poll loop and what it carries between polls.
+// daemon is the poll loop and what it carries between samples.
 type daemon struct {
 	cfg    *config.Config
 	poller nut.Poller
@@ -88,30 +88,48 @@ type daemon struct {
 	// reconnected signals that the broker connection was lost and is back.
 	reconnected <-chan struct{}
 	outage      outageState
+
+	// What the last publish said, and when.  A sample that differs from it
+	// in power state is published at once.
+	published     bool
+	lastPublish   time.Time
+	lastOnBattery bool
+	lastLow       bool
+
+	// The last poll error logged, and when, so a NUT outage is not logged
+	// on every sample.
+	lastPollErr   string
+	lastPollErrAt time.Time
 }
 
-// run polls every interval until ctx is cancelled, then makes a final poll
-// and announces the clean shutdown on lwtTopic.
+// run samples the UPS every sample interval until ctx is cancelled, then
+// makes a final poll and announces the clean shutdown on lwtTopic.
 //
-// After a reconnect it polls at once rather than waiting out the interval,
-// and re-sends the outage clear.  Publishes made while the connection was
-// down failed and were not queued (see publisher.MQTTPublisher), so the
+// Everything is published every poll interval, and also at once when a
+// sample finds the UPS has gone on or off battery or reached low battery:
+// outage times are then accurate to a sample (2 s by default) rather than a
+// poll, without publishing any more often.  The publish rate matters behind
+// a bridge, whose queue holds the outage messages while its uplink is down.
+//
+// After a reconnect it publishes at once rather than waiting for the next
+// poll, and re-sends the outage clear.  Publishes made while the connection
+// was down failed and were not queued (see publisher.MQTTPublisher), so the
 // broker's retained topics are brought back to the current truth: the
 // outage payload or its clear, state, and any last_outage still due.
-func (d *daemon) run(ctx context.Context, interval time.Duration, lwtTopic string) {
-	ticker := time.NewTicker(interval)
+func (d *daemon) run(ctx context.Context, lwtTopic string) {
+	ticker := time.NewTicker(d.cfg.NUT.EffectiveSampleInterval())
 	defer ticker.Stop()
 
+	d.sample(time.Now(), false)
 loop:
 	for {
 		select {
-		case <-ticker.C:
-			d.poll()
+		case now := <-ticker.C:
+			d.sample(now, false)
 		case <-d.reconnected:
 			log.Printf("republishing current state after reconnecting")
 			d.outage.clear = false
-			d.poll()
-			ticker.Reset(interval)
+			d.sample(time.Now(), true)
 		case <-ctx.Done():
 			break loop
 		}
@@ -134,10 +152,46 @@ loop:
 	log.Println("offline announcement sent, exiting")
 }
 
-func (d *daemon) poll() {
-	if err := doPoll(d.poller, d.pub, d.cfg, &d.outage); err != nil {
-		log.Printf("poll error: %v", err)
+// sample reads the UPS once and publishes if a publish is due: force, a
+// change of power state, or a poll interval since the last one.  Otherwise
+// it only keeps the outage tracker current (its lowest battery charge).
+func (d *daemon) sample(now time.Time, force bool) {
+	vars, err := d.poller.Poll()
+	if err != nil {
+		d.logPollError(now, err)
+		return
 	}
+	d.lastPollErr = ""
+
+	varMap := nut.VarsToMap(vars)
+	m := metrics.Compute(varMap)
+
+	// Half a sample of slack keeps ticker jitter from pushing a publish to
+	// the sample after.
+	due := now.Sub(d.lastPublish) >= d.cfg.NUT.PollInterval.Duration-d.cfg.NUT.EffectiveSampleInterval()/2
+	changed := m.OnBattery != d.lastOnBattery || m.LowBattery != d.lastLow
+	if force || !d.published || changed || due {
+		d.published, d.lastPublish = true, now
+		d.lastOnBattery, d.lastLow = m.OnBattery, m.LowBattery
+		if err := publishSample(varMap, m, d.pub, d.cfg, &d.outage); err != nil {
+			log.Printf("poll error: %v", err)
+		}
+		return
+	}
+	if m.OnBattery {
+		d.outage.tracker.OnBattery(m.LowBattery, parseOptional(varMap["battery.charge"]))
+	}
+}
+
+// logPollError logs a failed sample when the error is new, or once a poll
+// interval while it persists.
+func (d *daemon) logPollError(now time.Time, err error) {
+	msg := err.Error()
+	if msg == d.lastPollErr && now.Sub(d.lastPollErrAt) < d.cfg.NUT.PollInterval.Duration {
+		return
+	}
+	d.lastPollErr, d.lastPollErrAt = msg, now
+	log.Printf("poll error: polling NUT: %v", err)
 }
 
 // publishOffline announces a clean shutdown on the state topic, in the same
@@ -180,10 +234,13 @@ func doPoll(poller nut.Poller, pub publisher.Publisher, cfg *config.Config, outa
 	if err != nil {
 		return fmt.Errorf("polling NUT: %w", err)
 	}
-
 	varMap := nut.VarsToMap(vars)
-	m := metrics.Compute(varMap)
+	return publishSample(varMap, metrics.Compute(varMap), pub, cfg, outage)
+}
 
+// publishSample publishes one reading: the outage message first, then the
+// telemetry.  See doPoll.
+func publishSample(varMap map[string]string, m metrics.Metrics, pub publisher.Publisher, cfg *config.Config, outage *outageState) error {
 	pubCfg := publisher.PublishConfig{
 		Prefix:       cfg.MQTT.TopicPrefix,
 		UPSName:      cfg.NUT.EffectiveLabel(),

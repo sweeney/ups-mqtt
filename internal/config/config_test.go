@@ -546,3 +546,54 @@ func TestLoad_EnvOverride_StateDir(t *testing.T) {
 		t.Errorf("EffectiveStateDir() = %q, want the env override over config and systemd", dir)
 	}
 }
+
+func TestEffectiveSampleInterval(t *testing.T) {
+	d := func(s time.Duration) config.Duration { return config.Duration{Duration: s} }
+	for _, tc := range []struct {
+		name         string
+		poll, sample time.Duration
+		want         time.Duration
+	}{
+		{"unset uses the default", 10 * time.Second, 0, config.DefaultSampleInterval},
+		{"explicit", 10 * time.Second, 5 * time.Second, 5 * time.Second},
+		{"capped at the poll interval", 10 * time.Second, 20 * time.Second, 10 * time.Second},
+		{"default capped at a short poll interval", time.Second, 0, time.Second},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := config.NUTConfig{PollInterval: d(tc.poll), SampleInterval: d(tc.sample)}
+			if got := c.EffectiveSampleInterval(); got != tc.want {
+				t.Errorf("EffectiveSampleInterval() = %s, want %s", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestLoad_SampleInterval_TOMLAndEnv(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "c.toml")
+	if err := os.WriteFile(path, []byte("[nut]\npoll_interval = \"10s\"\nsample_interval = \"3s\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.NUT.EffectiveSampleInterval(); got != 3*time.Second {
+		t.Errorf("from TOML: %s, want 3s", got)
+	}
+
+	t.Setenv("UPS_MQTT_NUT_SAMPLE_INTERVAL", "1s")
+	if cfg, err = config.Load(path); err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.NUT.EffectiveSampleInterval(); got != time.Second {
+		t.Errorf("env override: %s, want 1s", got)
+	}
+
+	t.Setenv("UPS_MQTT_NUT_SAMPLE_INTERVAL", "bananas")
+	if cfg, err = config.Load(path); err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.NUT.EffectiveSampleInterval(); got != 3*time.Second {
+		t.Errorf("bad env var: %s, want the TOML 3s kept", got)
+	}
+}
