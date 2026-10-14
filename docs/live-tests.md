@@ -198,17 +198,19 @@ All were superseded within the second, and the retained values ended right:
 saves to disk every `autosave_interval` (300 s); its last save before the
 death was at 22:56:38, a second after that stale `outage`, and the restored
 snapshot was forwarded when the bridge connected. Its log shows a single
-bridge connect, at 23:11:28: until then it had sat connecting to the
-uplink's address, unreachable until Tailscale was up. So the repeats were
-not reconnects, and ups-mqtt published `last_outage` once; where the copies
-came from is not known. The three pre-sync `state`, published at 22:54:00, 22:54:10
-and 22:54:30 by the slow clock, are from around when the host-setup
-project's monitor saw the local broker stop acknowledging (a QoS 1 publish
-at 22:54:14 timed out, and its next only went through at 23:11:29). Every
-other `state` of that window was dropped, as QoS 0 with no bridge
-connected should be; why those three were kept is not known. Consumers should judge `outage` and `state` by the payload's
-`timestamp` and `clock_synced`, not by arrival order, across a power
-cycle.
+successful bridge connect, at 23:11:28, after attempts that failed while
+the uplink's address was unreachable until Tailscale was up. ups-mqtt
+published `last_outage` once; the copies are most likely the retained
+replay that the 2026-10-14 Ethernet unplug shows the local broker queueing
+again on connect attempts. The three pre-sync `state`, published at
+22:54:00, 22:54:10 and 22:54:30 by the slow clock, are from around when the
+host-setup project's monitor saw the local broker stop acknowledging (a
+QoS 1 publish at 22:54:14 timed out, and its next only went through at
+23:11:29). Every other `state` of that window was dropped, as QoS 0 with no
+bridge connected should be; those three were probably published while a
+connect attempt was pending, which the same test shows keeps them.
+Consumers should judge `outage` and `state` by the payload's `timestamp`
+and `clock_synced`, not by arrival order, across a power cycle.
 
 ### Failure modes to cover
 
@@ -222,3 +224,56 @@ cycle.
    topic can end on a stale value (including a stale `outage`).
 4. Network down for the whole outage: events only arrive after the fact;
    `last_outage` must still be right.
+
+## 2026-10-14: network cut at the Pi (Ethernet unplugged)
+
+Data: [`testdata/live-tests/2026-10-14/`](../testdata/live-tests/2026-10-14/).
+
+### 1. Ethernet unplugged for three minutes (`1-ethernet-unplug/`)
+
+Same config as 2026-10-13 tests 4 and 5, with `clock_synced` in `state`.
+Mains stayed on; the Pi's Ethernet cable was pulled, then plugged back in.
+This is failure mode 1 above for the bridge, not for ups-mqtt: ups-mqtt
+publishes to the local broker, which stays reachable, so only the bridge
+loses its uplink. The bridge has the uplink's name as its primary address
+and its Tailscale IP as a fallback, `round_robin false`,
+`restart_timeout 5 60`, `cleansession false`. The connect attempts below
+are from the local broker's log, read by the host-setup project.
+
+| Time | Event |
+|---|---|
+| 19:52:45 | last `state` to reach the main broker before the cut |
+| 19:52:50.5 | kernel: eth0 link down (NetworkManager notices at 19:52:56.5) |
+| 19:53:25 | the bridge's connection is gone on the Pi (6 port-1883 connections where there were 7) |
+| 19:53:31, 19:53:48, 19:54:41, 19:55:16 | bridge connect attempts, alternating IP and name; all fail |
+| 19:53:35 | `sites/site/bridge 0` on the main broker, 45 s after the cut |
+| 19:55:43.7 | kernel: link up; DHCP lease 0.2 s later |
+| 19:56:47 | bridge connects (on the IP), 63 s after the link came back, and forwards what it holds (below) |
+| 19:56:53 | bridge drops the IP connection on finding the name reachable again |
+| 19:56:59 | bridge connects on the name; the monitor reports `ok`, `state` every 10 s again |
+
+ups-mqtt logged nothing and published `state` every 10 s throughout. The
+UPS stayed on line (OL; CHRG dropped out for single samples a few times).
+The main broker saw nothing from the Pi between 19:52:45 and 19:56:47,
+about 4 minutes for a 2 m 53 s cut. The 63 s after
+the link came back was a connect attempt from before it (19:55:16) still
+pending, then the next attempt.
+
+The burst at 19:56:47 held, interleaved and all with `clock_synced: true`:
+- 9 `state` (and each one's 4 `computed/*`), stamped 18:53:35Z, 18:53:55Z,
+  18:54:05Z, 18:54:15Z, 18:54:45Z, 18:55:25Z, 18:55:35Z, 18:55:45Z and
+  18:56:45Z: each published around a connect attempt, while one was
+  probably pending, which the local broker evidently queues for the
+  bridge although telemetry is QoS 0. The other 15 publishes from
+  18:52:55Z to 18:56:35Z were dropped, as they should be.
+- 6 identical copies of the retained `last_outage` (2026-10-13 test 5's),
+  and 2 more at 19:56:59; likewise 6 and 2 of the host-setup project's
+  `network/last_outage`, and 8 of its `network/outage` (its `lan_down`,
+  then `bridge_down` values). ups-mqtt did not publish them: the local
+  broker queues its retained messages for the bridge again on connect
+  attempts, though not exactly one copy per attempt. This is where
+  test 5's repeats came from.
+
+It ended right: the last `state` to arrive was current, and `last_outage`
+unchanged. A consumer that orders `state` by its `timestamp` sees a sparse
+but correct history of the cut, followed by the present.

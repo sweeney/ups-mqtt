@@ -1,0 +1,6 @@
+Oct 14 19:51:43.987876 ups-host kernel: hwmon hwmon1: Undervoltage detected!
+Oct 14 19:51:48.015860 ups-host kernel: hwmon hwmon1: Voltage normalised
+Oct 14 19:52:50.531898 ups-host kernel: smsc95xx 1-1.1:1.0 eth0: Link is Down
+Oct 14 19:55:43.728430 ups-host kernel: smsc95xx 1-1.1:1.0 eth0: Link is Up - 100Mbps/Full - flow control rx/tx
+Oct 14 19:55:45.903879 ups-host kernel: hwmon hwmon1: Undervoltage detected!
+Oct 14 19:55:49.935882 ups-host kernel: hwmon hwmon1: Voltage normalised
