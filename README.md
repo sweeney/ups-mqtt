@@ -495,11 +495,14 @@ List your hosts once in `sites` (copy `sites.example`; it is gitignored,
 so the addresses stay out of the repo), then:
 
 ```bash
+./deploy.sh --site NAME --check           # what a deploy would do; changes nothing
 ./deploy.sh --site NAME                   # a site's host, from sites
 ./deploy.sh --host user@host              # any other host
 ./deploy.sh --install-unit --site NAME    # install a changed systemd unit (asks first)
 ./deploy.sh --install-sudoers --site NAME # install the narrow sudo rule deploy.sh needs
 ```
+
+`--check` reads the host and changes nothing: the deployed build, whether the prerequisites and config are there, whether the root commands a deploy runs need no password, the service's state, and the diff between the installed unit and this checkout's. It exits 0 when the host is ready, 1 when something needs attention, with the command that fixes it.
 
 `first-install.sh` takes the same `--site` / `--host`. `UPS_MQTT_SITES` names a sites file elsewhere. Without either option both scripts stop and list the known sites.
 

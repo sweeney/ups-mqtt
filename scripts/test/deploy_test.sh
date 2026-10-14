@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Tests for deploy.sh's argument handling (--site, --host) and
-# --install-unit, with ssh, scp and go stubbed out.  Nothing is built or contacted.
+# Tests for deploy.sh's argument handling (--site, --host),
+# --install-unit and the read-only --check, with ssh, scp and go stubbed
+# out.  Nothing is built or contacted.
 #
 #   bash scripts/test/deploy_test.sh
 set -euo pipefail
@@ -229,6 +230,139 @@ OUT=$(cd / && bash "$REPO/deploy.sh" --help 2>&1)
 check "  …and --help"                    '[[ $OUT == *"--site NAME"* ]]'
 run --help
 check "--help: usage, no calls"         '[[ $CODE == 0 && $OUT == *"--site NAME"* && -z $CALLS ]]'
+
+# ── --check: report, change nothing ───────────────────────────────────────
+# A stub host answers the state probe from $WORK/probe and the unit check
+# with STUB_UNIT_RC, saving the tar stream it was sent.  Every remote
+# command is logged; none may change anything.
+CHK="$WORK/chk"
+mkdir -p "$CHK/scripts" "$CHK/bin"
+cp "$REPO/deploy.sh" "$REPO/deploy-sites.sh" "$REPO/ups-mqtt.service" "$CHK/"
+cp "$REPO/scripts/install-unit.sh" "$REPO/scripts/install-sudoers.sh" "$CHK/scripts/"
+echo '# test config' > "$CHK/config.toml"
+cat > "$CHK/bin/ssh" <<EOF
+#!/usr/bin/env bash
+cmd=\${@: -1}
+printf '%s\n==\n' "\$cmd" >> "$WORK/chkremote"
+case "\$cmd" in
+  *"echo arch"*)        [[ -z "\${STUB_PROBE_FAIL:-}" ]] || exit 255; cat "$WORK/probe" ;;
+  *"install-unit.sh"*)  cat > "$WORK/chktar"; echo "unit check ran"; exit "\${STUB_UNIT_RC:-0}" ;;
+esac
+exit 0
+EOF
+for tool in scp go; do printf '#!/usr/bin/env bash\necho "%s $*" >> "%s"\n' "$tool" "$WORK/chkremote" > "$CHK/bin/$tool"; done
+chmod +x "$CHK/bin/"*
+
+# A host ready to deploy: the narrow rule, plus a password-protected ALL.
+GOOD_PROBE='arch aarch64
+link /home/u/ups-mqtt/ups-mqtt
+current /home/u/ups-mqtt/ups-mqtt-20261014-210455
+versions 3
+config present
+active active
+sudoers User u may run the following commands on host:
+sudoers     (ALL : ALL) ALL
+sudoers     (root) NOPASSWD: /usr/bin/systemctl daemon-reload, /usr/bin/systemctl restart ups-mqtt, /usr/bin/tee /etc/ups-mqtt/config.toml'
+
+# chk PROBE [ARGS…]: run deploy.sh --check against the stub; sets OUT, CODE, CALLS.
+chk() {
+  printf '%s\n' "$1" > "$WORK/probe"; shift
+  : > "$WORK/chkremote"; rm -f "$WORK/chktar"
+  set +e
+  OUT=$(cd "$CHK" && PATH="$CHK/bin:$PATH" bash ./deploy.sh --check --host pi@host "$@" 2>&1 < /dev/null)
+  CODE=$?
+  set -e
+  CALLS=$(cat "$WORK/chkremote")
+}
+# What a read-only check may never do: build, copy, or run anything as root
+# except listing its own sudo rights.
+read_only() {
+  [[ $CALLS != *"go "* && $CALLS != *"scp "* ]] &&
+    ! grep -E 'sudo' <<<"$CALLS" | grep -vq 'sudo -n -l 2>/dev/null' &&
+    [[ $CALLS != *"ln -sf"* && $CALLS != *"systemctl restart"* && $CALLS != *"rm --"* ]]
+}
+
+chk "$GOOD_PROBE"
+check "check: ready, exit 0"            '[[ $CODE == 0 && $OUT == *"Ready to deploy: ./deploy.sh --host pi@host"* ]]'
+check "  …changes nothing"              'read_only'
+check "  …reports the build"            '[[ $OUT == *"deployed:  ups-mqtt-20261014-210455"* && $OUT == *"prunes 1"* ]]'
+check "  …unit checked from a temp dir" '[[ $OUT == *"unit check ran"* && $CALLS == *"mktemp -d"*"--check"* && $CALLS != *"~/ups-mqtt/setup"* ]]'
+check "  …with this checkout's unit"   '[[ "$(tar -tf "$WORK/chktar" | sort | tr "\n" " ")" == "install-unit.sh ups-mqtt.service " ]]'
+check "  …and its installer"            'tar -xOf "$WORK/chktar" install-unit.sh | cmp -s - "$REPO/scripts/install-unit.sh"'
+
+# The trap the first version fell into: (ALL : ALL) ALL allows every
+# command, but only with a password, which a deploy cannot give.
+chk "$(grep -v NOPASSWD <<<"$GOOD_PROBE")"
+check "password-only sudo: exit 1"      '[[ $CODE == 1 && $(grep -c "sudo would ask for a password" <<<"$OUT") == 3 ]]'
+check "  …says how to fix it"           '[[ $OUT == *"./deploy.sh --install-sudoers --host pi@host"* ]] && read_only'
+chk "$(sed 's|, /usr/bin/systemctl restart ups-mqtt||' <<<"$GOOD_PROBE")"
+check "one command missing: exit 1"     '[[ $CODE == 1 && $OUT == *"password for: systemctl restart ups-mqtt"* && $(grep -c "would ask" <<<"$OUT") == 1 ]]'
+chk "$(sed 's|NOPASSWD: .*|NOPASSWD: /usr/bin/systemctl restart ups-mqttX, /usr/bin/tee /etc/ups-mqtt/configXtoml|' <<<"$GOOD_PROBE")"
+check "near misses don't count"        '[[ $CODE == 1 && $(grep -c "would ask" <<<"$OUT") == 3 ]]'
+chk "$(sed 's|NOPASSWD: .*|NOPASSWD: ALL|' <<<"$GOOD_PROBE")"
+check "NOPASSWD: ALL: exit 0"           '[[ $CODE == 0 ]]'
+chk "$(sed 's|/usr/bin/|/bin/|g' <<<"$GOOD_PROBE")"
+check "other command paths: exit 0"     '[[ $CODE == 0 ]]'
+
+chk "$(sed 's|^link .*|link none|' <<<"$GOOD_PROBE")"
+check "not installed: exit 1"           '[[ $CODE == 1 && $OUT == *"./first-install.sh --host pi@host first"* ]] && read_only'
+chk "$(sed 's|^active .*|active failed|' <<<"$GOOD_PROBE")"
+check "service down: exit 1"            '[[ $CODE == 1 && $OUT == *"service is '"'"'failed'"'"'"* ]]'
+chk "$(sed 's|^arch .*|arch mips|' <<<"$GOOD_PROBE")"
+check "unsupported arch: exit 1"        '[[ $CODE == 1 && $OUT == *"unsupported architecture: mips"* ]]'
+chk "$(sed 's|^config .*|config absent|' <<<"$GOOD_PROBE")"
+check "no host config: would install"   '[[ $CODE == 0 && $OUT == *"config.toml would be installed"* ]] && read_only'
+mv "$CHK/config.toml" "$CHK/config.toml.away"
+chk "$(sed 's|^config .*|config absent|' <<<"$GOOD_PROBE")"
+mv "$CHK/config.toml.away" "$CHK/config.toml"
+check "  …and none here: exit 1"        '[[ $CODE == 1 && $OUT == *"the service would not start"* ]]'
+
+STUB_UNIT_RC=1 chk "$GOOD_PROBE"
+check "unit differs: exit 1"            '[[ $CODE == 1 && $OUT == *"./deploy.sh --install-unit --host pi@host"* ]] && read_only'
+STUB_UNIT_RC=2 chk "$GOOD_PROBE"
+check "unit check fails: exit 1"        '[[ $CODE == 1 && $OUT == *"install-unit.sh --check failed (exit 2)"* ]]'
+STUB_PROBE_FAIL=1 chk "$GOOD_PROBE"
+check "host unreachable: exit 2"        '[[ $CODE == 2 && $OUT == *"cannot read"* && $CALLS != *"install-unit"* ]]'
+
+# A check that goes wrong must stop, never fall through into the deploy:
+# bash abandons the whole if-block on an arithmetic error, set -e or not.
+chk "$(sed 's|^versions .*|versions 1 2|' <<<"$GOOD_PROBE")"
+check "garbled probe: exit 2"           '[[ $CODE == 2 && $OUT == *"unreadable version count"* && $OUT != *"Detecting architecture"* ]] && read_only'
+chk "$(sed 's|^versions .*|versions a[$(touch '"$WORK"'/pwned)]|' <<<"$GOOD_PROBE")"
+check "host text never evaluated"       '[[ $CODE == 2 && ! -e $WORK/pwned ]] && read_only'
+chk "$(sed 's|^active .*|active|' <<<"$GOOD_PROBE")"
+check "empty field is empty"            '[[ $CODE == 1 && $OUT == *"service is '"''"'"* ]]'
+
+# Tags, runas, and where the command lives.
+chk "$(sed 's|NOPASSWD: |NOPASSWD: SETENV: |' <<<"$GOOD_PROBE")"
+check "SETENV: tag: still passwordless" '[[ $CODE == 0 ]]'
+chk "$(sed 's|(root) NOPASSWD: .*|(root) NOPASSWD: /usr/bin/systemctl daemon-reload, PASSWD: /usr/bin/systemctl restart ups-mqtt, NOPASSWD: /usr/bin/tee /etc/ups-mqtt/config.toml|' <<<"$GOOD_PROBE")"
+check "PASSWD: in between: just that"   '[[ $CODE == 1 && $OUT == *"password for: systemctl restart ups-mqtt"* && $(grep -c "would ask" <<<"$OUT") == 1 ]]'
+chk "$(sed 's|(root) NOPASSWD: .*|(postgres) NOPASSWD: ALL|' <<<"$GOOD_PROBE")"
+check "other runas: does not count"     '[[ $CODE == 1 && $(grep -c "would ask" <<<"$OUT") == 3 ]]'
+chk "$(sed 's|(root) NOPASSWD: .*|(ALL : ALL) NOPASSWD: ALL|' <<<"$GOOD_PROBE")"
+check "runas ALL: counts"               '[[ $CODE == 0 ]]'
+chk "$(sed 's|(root) NOPASSWD: .*|(ALL, !root) NOPASSWD: ALL|' <<<"$GOOD_PROBE")"
+check "runas excluding root: no"        '[[ $CODE == 1 && $(grep -c "would ask" <<<"$OUT") == 3 ]]'
+chk "$(sed 's|(root) NOPASSWD: .*|(root) NOPASSWD: ALL, !/usr/bin/systemctl restart ups-mqtt|' <<<"$GOOD_PROBE")"
+check "ALL minus a command: no"         '[[ $CODE == 1 && $(grep -c "would ask" <<<"$OUT") == 3 ]]'
+chk "$(sed 's|/usr/bin/systemctl|/home/u/bin/systemctl|g' <<<"$GOOD_PROBE")"
+check "user-writable path: no"          '[[ $CODE == 1 && $(grep -c "would ask" <<<"$OUT") == 2 ]]'
+
+# Exactly two remote commands, the probe and the unit check; nothing else.
+chk "$GOOD_PROBE"
+check "exactly the two remote reads"    '[[ $(grep -cx "==" <<<"$CALLS") == 2 && $(sed -n 2p <<<"$CALLS") == *"echo arch"* && $CALLS == *$'"'"'==\nd=$(mktemp -d) && trap'"'"'* ]]'
+check "  …the unit sent is this one"    'tar -xOf "$WORK/chktar" ups-mqtt.service | cmp -s - "$REPO/ups-mqtt.service"'
+mkdir -p "$WORK/chktmp"
+printf '%s\n' "$GOOD_PROBE" > "$WORK/probe"
+OUT=$(cd "$CHK" && TMPDIR="$WORK/chktmp" PATH="$CHK/bin:$PATH" bash ./deploy.sh --dry-run --host pi@host 2>&1 < /dev/null) || true
+check "--dry-run: same as --check"      '[[ $OUT == *"Ready to deploy"* ]]'
+check "  …staging removed"              '[[ -z "$(ls -A "$WORK/chktmp")" ]]'
+
+run --check --install-unit --host pi@host
+check "--check with an install: exit 2" '[[ $CODE == 2 && $OUT == *"--check reports on a deploy"* && -z $CALLS ]]'
+run --check
+check "--check, no host: exit 2"        '[[ $CODE == 2 && $OUT == *"name the host"* && -z $CALLS ]]'
 
 echo "deploy: $PASS passed, $FAIL failed"
 [[ $FAIL == 0 ]]

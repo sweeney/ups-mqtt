@@ -37,7 +37,8 @@ testdata/live-tests/<date>/    their raw captures (sanitised), the source for fi
 scripts/                       host tooling (ups-doctor, install-unit, install-sudoers,
                                persist-journal, live-test); tests in scripts/test/
 deploy.sh, first-install.sh    build and ship to a Linux host: --site NAME (deploy-sites.sh
-                               reads the gitignored sites file; sites.example) or --host
+                               reads the gitignored sites file; sites.example) or --host;
+                               deploy.sh --check reports first, read-only
 remote-setup.sh                the one sudo step first-install.sh prints
 install-macos.sh               macOS LaunchAgent install (net.swee.ups-mqtt.plist)
 ups-mqtt.service               systemd unit; config.toml.example; nut/ (macOS NUT examples)

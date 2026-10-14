@@ -4,6 +4,9 @@
 # Usage:
 #   ./deploy.sh --site NAME        # deploy to a site's host
 #   ./deploy.sh --host USER@HOST   # deploy to a host not in the sites file
+#   ./deploy.sh --site NAME --check
+#                                  # report what a deploy would do, change
+#                                  # nothing (no build, no root, no restart)
 #   ./deploy.sh --install-unit --site NAME
 #                                  # install this checkout's systemd unit
 #                                  # (asks first, needs sudo); no build
@@ -15,6 +18,10 @@
 #                      UPS_MQTT_SITES names another file).  There is no
 #                      default, so a deploy always names the host it changes.
 #   --host USER@HOST   the ssh target; overrides the site's
+#   --check            read-only: the deployed build, the prerequisites, the
+#                      passwordless sudo the deploy needs, the service, and
+#                      the unit diff.  Exit 0 ready to deploy, 1 something
+#                      needs attention first, 2 error.
 #
 # Prerequisites on the target host (one-time, run first-install.sh):
 #   - /etc/ups-mqtt/config.toml exists
@@ -31,6 +38,7 @@ cd "$(dirname "$0")"   # every path below is relative to the checkout
 INSTALL=""
 SITE=""
 HOST=""
+CHECK=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --install-unit)    [[ -z "$INSTALL" ]] || { echo "ERROR: one --install-* at a time" >&2; exit 2; }
@@ -43,12 +51,14 @@ while [[ $# -gt 0 ]]; do
     --host)            [[ $# -ge 2 && -n "$2" && "$2" != -* ]] || { echo "ERROR: --host needs USER@HOST" >&2; exit 2; }
                        [[ -z "$HOST" ]] || { echo "ERROR: --host given twice" >&2; exit 2; }
                        HOST=$2; shift ;;
+    --check|--dry-run) CHECK=1 ;;
     -h|--help)         sed -n '2,/^set -euo/p' "$(basename "$0")" | grep '^#' | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*)                echo "ERROR: unknown argument: $1" >&2; exit 2 ;;
     *)                 echo "ERROR: name the host with --site NAME or --host USER@HOST, not '$1'" >&2; exit 2 ;;
   esac
   shift
 done
+[[ $CHECK == 0 || -z "$INSTALL" ]] || { echo "ERROR: --check reports on a deploy; the installers have their own (run on the host)" >&2; exit 2; }
 # shellcheck source=deploy-sites.sh
 source ./deploy-sites.sh
 TARGET=$(resolve_target "$SITE" "$HOST") || exit 2
@@ -84,7 +94,117 @@ if [[ -n "$INSTALL" ]]; then
   ssh -t "${TARGET}" "sudo bash ~/${SERVICE}/${SETUP_DIR}/${INSTALL}" || rc=$?
   exit "${rc}"
 fi
+
 KEEP_VERSIONS=3
+
+# ---------------------------------------------------------------------------
+# --check: report, change nothing.  One ssh reads the host's state; a second
+# streams this checkout's unit and install-unit.sh into a temporary directory
+# there, runs its --check and removes it, so ~/ups-mqtt/setup/ is untouched.
+# ---------------------------------------------------------------------------
+if [[ $CHECK == 1 ]]; then
+  echo "==> Checking ${TARGET} (read-only)..."
+  ATTENTION=0
+  attention() { echo "  ⚠  $*"; ATTENTION=1; }
+  # Each line is KEY VALUE; "sudoers" lines are the host's sudo -n -l
+  # listing, read below for what may run without a password.
+  PROBE=$(ssh "${TARGET}" "
+    echo arch \$(uname -m)
+    echo link \$(readlink /usr/local/bin/${SERVICE} 2>/dev/null || echo none)
+    echo current \$(readlink ~/${SERVICE}/${SERVICE} 2>/dev/null || echo none)
+    echo versions \$(ls -d ~/${SERVICE}/${SERVICE}-2* 2>/dev/null | wc -l)
+    echo config \$([ -f /etc/${SERVICE}/config.toml ] && echo present || echo absent)
+    echo active \$(systemctl is-active ${SERVICE} 2>/dev/null || true)
+    sudo -n -l 2>/dev/null | sed 's/^/sudoers /'
+  ") || { echo "ERROR: cannot read ${TARGET}'s state over ssh" >&2; exit 2; }
+  field() { awk -v k="$1" '$1 == k {sub(/^[^ ]+ ?/, ""); print; exit}' <<<"${PROBE}"; }
+
+  case "$(field arch)" in
+    x86_64|aarch64|arm64|armv7l|armv6l) echo "    arch:      $(field arch)" ;;
+    *) attention "unsupported architecture: $(field arch)" ;;
+  esac
+  echo "    would ship: $(git describe --always --dirty 2>/dev/null || echo "an unknown commit")"
+  if [[ "$(field link)" == none ]]; then
+    attention "/usr/local/bin/${SERVICE} not found: run ./first-install.sh ${WHERE} first"
+  else
+    echo "    deployed:  $(basename "$(field current)")"
+  fi
+  VERSIONS=$(field versions)
+  # Never do arithmetic on text from the host unchecked: bash would evaluate it.
+  [[ ${VERSIONS} =~ ^[0-9]+$ ]] || { echo "ERROR: unreadable version count from ${TARGET}: '${VERSIONS}'" >&2; exit 2; }
+  PRUNE=$(( VERSIONS + 1 > KEEP_VERSIONS ? VERSIONS + 1 - KEEP_VERSIONS : 0 ))
+  echo "    versions:  ${VERSIONS} kept on the host; a deploy adds one and prunes ${PRUNE}"
+  if [[ "$(field config)" == present ]]; then
+    echo "    config:    present (left untouched)"
+  elif [[ -f config.toml ]]; then
+    echo "    config:    absent; this checkout's config.toml would be installed"
+  else
+    attention "no config on the host and no local config.toml: the service would not start"
+  fi
+  if [[ "$(field active)" == active ]]; then
+    echo "    service:   active (a deploy restarts it)"
+  else
+    attention "service is '$(field active)'"
+  fi
+  # sudo -l with a command only says whether it is allowed at all, password
+  # or not, so read the entries themselves.  An entry is "(RUNAS) cmd, cmd",
+  # each cmd possibly prefixed by tags (NOPASSWD:, PASSWD:, SETENV: …); a
+  # NOPASSWD: or PASSWD: tag holds for the commands after it until the next.
+  # Only entries that run as root count.  Prints each passwordless command.
+  NOPASSWD=$(awk '$1 == "sudoers" && match($0, /\([^)]*\)/) {
+      runas = substr($0, RSTART + 1, RLENGTH - 2); sub(/ *:.*$/, "", runas)
+      if (runas ~ /!/ || runas !~ /(^|, *)(root|ALL)(,|$)/) next
+      rest = substr($0, RSTART + RLENGTH); sub(/^ +/, "", rest)
+      n = split(rest, cmds, /, */); np = 0
+      for (i = 1; i <= n; i++) {
+        c = cmds[i]
+        while (match(c, /^[A-Z_]+: */)) {
+          tag = substr(c, 1, RLENGTH); sub(/: *$/, "", tag)
+          if (tag == "NOPASSWD") np = 1; else if (tag == "PASSWD") np = 0
+          c = substr(c, RLENGTH + 1)
+        }
+        if (np || c ~ /^!/) print c
+      }
+    }' <<<"${PROBE}")
+  MISSING=""
+  # sudo finds a bare command on its secure_path, so only system directories.
+  # A negated command (!cmd) may carve the very one needed out of an ALL,
+  # so with any negation present ALL proves nothing.
+  ALL="ALL|"
+  grep -q '^!' <<<"${NOPASSWD}" && ALL=""
+  for c in "systemctl daemon-reload" "systemctl restart ${SERVICE}" "tee /etc/${SERVICE}/config.toml"; do
+    grep -qxE "${ALL}(/usr)?/s?bin/${c//./\\.}" <<<"${NOPASSWD}" || MISSING+="${c}"$'\n'
+  done
+  MISSING=${MISSING%$'\n'}
+  if [[ -z "${MISSING}" ]]; then
+    echo "    sudo:      the deploy's root commands need no password"
+  else
+    while read -r c; do attention "sudo would ask for a password for: ${c}"; done <<<"${MISSING}"
+    echo "     install the rule: ./deploy.sh --install-sudoers ${WHERE}"
+  fi
+
+  echo "==> Unit:"
+  rc=0
+  tar -C "${STAGE}/${SETUP_DIR}" -cf - "${SERVICE}.service" install-unit.sh \
+    | ssh "${TARGET}" 'd=$(mktemp -d) && trap "rm -rf \"$d\"" EXIT && tar -C "$d" -xf - && bash "$d/install-unit.sh" --check "$d/'"${SERVICE}"'.service"' \
+    || rc=$?
+  case "${rc}" in
+    0) ;;
+    1) attention "the installed unit differs (diff above); after deploying: ./deploy.sh --install-unit ${WHERE}" ;;
+    *) attention "install-unit.sh --check failed (exit ${rc}); see above" ;;
+  esac
+
+  echo ""
+  if [[ ${ATTENTION} == 0 ]]; then
+    echo "==> Ready to deploy: ./deploy.sh ${WHERE}"
+  else
+    echo "==> Needs attention before (or after) deploying; see ⚠ above."
+  fi
+  exit "${ATTENTION}"
+fi
+# A --check must never go on to deploy: an error that abandons the block
+# above (bash does that for an arithmetic error, set -e or not) stops here.
+[[ $CHECK == 0 ]] || { echo "ERROR: --check stopped unexpectedly; nothing was changed" >&2; exit 2; }
 VERSION=$(date +%Y%m%d-%H%M%S)
 
 # ---------------------------------------------------------------------------
