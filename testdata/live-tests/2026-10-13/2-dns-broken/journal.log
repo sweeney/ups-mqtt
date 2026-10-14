@@ -13,8 +13,8 @@ Oct 13 13:19:16.992824 ups-host tailscaled[1058]: health(warnable=resolv-conf-ov
 Oct 13 13:19:17.007948 ups-host NetworkManager[626]: <info>  manager: NetworkManager state is now CONNECTED_LOCAL
 Oct 13 13:19:17.132783 ups-host NetworkManager[626]: <info>  device (eth0): carrier: link connected
 Oct 13 13:19:17.133680 ups-host NetworkManager[626]: <info>  device (eth0): state change: unavailable -> disconnected (reason 'carrier-changed', managed-type: 'full')
-Oct 13 13:19:17.136843 ups-host NetworkManager[626]: <info>  policy: auto-activating connection 'netplan-eth0' (75a1216a-9d1a-30cd-8aca-ace5526ec021)
-Oct 13 13:19:17.139451 ups-host NetworkManager[626]: <info>  device (eth0): Activation: starting connection 'netplan-eth0' (75a1216a-9d1a-30cd-8aca-ace5526ec021)
+Oct 13 13:19:17.136843 ups-host NetworkManager[626]: <info>  policy: auto-activating connection 'netplan-eth0' (00000000-0000-0000-0000-000000000001)
+Oct 13 13:19:17.139451 ups-host NetworkManager[626]: <info>  device (eth0): Activation: starting connection 'netplan-eth0' (00000000-0000-0000-0000-000000000001)
 Oct 13 13:19:17.140016 ups-host NetworkManager[626]: <info>  device (eth0): state change: disconnected -> prepare (reason 'none', managed-type: 'full')
 Oct 13 13:19:17.141027 ups-host NetworkManager[626]: <info>  manager: NetworkManager state is now CONNECTING
 Oct 13 13:19:17.141716 ups-host NetworkManager[626]: <info>  device (eth0): state change: prepare -> config (reason 'none', managed-type: 'full')
@@ -36,8 +36,8 @@ Oct 13 13:20:02.665487 ups-host NetworkManager[626]: <info>  dhcp4 (eth0): cance
 Oct 13 13:20:02.673955 ups-host tailscaled[1058]: LinkChange: all links down; pausing
 Oct 13 13:20:02.665563 ups-host NetworkManager[626]: <info>  dhcp4 (eth0): activation: beginning transaction (timeout in 45 seconds)
 Oct 13 13:20:02.665669 ups-host NetworkManager[626]: <info>  dhcp4 (eth0): state changed no lease
-Oct 13 13:20:02.675721 ups-host NetworkManager[626]: <info>  policy: auto-activating connection 'netplan-eth0' (75a1216a-9d1a-30cd-8aca-ace5526ec021)
-Oct 13 13:20:02.679481 ups-host NetworkManager[626]: <info>  device (eth0): Activation: starting connection 'netplan-eth0' (75a1216a-9d1a-30cd-8aca-ace5526ec021)
+Oct 13 13:20:02.675721 ups-host NetworkManager[626]: <info>  policy: auto-activating connection 'netplan-eth0' (00000000-0000-0000-0000-000000000001)
+Oct 13 13:20:02.679481 ups-host NetworkManager[626]: <info>  device (eth0): Activation: starting connection 'netplan-eth0' (00000000-0000-0000-0000-000000000001)
 Oct 13 13:20:02.680270 ups-host NetworkManager[626]: <info>  device (eth0): state change: disconnected -> prepare (reason 'none', managed-type: 'full')
 Oct 13 13:20:02.682281 ups-host NetworkManager[626]: <info>  manager: NetworkManager state is now CONNECTING
 Oct 13 13:20:02.683851 ups-host NetworkManager[626]: <info>  device (eth0): state change: prepare -> config (reason 'none', managed-type: 'full')
@@ -182,7 +182,7 @@ Oct 13 19:52:48.827405 ups-host tailscaled[21276]: dns: [rc=nm resolved=not-in-u
 Oct 13 19:52:48.830273 ups-host NetworkManager[626]: <info>  manager: (tailscale0): new Tun device (/org/freedesktop/NetworkManager/Devices/6)
 Oct 13 19:52:49.514120 ups-host NetworkManager[626]: <info>  device (tailscale0): state change: unmanaged -> unavailable (reason 'connection-assumed', managed-type: 'external')
 Oct 13 19:52:49.525705 ups-host NetworkManager[626]: <info>  device (tailscale0): state change: unavailable -> disconnected (reason 'connection-assumed', managed-type: 'external')
-Oct 13 19:52:49.530592 ups-host NetworkManager[626]: <info>  device (tailscale0): Activation: starting connection 'tailscale0' (349693d0-433a-484f-b33c-9de520b30d3d)
+Oct 13 19:52:49.530592 ups-host NetworkManager[626]: <info>  device (tailscale0): Activation: starting connection 'tailscale0' (00000000-0000-0000-0000-000000000002)
 Oct 13 19:52:49.534110 ups-host NetworkManager[626]: <info>  device (tailscale0): state change: disconnected -> prepare (reason 'none', managed-type: 'external')
 Oct 13 19:52:49.536696 ups-host NetworkManager[626]: <info>  device (tailscale0): state change: prepare -> config (reason 'none', managed-type: 'external')
 Oct 13 19:52:49.538605 ups-host NetworkManager[626]: <info>  device (tailscale0): state change: config -> ip-config (reason 'none', managed-type: 'external')

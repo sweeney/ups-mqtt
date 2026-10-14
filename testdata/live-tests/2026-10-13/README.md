@@ -6,8 +6,10 @@ one directory per test.
 
 Identifiers are replaced: the host is `ups-host`, the label `site-ups`, the
 broker host `broker`, Tailscale addresses `100.64.0.x`, LAN addresses
-`192.0.2.x`, the site `site`, a public endpoint `198.51.100.1`. Times in log
-lines are the Pi's local time (BST, UTC+1); payload timestamps are UTC.
+`192.0.2.x`, the site `site`, a public endpoint `198.51.100.1`, the
+Tailscale relay region `rgn`; NetworkManager connection IDs are zeroed.
+Times in log lines are the Pi's local time (BST, UTC+1); payload
+timestamps are UTC.
 
 | File | What |
 |---|---|

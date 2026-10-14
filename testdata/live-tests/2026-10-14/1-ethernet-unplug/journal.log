@@ -50,11 +50,11 @@ Oct 14 19:55:15.432045 ups-host tailscaled[1058]: health: connectivity impacted;
 Oct 14 19:55:43.726102 ups-host NetworkManager[632]: <info>  [1792004143.7260] device (eth0): carrier: link connected
 Oct 14 19:55:43.727570 ups-host NetworkManager[632]: <info>  [1792004143.7274] device (eth0): state change: unavailable -> disconnected (reason 'carrier-changed', managed-type: 'full')
 Oct 14 19:55:43.730312 ups-host tailscaled[1058]: monitor: RTM_DELROUTE: src=, dst=ff00::/8, gw=, outif=2, table=255
-Oct 14 19:55:43.730867 ups-host NetworkManager[632]: <info>  [1792004143.7307] policy: auto-activating connection 'netplan-eth0' (75a1216a-9d1a-30cd-8aca-ace5526ec021)
+Oct 14 19:55:43.730867 ups-host NetworkManager[632]: <info>  [1792004143.7307] policy: auto-activating connection 'netplan-eth0' (00000000-0000-0000-0000-000000000001)
 Oct 14 19:55:43.733481 ups-host tailscaled[1058]: LinkChange: all links down; pausing: old: interfaces.State{defaultRoute= ifs={tailscale0:[100.64.0.2/32 2001:db8::2/128 llu6]} v4=false v6=false} new: interfaces.State{defaultRoute= ifs={tailscale0:[100.64.0.2/32 2001:db8::2/128 llu6]} v4=false v6=false} diff: if eth0 flags: up|broadcast|multicast->up|broadcast|multicast|running
 Oct 14 19:55:43.734524 ups-host tailscaled[1058]: health: connectivity impacted; triggering captive portal detection
 Oct 14 19:55:43.734524 ups-host tailscaled[1058]: health(warnable=no-derp-connection): ok
-Oct 14 19:55:43.733579 ups-host NetworkManager[632]: <info>  [1792004143.7334] device (eth0): Activation: starting connection 'netplan-eth0' (75a1216a-9d1a-30cd-8aca-ace5526ec021)
+Oct 14 19:55:43.733579 ups-host NetworkManager[632]: <info>  [1792004143.7334] device (eth0): Activation: starting connection 'netplan-eth0' (00000000-0000-0000-0000-000000000001)
 Oct 14 19:55:43.734232 ups-host NetworkManager[632]: <info>  [1792004143.7341] device (eth0): state change: disconnected -> prepare (reason 'none', managed-type: 'full')
 Oct 14 19:55:43.735620 ups-host NetworkManager[632]: <info>  [1792004143.7355] manager: NetworkManager state is now CONNECTING
 Oct 14 19:55:43.737687 ups-host NetworkManager[632]: <info>  [1792004143.7375] device (eth0): state change: prepare -> config (reason 'none', managed-type: 'full')
@@ -93,10 +93,10 @@ Oct 14 19:55:44.738718 ups-host tailscaled[1058]: dns: Resolvercfg: {Routes:{.:[
 Oct 14 19:55:44.738718 ups-host tailscaled[1058]: dns: OScfg: {Nameservers:[100.100.100.100 fd7a:115c:a1e0::53] SearchDomains:[example-tailnet.ts.net. localdomain.] }
 Oct 14 19:55:44.805509 ups-host tailscaled[1058]: wgengine: set DNS config again after major link change
 Oct 14 19:55:44.805509 ups-host tailscaled[1058]: router: portUpdate(port=41641, network=udp6)
-Oct 14 19:55:44.805509 ups-host tailscaled[1058]: derphttp.Client.Recv: connecting to derp-8 (lhr)
+Oct 14 19:55:44.805509 ups-host tailscaled[1058]: derphttp.Client.Recv: connecting to derp-1 (rgn)
 Oct 14 19:55:44.805509 ups-host tailscaled[1058]: router: portUpdate(port=41641, network=udp4)
 Oct 14 19:55:44.805509 ups-host tailscaled[1058]: Rebind; defIf="eth0", ips=[192.0.2.87/24 fe80::1/64]
-Oct 14 19:55:44.812234 ups-host tailscaled[1058]: derphttp.Client.Recv: connecting to derp-8 (lhr)
+Oct 14 19:55:44.812234 ups-host tailscaled[1058]: derphttp.Client.Recv: connecting to derp-1 (rgn)
 Oct 14 19:55:44.882945 ups-host tailscaled[1058]: health(warnable=dns-forward-failing): ok
 Oct 14 19:55:45.040201 ups-host tailscaled[1058]: control: controlhttp: forcing port 443 dial due to recent noise dial
 Oct 14 19:55:45.265399 ups-host tailscaled[1058]: control: netmap: got new dial plan from control

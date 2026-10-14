@@ -17,8 +17,8 @@ Oct 13 12:57:44.199171 ups-host tailscaled[1058]: health(warnable=network-status
 Oct 13 12:57:53.912159 ups-host NetworkManager[626]: <info>  device (eth0): carrier: link connected
 Oct 13 12:57:53.913965 ups-host NetworkManager[626]: <info>  device (eth0): state change: unavailable -> disconnected (reason 'carrier-changed', managed-type: 'full')
 Oct 13 12:57:53.922886 ups-host tailscaled[1058]: LinkChange: all links down; pausing
-Oct 13 12:57:53.924534 ups-host NetworkManager[626]: <info>  policy: auto-activating connection 'netplan-eth0' (75a1216a-9d1a-30cd-8aca-ace5526ec021)
-Oct 13 12:57:53.928800 ups-host NetworkManager[626]: <info>  device (eth0): Activation: starting connection 'netplan-eth0' (75a1216a-9d1a-30cd-8aca-ace5526ec021)
+Oct 13 12:57:53.924534 ups-host NetworkManager[626]: <info>  policy: auto-activating connection 'netplan-eth0' (00000000-0000-0000-0000-000000000001)
+Oct 13 12:57:53.928800 ups-host NetworkManager[626]: <info>  device (eth0): Activation: starting connection 'netplan-eth0' (00000000-0000-0000-0000-000000000001)
 Oct 13 12:57:53.929473 ups-host NetworkManager[626]: <info>  device (eth0): state change: disconnected -> prepare (reason 'none', managed-type: 'full')
 Oct 13 12:57:53.931278 ups-host NetworkManager[626]: <info>  manager: NetworkManager state is now CONNECTING
 Oct 13 12:57:53.932446 ups-host NetworkManager[626]: <info>  device (eth0): state change: prepare -> config (reason 'none', managed-type: 'full')
@@ -47,8 +47,8 @@ Oct 13 12:58:39.670263 ups-host tailscaled[1058]: LinkChange: all links down; pa
 Oct 13 12:58:39.683414 ups-host NetworkManager[626]: <info>  dhcp4 (eth0): canceled DHCP transaction
 Oct 13 12:58:39.683493 ups-host NetworkManager[626]: <info>  dhcp4 (eth0): activation: beginning transaction (timeout in 45 seconds)
 Oct 13 12:58:39.683585 ups-host NetworkManager[626]: <info>  dhcp4 (eth0): state changed no lease
-Oct 13 12:58:39.691289 ups-host NetworkManager[626]: <info>  policy: auto-activating connection 'netplan-eth0' (75a1216a-9d1a-30cd-8aca-ace5526ec021)
-Oct 13 12:58:39.694360 ups-host NetworkManager[626]: <info>  device (eth0): Activation: starting connection 'netplan-eth0' (75a1216a-9d1a-30cd-8aca-ace5526ec021)
+Oct 13 12:58:39.691289 ups-host NetworkManager[626]: <info>  policy: auto-activating connection 'netplan-eth0' (00000000-0000-0000-0000-000000000001)
+Oct 13 12:58:39.694360 ups-host NetworkManager[626]: <info>  device (eth0): Activation: starting connection 'netplan-eth0' (00000000-0000-0000-0000-000000000001)
 Oct 13 12:58:39.694932 ups-host NetworkManager[626]: <info>  device (eth0): state change: disconnected -> prepare (reason 'none', managed-type: 'full')
 Oct 13 12:58:39.696711 ups-host NetworkManager[626]: <info>  manager: NetworkManager state is now CONNECTING
 Oct 13 12:58:39.697818 ups-host NetworkManager[626]: <info>  device (eth0): state change: prepare -> config (reason 'none', managed-type: 'full')
