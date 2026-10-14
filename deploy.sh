@@ -2,14 +2,19 @@
 # deploy.sh — build, ship, and restart ups-mqtt on a remote host.
 #
 # Usage:
-#   ./deploy.sh                    # deploy to default host (sweeney@garibaldi)
-#   ./deploy.sh user@host          # deploy to a specific host
-#   ./deploy.sh --install-unit [user@host]
+#   ./deploy.sh --site NAME        # deploy to a site's host
+#   ./deploy.sh --host USER@HOST   # deploy to a host not in the sites file
+#   ./deploy.sh --install-unit --site NAME
 #                                  # install this checkout's systemd unit
 #                                  # (asks first, needs sudo); no build
-#   ./deploy.sh --install-sudoers [user@host]
+#   ./deploy.sh --install-sudoers --site NAME
 #                                  # install the passwordless-sudo rule this
 #                                  # script needs (asks first, needs sudo)
+#
+#   --site NAME        a site in the local sites file (copy sites.example;
+#                      UPS_MQTT_SITES names another file).  There is no
+#                      default, so a deploy always names the host it changes.
+#   --host USER@HOST   the ssh target; overrides the site's
 #
 # Prerequisites on the target host (one-time, run first-install.sh):
 #   - /etc/ups-mqtt/config.toml exists
@@ -21,21 +26,34 @@
 #
 # See first-install.sh for the one-time setup procedure.
 set -euo pipefail
+cd "$(dirname "$0")"   # every path below is relative to the checkout
 
 INSTALL=""
-TARGET=""
-for arg in "$@"; do
-  case "$arg" in
+SITE=""
+HOST=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
     --install-unit)    [[ -z "$INSTALL" ]] || { echo "ERROR: one --install-* at a time" >&2; exit 2; }
                        INSTALL=install-unit.sh ;;
     --install-sudoers) [[ -z "$INSTALL" ]] || { echo "ERROR: one --install-* at a time" >&2; exit 2; }
                        INSTALL=install-sudoers.sh ;;
-    -*)             echo "ERROR: unknown argument: $arg" >&2; exit 2 ;;
-    *)              [[ -z "$TARGET" ]] || { echo "ERROR: more than one host given" >&2; exit 2; }
-                    TARGET="$arg" ;;
+    --site)            [[ $# -ge 2 && -n "$2" && "$2" != -* ]] || { echo "ERROR: --site needs a name" >&2; exit 2; }
+                       [[ -z "$SITE" ]] || { echo "ERROR: --site given twice" >&2; exit 2; }
+                       SITE=$2; shift ;;
+    --host)            [[ $# -ge 2 && -n "$2" && "$2" != -* ]] || { echo "ERROR: --host needs USER@HOST" >&2; exit 2; }
+                       [[ -z "$HOST" ]] || { echo "ERROR: --host given twice" >&2; exit 2; }
+                       HOST=$2; shift ;;
+    -h|--help)         sed -n '2,/^set -euo/p' "$(basename "$0")" | grep '^#' | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -*)                echo "ERROR: unknown argument: $1" >&2; exit 2 ;;
+    *)                 echo "ERROR: name the host with --site NAME or --host USER@HOST, not '$1'" >&2; exit 2 ;;
   esac
+  shift
 done
-TARGET="${TARGET:-sweeney@garibaldi}"
+# shellcheck source=deploy-sites.sh
+source ./deploy-sites.sh
+TARGET=$(resolve_target "$SITE" "$HOST") || exit 2
+# How to name this host again in the hints printed below.
+if [[ -n "$HOST" ]]; then WHERE="--host ${HOST}"; else WHERE="--site ${SITE}"; fi
 SERVICE="ups-mqtt"
 
 # The unit and the root-only installers travel with every deploy; installing
@@ -89,7 +107,7 @@ echo "    ${UNAME} → GOOS=${GOOS} GOARCH=${GOARCH}${GOARM:+ GOARM=${GOARM}}"
 if ! ssh "${TARGET}" "[ -L /usr/local/bin/${SERVICE} ]" 2>/dev/null; then
   echo ""
   echo "  ERROR: /usr/local/bin/${SERVICE} not found on ${TARGET}."
-  echo "  Run ./first-install.sh ${TARGET} first."
+  echo "  Run ./first-install.sh ${WHERE} first."
   echo ""
   exit 1
 fi
@@ -191,7 +209,7 @@ case "${UNIT_CHECK}" in
   1)
     echo ""
     echo "  ⚠  The installed unit differs from this checkout's (diff above). To install it:"
-    echo "       ./deploy.sh --install-unit ${TARGET}"
+    echo "       ./deploy.sh --install-unit ${WHERE}"
     ;;
   *)
     echo ""

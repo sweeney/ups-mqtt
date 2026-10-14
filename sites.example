@@ -1,0 +1,9 @@
+# Sites deploy.sh and first-install.sh know. Copy to sites (gitignored) and
+# fill in your own hosts; the addresses stay out of the repo.
+#
+#   site      the name passed to --site
+#   ssh       the host the site's UPS hangs off, as ssh reaches it
+#
+# site        ssh
+home          admin@100.64.0.20
+site          pi@100.64.0.10

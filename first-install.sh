@@ -5,11 +5,34 @@
 # a single command to run in your terminal to complete the installation.
 #
 # Usage:
-#   ./first-install.sh                  # default host: sweeney@garibaldi
-#   ./first-install.sh user@host
+#   ./first-install.sh --site NAME        # a site in the local sites file
+#   ./first-install.sh --host USER@HOST   # a host not in it
+#
+# The sites file is described in deploy-sites.sh.  There is no default
+# host, so an install always names the host it changes.
 set -euo pipefail
+cd "$(dirname "$0")"   # every path below is relative to the checkout
 
-TARGET="${1:-sweeney@garibaldi}"
+SITE=""
+HOST=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --site)    [[ $# -ge 2 && -n "$2" && "$2" != -* ]] || { echo "ERROR: --site needs a name" >&2; exit 2; }
+               [[ -z "$SITE" ]] || { echo "ERROR: --site given twice" >&2; exit 2; }
+               SITE=$2; shift ;;
+    --host)    [[ $# -ge 2 && -n "$2" && "$2" != -* ]] || { echo "ERROR: --host needs USER@HOST" >&2; exit 2; }
+               [[ -z "$HOST" ]] || { echo "ERROR: --host given twice" >&2; exit 2; }
+               HOST=$2; shift ;;
+    -h|--help) sed -n '2,/^set -euo/p' "$(basename "$0")" | grep '^#' | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -*)        echo "ERROR: unknown argument: $1" >&2; exit 2 ;;
+    *)         echo "ERROR: name the host with --site NAME or --host USER@HOST, not '$1'" >&2; exit 2 ;;
+  esac
+  shift
+done
+# shellcheck source=deploy-sites.sh
+source ./deploy-sites.sh
+TARGET=$(resolve_target "$SITE" "$HOST") || exit 2
+if [[ -n "$HOST" ]]; then WHERE="--host ${HOST}"; else WHERE="--site ${SITE}"; fi
 SERVICE="ups-mqtt"
 VERSION=$(date +%Y%m%d-%H%M%S)
 
@@ -83,5 +106,5 @@ echo ""
 echo "    ssh -t ${TARGET} 'sudo bash ~/${SERVICE}/remote-setup.sh'"
 echo ""
 echo "  After that, all future updates are fully automated:"
-echo "    ./deploy.sh ${TARGET}"
+echo "    ./deploy.sh ${WHERE}"
 echo ""

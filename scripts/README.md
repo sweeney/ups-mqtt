@@ -45,7 +45,7 @@ a symlink with a file.) When the installed unit is out of date, the
 deploy ends with the diff and the command to install it:
 
 ```bash
-./deploy.sh --install-unit <host>
+./deploy.sh --install-unit --site <site>
 ```
 
 That ships this checkout's unit and the script again, then runs the script on
@@ -75,7 +75,7 @@ Hosts installed before it have a rule allowing any `systemctl` and
 and can delete, every log on the host. To replace it:
 
 ```bash
-./deploy.sh --install-sudoers <host>
+./deploy.sh --install-sudoers --site <site>
 ```
 
 sudo asks for your password, then the script shows the diff, checks the rule

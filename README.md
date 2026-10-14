@@ -476,18 +476,22 @@ scp config.toml.example user@host:/tmp/ups-mqtt.toml
 ssh user@host 'sudo mkdir -p /etc/ups-mqtt && sudo mv /tmp/ups-mqtt.toml /etc/ups-mqtt/config.toml'
 # Edit /etc/ups-mqtt/config.toml on the target to match your NUT/MQTT setup.
 
-# 2. Deploy
-./deploy.sh user@host
+# 2. Install: builds, uploads and prints the one sudo command that finishes it
+./first-install.sh --host user@host
 ```
 
-Subsequent deployments:
+Subsequent deployments name the host each time; there is no default.
+List your hosts once in `sites` (copy `sites.example`; it is gitignored,
+so the addresses stay out of the repo), then:
 
 ```bash
-./deploy.sh              # default host (TARGET in deploy.sh)
-./deploy.sh user@host    # specific host
-./deploy.sh --install-unit user@host   # install a changed systemd unit (asks first)
-./deploy.sh --install-sudoers user@host   # install the narrow sudo rule deploy.sh needs
+./deploy.sh --site NAME                   # a site's host, from sites
+./deploy.sh --host user@host              # any other host
+./deploy.sh --install-unit --site NAME    # install a changed systemd unit (asks first)
+./deploy.sh --install-sudoers --site NAME # install the narrow sudo rule deploy.sh needs
 ```
+
+`first-install.sh` takes the same `--site` / `--host`.
 
 The script:
 1. Detects the target architecture via SSH (`uname -m` → GOOS/GOARCH mapping)

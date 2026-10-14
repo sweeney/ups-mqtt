@@ -1,4 +1,4 @@
-sweeney@garibaldi:~$ upsc cyberpower@localhost
+$ upsc cyberpower@localhost
 Init SSL without certificate database
 battery.charge: 100
 battery.charge.low: 10

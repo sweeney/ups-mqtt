@@ -8,6 +8,9 @@ ups-mqtt-linux-*
 # Local config (copy config.toml.example and edit)
 config.toml
 
+# Local sites for deploy.sh (copy sites.example and edit)
+/sites
+
 # macOS
 .DS_Store
 
