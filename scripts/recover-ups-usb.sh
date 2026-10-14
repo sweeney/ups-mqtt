@@ -15,14 +15,13 @@
 #
 # Usage (must run as root):
 #   sudo ./scripts/recover-ups-usb.sh          # schedule wake, then sleep now
-#   sudo ./scripts/recover-ups-usb.sh verify   # AFTER it wakes: confirm UPS + restart daemon
+#   sudo ./scripts/recover-ups-usb.sh verify   # AFTER it wakes: confirm the UPS is back
 #
 set -euo pipefail
 
 UPS_NAME="cyberpower"
 UPS_VENDOR_ID=1892                      # CyberPower USB idVendor 0x0764 == 1892 decimal
 DRIVER_LABEL="org.nut.usbhid-ups-cyberpower"
-DAEMON_LABEL="net.swee.ups-mqtt"
 WAKE_MINUTES=3                          # how far ahead to schedule the one-time RTC wake
 BACKSTOP_MINUTES=10                     # daily repeating backstop wake, ~this far ahead (insurance)
 SLEEP_DELAY_MINUTES=3                   # (schedule mode) minutes from now until the scheduled sleep
@@ -240,19 +239,10 @@ do_verify() {
   log "UPS is live. Readings:"
   upsc "$UPS_NAME" ups.status battery.charge input.voltage ups.load 2>&1 | tee -a "$LOG" || true
 
-  # Restart the ups-mqtt daemon so it re-dials NUT (it does not reconnect a dead
-  # connection on its own). It runs as a per-user GUI LaunchAgent.
-  local uid="${SUDO_UID:-}"
-  if [[ -z "$uid" ]]; then
-    warn "SUDO_UID not set — cannot target the user LaunchAgent domain."
-    warn "Restart the daemon yourself (as your user): launchctl kickstart -k gui/\$(id -u)/${DAEMON_LABEL}"
-  else
-    log "Restarting ups-mqtt daemon (gui/${uid}/${DAEMON_LABEL})."
-    launchctl kickstart -k "gui/${uid}/${DAEMON_LABEL}" \
-      || warn "could not kickstart ${DAEMON_LABEL}; restart it manually with your user"
-  fi
-
-  log "Recovery complete. Confirm MQTT is publishing again."
+  # No need to restart ups-mqtt: it re-dials NUT by itself on its next read,
+  # and a restart would only publish online:false to subscribers for nothing
+  # (scripts/README.md, "ups-mqtt recovers on its own").
+  log "Recovery complete. ups-mqtt reconnects to NUT by itself; confirm MQTT is publishing again."
 }
 
 # ---------------------------------------------------------------------------

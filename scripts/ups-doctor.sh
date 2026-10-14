@@ -161,16 +161,16 @@ fi
 # ---------------------------------------------------------------------------
 # 4. ups-mqtt — recovers by itself; only report, do not restart
 # ---------------------------------------------------------------------------
-# Poll closes and re-dials a dead connection inside a single poll, so the
-# daemon picks NUT back up on its own within one interval. Restarting it would
-# fire the Last Will and briefly mark the device offline to subscribers, for no
-# gain. (Before 2026-09-15 this was not true — the go.nut-based client could
+# Poll closes and re-dials a dead connection inside a single read, so the
+# daemon picks NUT back up on its own at its next read (every sample_interval).
+# Restarting it would publish online:false and briefly mark the device offline
+# to subscribers, for no gain. (Before 2026-09-15 this was not true — the go.nut-based client could
 # not close a socket and a repair did need a manual kick.)
 step "ups-mqtt"
 if [ -z "$GUI_UID" ]; then
     note "cannot reach the user LaunchAgent domain (no SUDO_USER); not checked."
 elif launchctl print "gui/${GUI_UID}/${MQTT_LABEL}" >/dev/null 2>&1; then
-    ok "running — it will reconnect to upsd within one poll interval"
+    ok "running — it picks upsd back up at its next read (every sample_interval)"
 else
     bad "${MQTT_LABEL} is not loaded"
     note "start it from a user shell (not via sudo):"

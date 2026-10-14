@@ -159,13 +159,18 @@ but try `ups-doctor.sh` first.
 
 ## ups-mqtt recovers on its own
 
-Once NUT is healthy again the daemon reconnects by itself, within one poll
-interval, without a restart and without logging anything: `Poll` notices the
-dead connection, closes it, re-dials and retries inside a single poll.
+Once NUT is healthy again the daemon reconnects by itself, at its next read
+of the UPS (every `sample_interval`, 2 s by default), without a restart and
+without logging anything: `Poll` notices the dead connection, closes it,
+re-dials and retries inside a single read. When the UPS drops off USB the
+connection to upsd stays up but answers with errors; those failed reads are
+logged (rate-limited) until the driver is back, then "NUT answering again",
+still without a restart.
 
 This was **not** true before 2026-09-15. The old go.nut-based client could not
 close a socket, and a repair therefore had to be followed by restarting the
-daemon by hand. If you find that instruction elsewhere, it is stale.
+daemon by hand. `recover-ups-usb.sh verify` no longer does; if you find that
+instruction elsewhere, it is stale.
 
 So do not restart it reflexively — a restart publishes `online:false`, briefly
 marking the device offline to subscribers, for no gain. Only intervene if the
