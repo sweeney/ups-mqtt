@@ -29,7 +29,7 @@ topic_prefix  = "ups"
 retained      = true
 qos           = 1
 # telemetry_qos = 0          # optional: QoS for state + computed/*; defaults to qos
-# event_qos     = 1          # optional: QoS for outage, offline announcement, LWT; defaults to qos
+# event_qos     = 1          # optional: QoS for outage, last_outage, offline announcement, LWT; defaults to qos
                              # behind a local broker bridged elsewhere use 0 / 1, so a bridge
                              # outage queues events rather than stale telemetry (see README)
 tls_ca_cert   = ""          # absolute path to PEM CA cert; empty = no custom CA

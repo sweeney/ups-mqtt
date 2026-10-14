@@ -2,7 +2,7 @@
 
 A Go daemon that polls a [Network UPS Tools](https://networkupstools.org/) (NUT) server and publishes UPS state to an MQTT broker. Runs as a systemd service on Linux or a LaunchAgent on macOS.
 
-Tested against a **CyberPower CP1500EPFCLCD** (900 W, 1500 VA) and an **APC Back-UPS XS 1400U** (700 W, 1400 VA), but compatible with any UPS that NUT supports.
+Tested against a **CyberPower CP1500EPFCLCD** (900 W, 1500 VA), an **APC Back-UPS XS 1400U** (700 W, 1400 VA) and a **Riello iPlug** (`riello_usb`), but compatible with any UPS that NUT supports.
 
 ---
 
@@ -129,6 +129,7 @@ When the UPS switches to battery (`ups.status` contains `OB`), a call-to-action 
   "battery_charge_pct": 100,
   "battery_runtime_secs": 4090,
   "battery_runtime_mins": 68.17,
+  "battery_voltage": 13.1,
   "estimated_depletion_at": "2026-02-23T17:48:25Z",
   "load_watts": 72,
   "low_battery": false
@@ -139,6 +140,7 @@ When the UPS switches to battery (`ups.status` contains `OB`), a call-to-action 
 |-------|---------|
 | `outage_started_at` | When the OB condition was first detected (fixed for the duration of the outage) |
 | `outage_duration_secs` | Seconds elapsed since `outage_started_at`; increases each poll |
+| `battery_voltage` | `battery.voltage`; absent if the UPS does not report it |
 | `estimated_depletion_at` | `timestamp` + `battery_runtime_secs` — the key field for graceful-shutdown decisions |
 | `low_battery` | `true` when `ups.status` contains `LB` |
 | `clock_synced` | Whether `outage_started_at` can be trusted; see [the clock](#the-clock). Absent where it cannot be determined. |
@@ -167,7 +169,7 @@ When an outage ends, after the `outage` topic has been cleared, a summary is pub
 | Field | Meaning |
 |-------|---------|
 | `low_battery_reached` | `ups.status` contained `LB` at some poll during the outage |
-| `min_battery_charge_pct` | The lowest `battery.charge` seen. Absent when the UPS does not report charge, or when the outage spans a restart (the minimum after the last state-file write is unknown). |
+| `min_battery_charge_pct` | The lowest `battery.charge` seen. Absent when the UPS does not report charge, or when the daemon restarted at any time between the outage's start and its summary being published: the minimum is kept in memory only. |
 | `clock_synced` | Whether both times can be trusted. Absent where it cannot be determined (anywhere but Linux). |
 | `spans_restart` | The daemon restarted during the outage, or was not running when it ended |
 
@@ -175,21 +177,24 @@ When an outage ends, after the `outage` topic has been cleared, a summary is pub
 
 If the power fails again after such a reboot, before the first poll, the record from the earlier boot is *not* resumed when it saw low battery. That outage ran flat and ended at boot, and this is a new one. Without low battery a reboot is ambiguous (the host may have rebooted on UPS power), so the outage is resumed. Within one boot, a restart (a deploy, say) keeps the start anchored to the monotonic clock via the time since boot, so a later NTP sync still corrects it.
 
+On macOS there is no boot ID or boot time to go on: an outage that ended while the daemon was down ends at process start, and an open record is always resumed if the UPS is on battery.
+
 #### The clock
 
 A host without a real-time clock (a Raspberry Pi) boots after a power loss with whatever time `systemd-timesyncd` last saved, which is earlier than the truth, and corrects it only once NTP syncs. That needs the network, which may itself still be down. ups-mqtt anchors every event on the monotonic clock, which never steps, and works out wall times only when it publishes. Once the clock has synced, those times are right however wrong the clock was when the event happened.
 
 - A summary is held until the clock syncs. If that takes longer than 15 minutes, an interim `last_outage` is published with `clock_synced: false`. The corrected one replaces it, retained, once the clock syncs. The state file is kept until then, so the correction survives a further restart.
+- If another outage starts first, the pending summary is published at once as final, with `clock_synced: false` if the clock is still unsynced; no corrected one follows.
 - A start time recorded by an earlier boot while its clock was unsynced cannot be repaired. Its summary says `clock_synced: false` for good.
 - Sync status comes from the kernel (`adjtimex`), so it works with timesyncd, chrony or ntpd.
 
 #### State file
 
-The outage in progress is kept in `outage.json`, written only on transitions (start, low battery first seen, end) to spare the SD card, and synced to disk. The directory is `state_dir` (or `UPS_MQTT_STATE_DIR`) when set, otherwise `$STATE_DIRECTORY`, which systemd sets from `StateDirectory=ups-mqtt` in the unit (`/var/lib/ups-mqtt`). The startup log names the one in use. With neither, outages are not persisted, and a warning is logged. On macOS the LaunchAgent plist sets `$STATE_DIRECTORY` to `~/Library/Application Support/ups-mqtt`, which `install-macos.sh` creates.
+The outage in progress is kept in `outage.json`, written only on transitions (start, low battery first seen, end, and once when an outage is resumed after a reboot) to spare the SD card, and synced to disk. The directory is `state_dir` (or `UPS_MQTT_STATE_DIR`) when set, otherwise `$STATE_DIRECTORY`, which systemd sets from `StateDirectory=ups-mqtt` in the unit (`/var/lib/ups-mqtt`). The startup log names the one in use. With neither, outages are not persisted, and a warning is logged. On macOS the LaunchAgent plist sets `$STATE_DIRECTORY` to `~/Library/Application Support/ups-mqtt`, which `install-macos.sh` creates.
 
 "Published" means the broker sent PUBACK. Behind a bridged local broker that is the local one, and from there delivery is up to the bridge's queue, which Mosquitto saves to disk only every `autosave_interval`. A power loss within that window can lose a queued `last_outage` after the state file is gone. Tighten the broker config if that matters.
 
-All other messages are published with configurable QoS and retain flag. An LWT (last will and testament) of `{"online":false,"timestamp":"…"}` is registered at startup so MQTT subscribers see the device go offline immediately if the daemon dies unexpectedly.
+`state` and `computed/*` follow `mqtt.retained`; `outage`, `last_outage`, the offline announcement and the LWT are always retained. An LWT (last will and testament) of `{"online":false,"timestamp":"…"}` is registered at startup so MQTT subscribers see the device go offline immediately if the daemon dies unexpectedly. Its `timestamp` is when the daemon started, since that is when it is registered.
 
 ### QoS: telemetry and events
 
@@ -215,6 +220,8 @@ max_queued_messages 1000
 Every QoS key must be 0, 1 or 2; anything else is a startup error.
 
 **Liveness behind a bridge.** Behind a bridged local broker, `online:false` only covers this process dying: the LWT fires when the daemon loses its connection to the *local* broker. When the site's uplink drops, remote subscribers do not see `online:false`; the retained `state` simply stops updating. To tell whether the site is reachable, watch the bridge's notification topic (e.g. `sites/<site>/bridge`, a retained `1`/`0` published by Mosquitto when the bridge has `notification_topic` set).
+
+When the bridge reconnects it forwards what it holds in one burst: the queued QoS 1 events, QoS 0 states published while a connect attempt was pending, and repeated copies of the retained topics, which the local broker queues again on connect attempts. The last message to arrive is current, but order the rest by their `timestamp`, not by arrival (see [the live tests](docs/live-tests.md), 2026-10-14).
 
 ---
 
@@ -245,7 +252,7 @@ topic_prefix  = "ups"
 retained      = true
 qos           = 1
 # telemetry_qos = 0                    # optional: state + computed/*; defaults to qos
-# event_qos     = 1                    # optional: outage, offline, LWT; defaults to qos
+# event_qos     = 1                    # optional: outage, last_outage, offline, LWT; defaults to qos
 tls_ca_cert   = ""                     # path to custom CA cert; empty = system CAs
 ```
 
@@ -257,7 +264,7 @@ If you run multiple instances against the same broker, each must have a distinct
 
 `poll_interval` sets how often everything is published. Between publishes the daemon reads the UPS every `sample_interval` (default 2 s, never longer than `poll_interval`). When a sample finds the UPS has gone on battery, come back to mains, or reached low battery, everything is published straight away rather than at the next poll. Outage start and end times, and so `last_outage`, are accurate to a sample rather than a poll whether or not that sample was published, and the lowest battery charge counts readings between publishes too.
 
-At most one such immediate publish goes out per poll interval. Power flapping every few seconds — a brownout, a generator transfer — would otherwise publish on every flip; instead a change held back goes out with the next scheduled publish, so a short outage's clear can arrive up to a poll late while its recorded times stay exact. The first low battery of an outage is never held back. Where `sample_interval` does not divide `poll_interval`, publishes drift later rather than earlier. `poll_interval` must be positive.
+At most one such immediate publish goes out per poll interval. Power flapping every few seconds — a brownout, a generator transfer — would otherwise publish on every flip; instead a change held back goes out with the next scheduled publish, so a short outage's clear can arrive up to a poll late while its recorded times stay exact. The first low battery of an outage is never held back. Where `sample_interval` does not divide `poll_interval`, publishes drift later rather than earlier. `poll_interval` must be positive and `sample_interval` not negative.
 
 The publish rate is unchanged, which matters behind a bridged local broker: while its uplink is down the bridge queues the QoS 1 outage messages, one per poll. A sample is a single `LIST VAR` round trip to upsd, normally on the same host. A NUT error is logged when it starts and then once per poll interval, not on every sample.
 
@@ -297,7 +304,7 @@ Invalid values (e.g. a non-numeric port) are logged and ignored, leaving the def
 
 - NUT installed and `upsd` running
 - MQTT broker reachable (e.g. Mosquitto)
-- Go 1.21+ on your build machine (not required on the target)
+- Go 1.23+ on your build machine (not required on the target)
 
 ### macOS (LaunchAgent)
 
@@ -345,11 +352,14 @@ tail -f /opt/homebrew/var/log/nut-upsd.log
 ```
 
 The script:
-1. Builds a native binary for the detected architecture (arm64 or amd64)
-2. Installs it inside `~/Applications/ups-mqtt.app` — required for macOS to track the app in TCC and prompt for Local Network privacy permission
-3. Ad-hoc code-signs the bundle with identifier `net.swee.ups-mqtt`
-4. Copies config to `/etc/ups-mqtt/config.toml` (sudo, first install only)
-5. Installs and loads a LaunchAgent at `~/Library/LaunchAgents/net.swee.ups-mqtt.plist`
+1. Renders the LaunchAgent plist and checks it with `plutil -lint`, before changing anything
+2. Builds a native binary for the detected architecture (arm64 or amd64)
+3. Archives the outgoing binary (see [rolling back](#rolling-back-a-macos-deploy))
+4. Installs it inside `~/Applications/ups-mqtt.app` — required for macOS to track the app in TCC and prompt for Local Network privacy permission
+5. Ad-hoc code-signs the bundle with identifier `net.swee.ups-mqtt`
+6. Copies config to `/etc/ups-mqtt/config.toml` (sudo, first install only)
+7. Creates the outage state directory `~/Library/Application Support/ups-mqtt`, which the plist passes as `$STATE_DIRECTORY`
+8. Installs and loads a LaunchAgent at `~/Library/LaunchAgents/net.swee.ups-mqtt.plist`
 
 ##### Local Network permission
 
@@ -491,15 +501,19 @@ so the addresses stay out of the repo), then:
 ./deploy.sh --install-sudoers --site NAME # install the narrow sudo rule deploy.sh needs
 ```
 
-`first-install.sh` takes the same `--site` / `--host`.
+`first-install.sh` takes the same `--site` / `--host`. `UPS_MQTT_SITES` names a sites file elsewhere. Without either option both scripts stop and list the known sites.
 
-The script:
+`deploy.sh`:
 1. Detects the target architecture via SSH (`uname -m` → GOOS/GOARCH mapping)
 2. Builds a stripped binary (`-ldflags="-s -w"`)
-3. Uploads a timestamped versioned binary (`ups-mqtt-20260224-154321`)
-4. Atomically swaps the symlink `/usr/local/bin/ups-mqtt` to point at the new binary
-5. Restarts the service and waits briefly to confirm it's `active`
-6. Prunes all but the three most recent versions from the remote host
+3. Uploads a timestamped versioned binary (`ups-mqtt-20260224-154321`), and ships the unit and its installers to `~/ups-mqtt/setup/`
+4. Atomically repoints `~/ups-mqtt/ups-mqtt` (which `/usr/local/bin/ups-mqtt` links to) at the new binary
+5. Installs the local `config.toml` only if the host has none; a deployed host's config is edited on that host
+6. Runs `daemon-reload`, restarts the service and waits briefly to confirm it's `active`
+7. Prunes all but the three most recent versions from the remote host
+8. Compares the installed unit with this checkout's, and prints the `--install-unit` command if they differ
+
+On Raspberry Pi OS, run [`scripts/persist-journal.sh`](scripts/README.md#keep-the-journal-across-a-power-cut) once so the journal survives a power cut.
 
 #### Supported architectures
 
@@ -521,12 +535,15 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=nobody
+User=SERVICE_USER
 ExecStart=/usr/local/bin/ups-mqtt --config /etc/ups-mqtt/config.toml
 Restart=on-failure
 RestartSec=10s
+TimeoutStopSec=20s
 StateDirectory=ups-mqtt
 ```
+
+`SERVICE_USER` is replaced with the deploy user by `remote-setup.sh`, and `install-unit.sh` keeps whoever the installed unit already runs as. `TimeoutStopSec=20s` keeps the stop well inside the UPS's fixed delay before it cuts power after the host halts; the daemon's own stop is bounded to fit (see [graceful shutdown](#graceful-shutdown)).
 
 The daemon handles `SIGTERM`/`SIGINT` gracefully: it publishes one final state snapshot before the offline announcement, then exits cleanly.
 
@@ -552,7 +569,7 @@ mosquitto_sub -h <broker> -t 'ups/#' -v
 ### Running locally
 
 ```bash
-go run ./cmd/ups-mqtt/  # uses ./config.toml if present
+go run ./cmd/ups-mqtt/ --config ./config.toml
 ```
 
 With a NUT server and MQTT broker running locally (matching `config.toml`), you'll see all topics published to your broker every `poll_interval`.
@@ -577,9 +594,10 @@ GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o ups-mqtt-darwin-arm64 ./cm
 ```bash
 go test -race ./...
 go test -coverprofile=c.out ./internal/metrics/ && go tool cover -func=c.out
+for t in scripts/test/*_test.sh; do bash "$t"; done   # the shell scripts' tests
 ```
 
-No real NUT server or MQTT broker needed — all tests use in-process fakes. `internal/metrics` is enforced at **100% statement coverage** by CI.
+NUT is faked in-process (`FakePoller`, and `fakeUPSD`, which speaks the upsd protocol). Most tests use `FakePublisher`; the live-test replays (`TestLiveReplay_*`), the bridged replays (`TestBridgedReplay_*`) and the shutdown bound run a real `mosquitto` behind a fault-injecting proxy. They are skipped if `mosquitto` is not installed, and CI installs it and fails rather than skips. `internal/metrics` is enforced at **100% statement coverage** by CI.
 
 ---
 
@@ -593,6 +611,9 @@ internal/config/           Config struct, TOML loading, env overrides
 internal/nut/              Poller interface + real NUT client
 internal/metrics/          Pure computed metrics (no I/O)
 internal/publisher/        Topic routing, JSON assembly, real MQTT publisher
+internal/outages/          Outage tracking across restarts, last_outage, the clock
+internal/retry/            Startup connect with capped backoff
+internal/mqtttest/         Tests only: real Mosquitto, fault-injecting proxy, the bridge mirror
 ```
 
 ### Why pure functions for metrics
@@ -601,7 +622,7 @@ internal/publisher/        Topic routing, JSON assembly, real MQTT publisher
 
 - **100% test coverage is achievable** — every branch exercisable with a map literal
 - **Tests run instantly** — no process to start, no network, no hardware
-- Adding a new metric touches exactly three places: the struct field, `Compute()`, and `AsTopicMap()`. CI rejects anything that drops coverage below 100%, so a missing `AsTopicMap()` entry is a compile-time + test failure.
+- Adding a new metric touches four or five places: the struct field, `Compute()`, `AsTopicMap()` and the key counts in its tests. CI rejects anything that drops coverage below 100%. A missing `AsTopicMap()` entry still compiles; `TestAsTopicMap` lists every key by hand and checks the count, so it catches one only once the new key is added there.
 
 ### Absent versus zero
 
@@ -623,7 +644,7 @@ entirely. A real zero — a genuine 0% load — is still published as `0`; only
 unknowns disappear.
 
 This is why `computed/` is device-dependent: the CyberPower and APC units
-publish all seven metrics, while the Riello publishes five.
+publish all seven metrics, while the Riello publishes four (no `load_watts`, `battery_runtime_mins` or `battery_runtime_hours`).
 
 ### Why sentinel values are filtered numerically
 
@@ -696,8 +717,9 @@ The `label` field in config decouples the MQTT topic name from the NUT device id
 1. Add a field to `metrics.Metrics` (with JSON tag)
 2. Compute it in `Compute()`
 3. Return it from `AsTopicMap()`
+4. Add its key to `TestAsTopicMap` and raise the key count it checks, and `TestAsTopicMap_OmitsAbsentMetrics`'s too if the Riello fixture supplies it
 
-That's it. The JSON state topic, the MQTT computed topic, and the test all pick it up automatically.
+That's it. The JSON state topic and the MQTT computed topic both pick it up automatically.
 
 ### Graceful shutdown
 
@@ -705,16 +727,16 @@ On `SIGTERM`/`SIGINT`:
 1. Stop the poll ticker
 2. Attempt one final `Poll()` — if it succeeds, publish a complete state snapshot
 3. Publish `{"online":false,"timestamp":"…"}` to the state topic (retained)
-4. Close NUT and MQTT connections
+4. Close NUT and MQTT connections. If the offline announcement failed, leave without a clean DISCONNECT, so the broker publishes the LWT in its place
 5. Exit 0
 
-Subscribers see the final state before the offline announcement, so there's no gap in the timeline.
+Subscribers see the final state before the offline announcement, so there's no gap in the timeline. Stopping is bounded, so it fits inside the unit's `TimeoutStopSec=20s` while upsd answers: against a dead broker it costs one NUT poll plus one 5 s publish timeout (`TestShutdown_BoundedAgainstDeadBroker`). A hung upsd is not covered: the signal waits for a sample in progress, and each poll then costs two command timeouts and a re-dial, so the stop can run past 20 s and be killed.
 
 ### Connection resilience
 
 On startup, the daemon connects to the MQTT broker and then to NUT. It retries each with exponential backoff (1 s → 2 s → 4 s → … capped at 60 s), and a signal interrupts any wait. The service can therefore start before either is ready, for example in a boot race between systemd units or while the broker's name does not resolve yet. It connects as soon as each becomes available, rather than exiting and relying on systemd's restart, which can hit the start-rate limit and give up. Errors that no retry can fix exit immediately: an unreadable `tls_ca_cert`, or a QoS outside 0–2. A broker refusing the connection (bad credentials, not authorised) is retried like a network failure, because exiting would only hand the retry to systemd's start-rate limit. A signal also cuts short a connect attempt in progress, so a blackholed broker does not delay shutdown by paho's 30 s connect timeout. Repeated identical failures are logged once and then every five minutes, so a long outage stays visible without flooding the journal.
 
-Once connected, the daemon handles a lost connection itself rather than through paho's auto-reconnect. It logs the loss with its reason, retries every 1 s doubling to 30 s, and logs the reconnect with how long it took. While the connection is down, publishes fail at once and nothing is queued. A link that is dead but still looks open (until the keep-alive notices, within about 40 s) costs at most one 5 s publish timeout; after that the rest of the poll is skipped rather than each message waiting in turn, so polls keep their interval and outage times stay accurate. On reconnecting it polls immediately and republishes current state, including the outage payload or its clear, so the broker's retained topics catch up within a second rather than replaying a backlog. paho's auto-reconnect did the opposite: it queued every QoS 1 message for the length of the outage and delivered them in a shuffled burst, which could leave a stale outage retained after mains had returned (see `docs/live-tests.md`).
+Once connected, the daemon handles a lost connection itself rather than through paho's auto-reconnect. It logs the loss with its reason, retries every 1 s doubling to 30 s, and logs the reconnect with how long it took. While the connection is down, publishes fail at once and nothing is queued. A link that is dead but still looks open (until the keep-alive notices, within about 40 s) costs at most one 5 s publish timeout; after that the rest of the poll is skipped rather than each message waiting in turn, so polls keep their interval and outage times stay accurate. If a publish stays unacknowledged for 80 s (twice the sum of keep-alive and ping timeout) while the connection still looks open, the connection is replaced. On reconnecting it polls immediately and republishes current state, including the outage payload or its clear, so the broker's retained topics catch up within a second rather than replaying a backlog. paho's auto-reconnect did the opposite: it queued every QoS 1 message for the length of the outage and delivered them in a shuffled burst, which could leave a stale outage retained after mains had returned (see `docs/live-tests.md`).
 
 If `Poll()` returns an error during normal operation (NUT restart, USB disconnect), the error is logged and the next tick retries automatically.
 
@@ -724,6 +746,6 @@ If `Poll()` returns an error during normal operation (NUT restart, USB disconnec
 
 GitHub Actions runs two jobs on every push and pull request:
 
-**`test`** — `go vet`, `go test -race -count=1 ./...`, coverage enforcement (metrics must be 100%), rich step summary with per-package coverage bars and slow-test list.
+**`test`** — installs Mosquitto for the replay tests, `go mod verify`, `go vet`, `go test -race -count=1 ./...`, every `scripts/test/*_test.sh`, coverage enforcement (metrics must be 100%), rich step summary with per-package coverage bars and slow-test list.
 
 **`build`** — cross-compiles for linux/amd64, linux/arm64, and linux/armv6, reports binary sizes, uploads artifacts (90-day retention).

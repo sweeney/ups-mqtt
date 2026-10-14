@@ -12,9 +12,11 @@
 # and prompt for the Local Network privacy permission.
 #
 # Sudo is required only to create /etc/ups-mqtt/config.toml on first install.
+# Outage state goes in ~/Library/Application Support/ups-mqtt, which this
+# creates and the plist passes to the daemon as $STATE_DIRECTORY.
 #
 # Prerequisites:
-#   - NUT installed and configured (brew install nut; see org.nut.*.plist)
+#   - NUT installed and configured (brew install nut; see nut/org.nut.*.plist.example)
 #   - config.toml (or config.toml.example) present in the repo root
 set -euo pipefail
 

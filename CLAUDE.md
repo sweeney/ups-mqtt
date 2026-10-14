@@ -1,7 +1,8 @@
 # ups-mqtt
 
 Go daemon that polls a NUT (Network UPS Tools) server and publishes UPS state to MQTT.
-Device: CyberPower CP1500EPFCLCD (900W).  Runs as a systemd service.
+Devices: CyberPower CP1500EPFCLCD, APC Back-UPS XS 1400U, Riello iPlug.
+Runs as a systemd service (Linux) or a LaunchAgent (macOS).
 
 ## Module
 
@@ -26,10 +27,20 @@ internal/nut/                  Poller interface, real client, FakePoller
 internal/metrics/              pure computed metrics (100% test coverage)
 internal/publisher/            Publisher interface, topic routing, JSON, FakePublisher
 internal/integration_test.go   end-to-end: FakePoller → metrics → FakePublisher
+internal/integration_scenarios_test.go  replays captured power cuts (FakePoller.Sequence)
+internal/nut/testdata/         wire-format fixtures from every real device
 internal/retry/                connect with capped backoff and sparing failure logs
 internal/mqtttest/             real Mosquitto, fault-injecting TCP proxy, recorder (tests only)
+internal/mqtttest/bridge/      mirror of the production local-broker and bridge config
 docs/live-tests.md             write-ups of live power-cut tests on real hardware (how: scripts/live-test.sh)
 testdata/live-tests/<date>/    their raw captures (sanitised), the source for fixtures
+scripts/                       host tooling (ups-doctor, install-unit, install-sudoers,
+                               persist-journal, live-test); tests in scripts/test/
+deploy.sh, first-install.sh    build and ship to a Linux host: --site NAME (deploy-sites.sh
+                               reads the gitignored sites file; sites.example) or --host
+remote-setup.sh                the one sudo step first-install.sh prints
+install-macos.sh               macOS LaunchAgent install (net.swee.ups-mqtt.plist)
+ups-mqtt.service               systemd unit; config.toml.example; nut/ (macOS NUT examples)
 ```
 
 ## Test / build commands
@@ -39,6 +50,7 @@ go test -race ./...                             # all tests
 go test -coverprofile=c.out ./internal/metrics/ # must be 100%
 go vet ./...                                    # must be silent
 go build ./...                                  # clean compile
+for t in scripts/test/*_test.sh; do bash "$t"; done   # script tests (CI runs them)
 ```
 
 ## Conventions
@@ -49,14 +61,16 @@ go build ./...                                  # clean compile
   plus `FailTopic`/`Failed` on FakePublisher for simulating a partially degraded
   link), a `Reset()` method, and `Find(topic)` / `IndexOf(topic)` helpers on
   FakePublisher — `IndexOf` is how publish ordering is asserted.
+  `FakePoller.Sequence` replays successive snapshots, and
+  `FakePublisher.Retained(topic)` gives what a broker would hold retained.
 - The middle topic segment is the **label** (`NUTConfig.EffectiveLabel()`), which
   falls back to `ups_name`. Use it for topic routing; `ups_name` is only for the
   NUT device lookup.
-- Only two things are published per poll: computed metrics under
+- Telemetry is only two things, published every poll: computed metrics under
   `{prefix}/{label}/computed/`, and the combined state JSON on
-  `{prefix}/{label}/state`. Raw NUT variables are **not** published as
-  individual topics — they duplicated the state payload and nothing read them.
-  They travel inside `state.variables`.
+  `{prefix}/{label}/state`. The event topics are below. Raw NUT variables are
+  **not** published as individual topics — they duplicated the state payload
+  and nothing read them. They travel inside `state.variables`.
 - `{prefix}/{label}/outage` is published while on battery and cleared with an
   empty retained payload on recovery. It goes out **before** the telemetry on
   every poll and is never suppressed by a telemetry failure; a power cut is the
@@ -65,11 +79,12 @@ go build ./...                                  # clean compile
   host lost power), so the first poll on mains clears it unconditionally.
   `TestRestartAfterOutage_*` replays that against the Riello fixture with
   `FakePublisher.Retained` standing in for the broker.
-- QoS is per message, not per client: telemetry (`state`, `computed/*`) goes
-  at `mqtt.telemetry_qos`; events (`outage` and its clear, the offline
-  announcement, the LWT) at `mqtt.event_qos`. Both fall back to `mqtt.qos`.
-  Behind a bridged local broker, QoS 1 telemetry would fill the bridge's
-  capped queue and get the outage dropped. A new publish must pick its kind.
+- QoS is per message, not per client: telemetry (`state`, `computed/*`) goes at
+  `mqtt.telemetry_qos`; events (`outage` and its clear, `last_outage`, the
+  offline announcement, the LWT) at `mqtt.event_qos`. Both fall back to
+  `mqtt.qos`. Behind a bridged local broker, QoS 1 telemetry would fill the
+  bridge's capped queue and get the outage dropped. A new publish must pick its
+  kind.
 - Startup retries the MQTT connect, then the NUT connect, via
   `retry.Connect` (1 s doubling to 60 s; a signal interrupts both the wait
   and an attempt in progress; an unchanged failure is logged once, then every
@@ -77,41 +92,42 @@ go build ./...                                  # clean compile
   retry can fix (bad CA path), which are fatal, as is a QoS > 2, rejected in
   `config.Load` because paho does not check it. A CONNACK refusal is retried.
 - **Never turn paho's auto-reconnect back on.** While auto-reconnecting,
-  `IsConnected()` is true and QoS 1 publishes are stored and later resent
-  in map order: live, 6½ hours of backlog arrived shuffled in 2 s and every
+  `IsConnected()` is true and QoS 1 publishes are stored and later resent in
+  map order: live, 6½ hours of backlog arrived shuffled in 2 s and every
   publish waited out its timeout (docs/live-tests.md). `MQTTPublisher`
-  reconnects itself (clean session, so paho's store is emptied), publishes
-  only while `IsConnectionOpen()`, stops waiting on further publishes once
-  one has timed out until it is acked or the connection replaced (a stall
-  past keep-alive plus ping timeout replaces it), skips the clean
-  DISCONNECT in `Close` when the last publish failed so the broker fires the
-  LWT instead of the lost offline announcement, and
-  signals `Reconnected()`, on which the poll loop republishes current state
-  at once (re-sending the outage clear). `TestLiveReplay_*` replays the live
-  tests against a real Mosquitto behind `mqtttest.Proxy`, which blackholes
-  or drops the link; they need `mosquitto` installed (CI installs it, and
-  fails rather than skips without it). Stopping is bounded (one NUT poll
-  plus one publish timeout against a dead broker; `TestShutdown_Bounded*`)
-  and the unit's `TimeoutStopSec=20s` relies on it: on a battery shutdown
-  the UPS cuts power a fixed 70 s after the host halts.
-  `TestBridgedReplay_*` run the same
-  timelines through the production local-broker and bridge config, mirrored
-  (identifiers removed) in `internal/mqtttest/bridge/` from the separate
-  host-setup project; `mqtttest.StartBridged` fails if a substitution it
-  makes no longer matches, and the mirror must be kept in step by hand.
+  reconnects itself (clean session, so paho's store is emptied), publishes only
+  while `IsConnectionOpen()`, stops waiting on further publishes once one has
+  timed out until it is acked or the connection replaced (a stall past 2 ×
+  (keep-alive + ping timeout), 80 s, replaces it), skips the clean DISCONNECT
+  in `Close` when the last publish failed so the broker fires the LWT instead
+  of the lost offline announcement, and signals `Reconnected()`, on which the
+  poll loop republishes current state at once (re-sending the outage clear).
+  `TestLiveReplay_*` replays the live tests against a real Mosquitto behind
+  `mqtttest.Proxy`, which blackholes or drops the link; they need `mosquitto`
+  installed (CI installs it, and fails rather than skips without it). Stopping
+  is bounded (one NUT poll plus one publish timeout against a dead broker with
+  upsd answering; `TestShutdown_Bounded*`; a hung upsd is not bounded: an
+  in-flight sample plus a final poll, each two timeouts and a re-dial, can pass
+  20 s) and the unit's `TimeoutStopSec=20s` relies on it: on a battery shutdown
+  the UPS cuts power a fixed 70 s after the host halts. `TestBridgedReplay_*`
+  run the same timelines through the production local-broker and bridge config,
+  mirrored (identifiers removed) in `internal/mqtttest/bridge/` from the
+  separate host-setup project; `mqtttest.StartBridged` fails if a substitution
+  it makes no longer matches, and the mirror must be kept in step by hand.
 - `{prefix}/{label}/last_outage` is a retained summary published **after** the
   outage clear when an outage ends; never cleared. `internal/outages.Tracker`
-  owns it: it persists the open outage to `state_dir`, else systemd's
-  `$STATE_DIRECTORY` (`outage.json`, written on transitions only, with the
-  kernel `boot_id`). After a restart on battery it resumes the outage, except
-  when the record is from an earlier boot and saw low battery: that outage
-  ran flat and ended at boot. An outage that ended while nothing was running
-  is reported with `spans_restart`, ending at boot after a reboot, else at
-  process start. Every event is anchored on the monotonic
-  clock and turned into wall time only at publish, so a later NTP sync
-  corrects it; a summary waits for sync (interim after `DefaultSyncWait`,
-  corrected later). Tests use `outages.FakeClock` and `outages.MemoryStore`;
-  `TestRestart*` in `cmd/ups-mqtt` replays the scenarios end to end.
+  owns it: it persists the open outage to `state_dir`, else `$STATE_DIRECTORY`
+  (systemd's `StateDirectory=`, or the macOS plist) (`outage.json`, written on
+  transitions only, with the kernel `boot_id`; boot ID and boot time are
+  Linux-only, `clock_other.go`). After a restart on battery it resumes the
+  outage, except when the record is from an earlier boot and saw low battery:
+  that outage ran flat and ended at boot. An outage that ended while nothing
+  was running is reported with `spans_restart`, ending at boot after a reboot,
+  else at process start. Every event is anchored on the monotonic clock and
+  turned into wall time only at publish, so a later NTP sync corrects it; a
+  summary waits for sync (interim after `DefaultSyncWait`, corrected later).
+  Tests use `outages.FakeClock` and `outages.MemoryStore`; `TestRestart*` in
+  `cmd/ups-mqtt` replays the scenarios end to end.
 - The UPS is read every `nut.sample_interval` (default 2 s, capped at
   `poll_interval`) but published every `poll_interval`, plus at once when a
   sample sees on/off battery or low battery (`daemon.sample`), at most once

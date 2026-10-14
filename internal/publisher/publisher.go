@@ -44,8 +44,8 @@ type PublishConfig struct {
 	Retained bool
 	// TelemetryQOS is used for state and computed/* — superseded every poll.
 	TelemetryQOS byte
-	// EventQOS is used for the outage topic, its clear, and the offline
-	// announcement — things that happen once and must not be lost.
+	// EventQOS is used for the outage topic, its clear, last_outage and the
+	// offline announcement — things that happen once and must not be lost.
 	EventQOS byte
 	// ClockSynced is whether the wall clock is synced now, so whether the
 	// state's timestamp can be trusted; nil where it cannot be determined.

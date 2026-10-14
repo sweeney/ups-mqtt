@@ -212,18 +212,33 @@ connect attempt was pending, which the same test shows keeps them.
 Consumers should judge `outage` and `state` by the payload's `timestamp`
 and `clock_synced`, not by arrival order, across a power cycle.
 
-### Failure modes to cover
+### Failure modes found
+
+Tests 1–3 exposed these; each now has a fix and a test.
 
 1. Broker unreachable while the process is up (DNS, link, router boot):
    per-message 5 s timeouts stretch the poll from 10 s to ≈30 s, which
-   skews outage start/end times.
+   skews outage start/end times. Fixed: after one publish times out the
+   rest of the poll is skipped, and power changes are sampled every 2 s
+   regardless (`TestLiveReplay_NetworkUnpowered`, `TestLiveReplay_DNSBroken`).
 2. A broken connection that never recovers by itself and is not logged as
-   such.
+   such. Fixed: ups-mqtt detects the loss itself, logs it and reconnects,
+   and replaces a connection whose publishes stall unacknowledged
+   (`TestConnectionLost_ReconnectsAndSignals`,
+   `TestPublish_WedgedStallReplacesConnection`).
 3. paho's unbounded in-memory queue: hours of stale telemetry and events
    delivered in a burst on reconnect, in arbitrary order, so a retained
-   topic can end on a stale value (including a stale `outage`).
+   topic can end on a stale value (including a stale `outage`). Fixed: paho's
+   auto-reconnect is off and nothing is queued in the process; on reconnect
+   current state is republished (`TestLiveReplay_*`). Behind the local
+   bridge, telemetry goes at QoS 0 so mostly events queue (QoS 0 states
+   published while a bridge connect is pending still do; see 2026-10-14)
+   (`TestBridgedReplay_*`).
 4. Network down for the whole outage: events only arrive after the fact;
-   `last_outage` must still be right.
+   `last_outage` must still be right. Covered by the retained `last_outage`,
+   built from the state file and the monotonic clock (`TestRestart*`,
+   `TestBridgedReplay_NetworkUnpowered`); test 5 showed it live across a
+   power cycle.
 
 ## 2026-10-14: network cut at the Pi (Ethernet unplugged)
 

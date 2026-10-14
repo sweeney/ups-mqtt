@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 # remote-setup.sh — run once on the target machine with sudo.
-# Uploaded and invoked by first-install.sh; not intended to be run directly.
+# Uploaded by first-install.sh, which prints the command to run it:
 #
-#   sudo bash ~/ups-mqtt/remote-setup.sh
+#   ssh -t <host> 'sudo bash ~/ups-mqtt/remote-setup.sh'
+#
+# Installs the config staged by first-install.sh, the unit (from
+# ~/ups-mqtt/setup/) and the deploy user's narrow sudoers rule, then enables
+# and starts the service.
 set -euo pipefail
 
 SERVICE="ups-mqtt"

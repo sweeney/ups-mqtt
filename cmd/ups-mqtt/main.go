@@ -270,7 +270,7 @@ var startupBackoff = retry.Backoff{Initial: time.Second, Max: 60 * time.Second}
 
 // doPoll fetches NUT variables, computes metrics, and publishes everything.
 //
-// The outage message goes out FIRST, before the ~50 telemetry topics, and a
+// The outage message goes out FIRST, before the telemetry topics, and a
 // telemetry failure never suppresses it.  Reporting a power cut is the job
 // this daemon exists to do; queueing that message behind bulk telemetry on a
 // link that is itself degraded by the outage is precisely backwards.

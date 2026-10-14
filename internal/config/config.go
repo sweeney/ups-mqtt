@@ -85,9 +85,10 @@ type MQTTConfig struct {
 	TLSCACert   string `toml:"tls_ca_cert"`
 
 	// TelemetryQOS and EventQOS split QOS by message kind: telemetry (state,
-	// computed/*) is superseded every poll, events (outage, its clear, the
-	// offline announcement and the LWT) are not.  Each falls back to QOS when
-	// unset; they are pointers so that an explicit 0 still counts as set.
+	// computed/*) is superseded every poll, events (outage, its clear,
+	// last_outage, the offline announcement and the LWT) are not.  Each falls
+	// back to QOS when unset; they are pointers so that an explicit 0 still
+	// counts as set.
 	TelemetryQOS *byte `toml:"telemetry_qos"`
 	EventQOS     *byte `toml:"event_qos"`
 }

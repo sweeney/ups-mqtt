@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Usage: sudo ./scripts/restart-nut-driver.sh   (macOS, the CyberPower's driver)
 set -euo pipefail
 
 # Clean restart of the NUT USB HID driver for the CyberPower CP1500EPFCLCD.

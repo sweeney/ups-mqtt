@@ -3,7 +3,8 @@
 Operational tooling — things you run **on a host** to inspect or repair a
 running installation. Deployment lives in the repo root (`deploy.sh`,
 `first-install.sh`, `install-macos.sh`, `remote-setup.sh`); nothing in here
-builds or ships anything.
+builds or ships anything, except `live-test.sh`, which runs from your machine
+and copies its recorder to the host.
 
 | Script | Purpose | Needs root |
 |--------|---------|------------|
@@ -14,7 +15,7 @@ builds or ships anything.
 | [`persist-journal.sh`](persist-journal.sh) | Keep the systemd journal across power loss on Raspberry Pi OS. | yes (`--check`: no) |
 | [`install-unit.sh`](install-unit.sh) | Bring the installed systemd unit up to date with the repo's. | yes (`--check`: no) |
 | [`install-sudoers.sh`](install-sudoers.sh) | Install the narrow passwordless-sudo rule `deploy.sh` needs. | yes, even `--check` |
-| [`live-test.sh`](live-test.sh) | Record a live power-cut test (run from your machine; ships [`live-test-watch.sh`](live-test-watch.sh) to the host), then sanitise it for `testdata/`. | no |
+| [`live-test.sh`](live-test.sh) | Record a live power-cut test (run from your machine; ships [`live-test-watch.sh`](live-test-watch.sh) to the host), then sanitise it for `testdata/`. How to run one: [docs/live-tests.md](../docs/live-tests.md#running-one). Tests: `bash scripts/test/live-test_test.sh`. | no |
 
 ## Keep the journal across a power cut
 
@@ -86,7 +87,9 @@ from elsewhere that leaves you root or able to read any log (`ALL`, or
 `systemctl` or `journalctl` with no arguments or a wildcard). It does not
 touch those; they belong to whatever installed them. The rule is only narrow
 while the ups-mqtt unit is a root-owned file with a non-root `User=`, so it
-warns if the unit is a symlink, writable by others, or runs as root. `first-install.sh` uses it for new hosts. Tests:
+warns if the unit is a symlink, writable by others, or runs as root.
+`remote-setup.sh`, the step `first-install.sh` prints, installs it on new
+hosts. Tests:
 `bash scripts/test/install-sudoers_test.sh`; `deploy_test.sh` checks that
 every `sudo` in `deploy.sh` is one the rule allows.
 
@@ -164,7 +167,7 @@ This was **not** true before 2026-09-15. The old go.nut-based client could not
 close a socket, and a repair therefore had to be followed by restarting the
 daemon by hand. If you find that instruction elsewhere, it is stale.
 
-So do not restart it reflexively — a restart fires the Last Will, briefly
+So do not restart it reflexively — a restart publishes `online:false`, briefly
 marking the device offline to subscribers, for no gain. Only intervene if the
 daemon is not running at all:
 
