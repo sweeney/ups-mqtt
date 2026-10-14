@@ -255,9 +255,10 @@ are from the local broker's log, read by the host-setup project.
 ups-mqtt logged nothing and published `state` every 10 s throughout. The
 UPS stayed on line (OL; CHRG dropped out for single samples a few times).
 The main broker saw nothing from the Pi between 19:52:45 and 19:56:47,
-about 4 minutes for a 2 m 53 s cut. The 63 s after
-the link came back was a connect attempt from before it (19:55:16) still
-pending, then the next attempt.
+about 4 minutes for a 2 m 53 s cut. The 63 s after the link came back
+was a connect attempt from before it (19:55:16) still pending, then the
+next attempt. The host-setup project has since lowered the cap to
+`restart_timeout 5 30`, which shortens that wait but cannot remove it.
 
 The burst at 19:56:47 held, interleaved and all with `clock_synced: true`:
 - 9 `state` (and each one's 4 `computed/*`), stamped 18:53:35Z, 18:53:55Z,

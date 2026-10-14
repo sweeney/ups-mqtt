@@ -32,7 +32,7 @@ func StartBridged(t testing.TB, uplink string) *Broker {
 		{"listener 1883 127.0.0.1", fmt.Sprintf("listener %d 127.0.0.1", port)},
 		{"listener 1884\nallow_anonymous false\npassword_file /etc/mosquitto/passwd\n", ""},
 		{"address broker.example-tailnet.ts.net:1883 100.64.0.20:1883", "address " + uplink},
-		{"restart_timeout 5 60", "restart_timeout 1 2"},
+		{"restart_timeout 5 30", "restart_timeout 1 2"},
 	}
 	var conf strings.Builder
 	for _, name := range []string{"bridge/10-local.conf", "bridge/20-bridge.conf"} {
