@@ -28,8 +28,8 @@ func garbled(status, voltage string) []nut.Variable {
 }
 
 // The 2026-10-23 outage, as the device reported it: impossible readings are
-// left out of everything derived — computed topics, the outage message and
-// last_outage — while state.variables still carries what the device sent.
+// left out of everything published: state.variables, computed topics, the
+// outage message and last_outage.
 func TestSample_ImpossibleReadingsDeriveNothing(t *testing.T) {
 	var logs bytes.Buffer
 	out, flags := log.Writer(), log.Flags()
@@ -89,8 +89,8 @@ func TestSample_ImpossibleReadingsDeriveNothing(t *testing.T) {
 		}
 	}
 
-	// Each state carries the device's raw reading, and derives from it only
-	// what is possible: the voltage deviation once 24346 V has gone.
+	// No state carries an impossible reading, in variables or derived from
+	// it: the voltage deviation returns once 24346 V has gone.
 	var raws []string
 	var deviations []bool
 	for _, m := range pub.Messages {
@@ -104,15 +104,15 @@ func TestSample_ImpossibleReadingsDeriveNothing(t *testing.T) {
 		if err := json.Unmarshal([]byte(m.Payload), &st); err != nil {
 			t.Fatal(err)
 		}
-		raws = append(raws, st.Variables["battery.charge"])
+		raws = append(raws, st.Variables["battery.charge"]+" "+st.Variables["battery.runtime"]+" "+st.Variables["input.voltage"])
 		_, dev := st.Computed["input_voltage_deviation_pct"]
 		deviations = append(deviations, dev)
 		if _, ok := st.Computed["battery_runtime_mins"]; ok {
 			t.Errorf("state.computed carries battery_runtime_mins: %s", m.Payload)
 		}
 	}
-	if len(raws) < 3 || raws[1] != "3434" {
-		t.Fatalf("state battery.charge per publish = %q, want the raw 3434 kept from the outage on", raws)
+	if want := []string{"  245", "  ", "  245"}; len(raws) < 3 || strings.Join(raws[:3], "|") != strings.Join(want, "|") {
+		t.Fatalf("state.variables charge, runtime, input voltage per publish = %q, want %q: no impossible reading", raws, want)
 	}
 	if deviations[1] || !deviations[2] {
 		t.Errorf("input_voltage_deviation_pct present per publish = %v; want it absent only for 24346 V", deviations)

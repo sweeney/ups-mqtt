@@ -925,3 +925,36 @@ func TestPublishOutage_ImpossibleBatteryFieldsOmitted(t *testing.T) {
 		t.Errorf("battery_voltage lost:\n%s", msg.Payload)
 	}
 }
+
+// A reading that cannot be real is left out of state.variables, so a
+// consumer reading the payload directly cannot take it at its word; the
+// readings beside it are kept.
+func TestPublishAll_ImpossibleVariablesOmittedFromState(t *testing.T) {
+	vars := map[string]string{
+		"ups.status":      "OL",
+		"battery.charge":  "3434",
+		"battery.runtime": "3308760",
+		"battery.voltage": "13.5",
+		"input.voltage":   "24346",
+		"output.voltage":  "237",
+	}
+	fp := &publisher.FakePublisher{}
+	cfg := publisher.PublishConfig{Prefix: "ups", UPSName: "cyberpower", Retained: true}
+	if err := publisher.PublishAll(vars, metrics.Compute(vars), cfg, fp); err != nil {
+		t.Fatalf("PublishAll: %v", err)
+	}
+	state := decodeState(t, fp)
+	for _, name := range []string{"battery.charge", "battery.runtime", "input.voltage"} {
+		if v, ok := state.Variables[name]; ok {
+			t.Errorf("state.variables[%q] = %q, want absent", name, v)
+		}
+	}
+	for name, want := range map[string]string{"ups.status": "OL", "battery.voltage": "13.5", "output.voltage": "237"} {
+		if got := state.Variables[name]; got != want {
+			t.Errorf("state.variables[%q] = %q, want %q", name, got, want)
+		}
+	}
+	if vars["battery.charge"] != "3434" {
+		t.Error("PublishAll modified its input map")
+	}
+}

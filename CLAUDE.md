@@ -145,8 +145,9 @@ for t in scripts/test/*_test.sh; do bash "$t"; done   # script tests (CI runs th
   among stale retained values (docs/live-tests.md, test 5).
 - `publisher.noisyVariableFamilies` denylists `driver.*` and
   `output.L2.*`/`output.L3.*` from `state.variables`. Never filter
-  `battery.charge` or `input.voltage` — statehouse's ups adapter reads both
-  straight out of the payload.
+  `battery.charge` or `input.voltage` wholesale — statehouse's ups adapter
+  reads both straight out of the payload; only an impossible reading of them
+  is dropped (below).
 - Unknown values are **absent, not zero**: numeric `metrics.Metrics` fields are
   `*float64`, and nil means the UPS cannot report it. A nil metric publishes no
   `computed/` topic and is omitted from the JSON. Never substitute 0 — a
@@ -159,9 +160,10 @@ for t in scripts/test/*_test.sh; do bash "$t"; done   # script tests (CI runs th
   (0–100), `metrics.BatteryRuntimeSecs` (up to a week) and the input voltage
   (up to 600 V) feed every derived value, the outage message and the
   tracker's minimum charge, so derive from those, never the raw variable.
-  `state.variables` keeps the raw value (statehouse reads it there and must
-  range-check it itself); `metrics.Implausible` lists what was dropped,
-  logged on change at most once a poll interval. The Riello's driver began sending 3434 % and 38
+  `state.variables` leaves it out too (`publishableVariables`, since
+  statehouse reads it there); values in range still go out verbatim.
+  `metrics.Implausible` lists what was dropped, logged on change at most
+  once a poll interval. The Riello's driver began sending 3434 % and 38
   days of runtime after an outage.
 - Any comparison against a numeric NUT value must parse to float first. The
   textual form is not stable across drivers, NUT versions and client

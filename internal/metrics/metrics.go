@@ -162,8 +162,8 @@ func BatteryRuntimeSecs(vars map[string]string) *float64 {
 
 // Implausible lists the range-checked variables that are present as numbers
 // but out of range, as sorted "name=value" pairs; empty when none are.
-// Their raw values still travel in state.variables; nothing is derived from
-// them.
+// Nothing is derived from them, and the publisher leaves them out of
+// state.variables.
 func Implausible(vars map[string]string) []string {
 	var out []string
 	for name := range plausible {

@@ -665,11 +665,10 @@ and `input.voltage` negative or over 600 V are treated as unknown
 (`metrics.BatteryChargePct`, `metrics.BatteryRuntimeSecs`): no
 `battery_runtime_*` or `input_voltage_deviation_pct`, no battery fields or
 `estimated_depletion_at` in the outage message, no `min_battery_charge_pct` in
-`last_outage`. `state.variables` still carries the raw values, because it is
-what the device said; `computed` is what was derived from it. A consumer
-that reads `state.variables` directly must range-check them itself. The
-daemon logs when impossible readings start, change and stop, at most once a
-poll interval.
+`last_outage`, and no such value in `state.variables` either, since
+consumers read charge and input voltage straight from there. Readings in
+range are still published verbatim. The daemon logs when impossible
+readings start, change and stop, at most once a poll interval.
 
 ### Why sentinel values are filtered numerically
 

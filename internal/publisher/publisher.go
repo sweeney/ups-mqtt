@@ -243,12 +243,19 @@ var noisyVariableFamilies = []string{
 	"output.L3.",
 }
 
-// publishableVariables returns vars with the noisy families removed.  The
-// input map is never modified.
+// publishableVariables returns vars with the noisy families and the readings
+// that cannot be real (metrics.Implausible) removed.  A consumer reading
+// state.variables would otherwise take a battery.charge of 3434 at its word;
+// the daemon logs what it drops.  The input map is never modified.
 func publishableVariables(vars map[string]string) map[string]string {
+	impossible := make(map[string]bool)
+	for _, nv := range metrics.Implausible(vars) {
+		name, _, _ := strings.Cut(nv, "=")
+		impossible[name] = true
+	}
 	out := make(map[string]string, len(vars))
 	for name, value := range vars {
-		if isNoisyVariable(name) {
+		if isNoisyVariable(name) || impossible[name] {
 			continue
 		}
 		out[name] = value

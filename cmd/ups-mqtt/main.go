@@ -233,10 +233,10 @@ func (d *daemon) track(varMap map[string]string, m metrics.Metrics) {
 }
 
 // noteImplausible logs when the UPS starts or stops sending readings that
-// cannot be real (metrics.Implausible).  Nothing is derived from them, but
-// state.variables still carries them as the device sent them.  At most one
-// line a poll interval, so a reading flapping in and out of range is logged
-// as it settles, not on every sample.
+// cannot be real (metrics.Implausible).  Nothing is derived from them and
+// they are left out of state.variables, so this log is their only trace.
+// At most one line a poll interval, so a reading flapping in and out of
+// range is logged as it settles, not on every sample.
 func (d *daemon) noteImplausible(now time.Time, varMap map[string]string) {
 	var names []string
 	bad := metrics.Implausible(varMap)
