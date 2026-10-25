@@ -98,7 +98,8 @@ stamped meanwhile, after the power returns, among older retained values (see
 (anywhere but Linux).
 
 `variables` carries every NUT variable except two families, which are excluded
-because they describe NUT itself or hardware the device does not have:
+because they describe NUT itself or hardware the device does not have, and
+any reading that cannot be real (see below):
 
 | Excluded | Why |
 |----------|-----|
@@ -113,7 +114,7 @@ Values that a UPS does not report are **absent**, not zero. A device with no
 `battery.runtime` publishes no `battery_runtime_mins`, rather than `0` — which a
 subscriber would otherwise read as a flat battery. A reading that cannot be
 real (a charge over 100 %, over a week of runtime) is unknown too: nothing is
-derived from it, though `state.variables` still carries it as sent. See
+derived from it, and `state.variables` leaves it out. See
 [Absent versus zero](#absent-versus-zero).
 
 ### 3. Outage topic
@@ -689,8 +690,9 @@ how many decimal places they emit.
 Trailing zeros were the mild case. The same coercion turned `ups.beeper.status`
 — a NUT enum of `enabled` / `disabled` / `muted` — into `"true"`, `"false"` or
 `"muted"` depending on the reading. Raw values are now passed through exactly as
-upsd sends them; `computed/` values remain normalised, because those are ours to
-define rather than the device's.
+upsd sends them (a reading that cannot be real is left out, not altered);
+`computed/` values remain normalised, because those are ours to define rather
+than the device's.
 
 ### Dependency injection via interfaces
 

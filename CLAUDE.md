@@ -191,9 +191,9 @@ unreachable.
   `ups.beeper.status` published as `"true"`, `"false"` or `"muted"` depending
   on the reading — three type universes for one enum — and a version string
   like `"0.10"` would have become `"0.1"`.
-- The split is deliberate: `state.variables` is what the device said,
-  `computed` is what we calculated. Computed values are ours to define and
-  **are** normalised, via `formatFloat`. Interpretation belongs in `computed`,
+- The split is deliberate: `state.variables` is what the device said (less
+  readings that cannot be real), `computed` is what we calculated. Computed
+  values are ours to define and **are** normalised, via `formatFloat`. Interpretation belongs in `computed`,
   where it is explicit and typed, never applied invisibly to raw data.
 - Every network operation has a deadline (`Client.Timeout`, default
   `DefaultTimeout`), so nothing can block the poll loop indefinitely.
