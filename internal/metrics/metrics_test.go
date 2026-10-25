@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -384,5 +385,75 @@ func TestAsTopicMap_AllAbsent(t *testing.T) {
 	// Only the three always-present fields survive.
 	if len(tm) != 3 {
 		t.Errorf("AsTopicMap() with no vars returned %d keys, want 3", len(tm))
+	}
+}
+
+// ---- Impossible readings -------------------------------------------------
+
+// garbledRielloVars is a Riello iPlug after its driver began misdecoding the
+// battery fields: 3434 % charge and 38 days of runtime, plus the 24346 V
+// input that came with the first of them.
+var garbledRielloVars = map[string]string{
+	"battery.charge":         "3434",
+	"battery.runtime":        "3308760",
+	"input.voltage":          "24346",
+	"output.voltage.nominal": "230",
+	"ups.status":             "OB",
+}
+
+func TestImpossibleReadings_DeriveNothing(t *testing.T) {
+	m := Compute(garbledRielloVars)
+	wantAbsent(t, "BatteryRuntimeMins", m.BatteryRuntimeMins)
+	wantAbsent(t, "BatteryRuntimeHours", m.BatteryRuntimeHours)
+	wantAbsent(t, "InputVoltageDeviationPct", m.InputVoltageDeviationPct)
+	wantAbsent(t, "BatteryChargePct", BatteryChargePct(garbledRielloVars))
+	wantAbsent(t, "BatteryRuntimeSecs", BatteryRuntimeSecs(garbledRielloVars))
+	if !m.OnBattery {
+		t.Error("OnBattery = false; the status is still read")
+	}
+}
+
+func TestPlausibleBounds(t *testing.T) {
+	cases := []struct {
+		name, value string
+		ok          bool
+	}{
+		{"battery.charge", "0", true},
+		{"battery.charge", "100", true},
+		{"battery.charge", "100.5", false},
+		{"battery.charge", "255", false}, // the all-ones byte some firmware sends
+		{"battery.charge", "-1", false},
+		{"battery.charge", "NaN", false},
+		{"battery.charge", "", false},
+		{"battery.runtime", "0", true},
+		{"battery.runtime", "604800", true}, // a week
+		{"battery.runtime", "604801", false},
+		{"battery.runtime", "+Inf", false},
+		{"input.voltage", "3", true},   // the residue a Riello reads on battery
+		{"input.voltage", "528", true}, // 480 V three-phase, +10 %
+		{"input.voltage", "600.1", false},
+		{"input.voltage", "24346", false},
+	}
+	for _, c := range cases {
+		vars := map[string]string{c.name: c.value}
+		if got := plausibleFloat(vars, c.name); (got != nil) != c.ok {
+			t.Errorf("%s=%q: plausible = %v, want %v", c.name, c.value, got != nil, c.ok)
+		}
+	}
+	wantValue(t, "BatteryChargePct", BatteryChargePct(map[string]string{"battery.charge": "61"}), 61)
+	wantValue(t, "BatteryRuntimeSecs", BatteryRuntimeSecs(sampleVars), 4920)
+}
+
+func TestImplausible(t *testing.T) {
+	got := strings.Join(Implausible(garbledRielloVars), " ")
+	want := "battery.charge=3434 battery.runtime=3308760 input.voltage=24346"
+	if got != want {
+		t.Errorf("Implausible = %q, want %q", got, want)
+	}
+	// Absent or unparseable is unknown, not impossible.
+	for _, vars := range []map[string]string{sampleVars, rielloVars, {"battery.charge": "n/a"}, {}} {
+		if bad := Implausible(vars); len(bad) != 0 {
+			t.Errorf("Implausible(%v) = %v, want none", vars, bad)
+		}
 	}
 }

@@ -155,6 +155,14 @@ for t in scripts/test/*_test.sh; do bash "$t"; done   # script tests (CI runs th
   measure: `nut.unimplementedVariables` drops those, keyed on `driver.name` and
   optionally the model, because a zero cannot be told from a reading by value.
   It currently covers the Riello iPlug/iDialog's load figures.
+  A reading that cannot be real is unknown too: `metrics.BatteryChargePct`
+  (0–100), `metrics.BatteryRuntimeSecs` (up to a week) and the input voltage
+  (up to 600 V) feed every derived value, the outage message and the
+  tracker's minimum charge, so derive from those, never the raw variable.
+  `state.variables` keeps the raw value (statehouse reads it there and must
+  range-check it itself); `metrics.Implausible` lists what was dropped,
+  logged on change at most once a poll interval. The Riello's driver began sending 3434 % and 38
+  days of runtime after an outage.
 - Any comparison against a numeric NUT value must parse to float first. The
   textual form is not stable across drivers, NUT versions and client
   implementations; string matching silently failed against real hardware once

@@ -111,7 +111,9 @@ sets, and an allowlist would silently swallow anything unanticipated.
 
 Values that a UPS does not report are **absent**, not zero. A device with no
 `battery.runtime` publishes no `battery_runtime_mins`, rather than `0` — which a
-subscriber would otherwise read as a flat battery. See
+subscriber would otherwise read as a flat battery. A reading that cannot be
+real (a charge over 100 %, over a week of runtime) is unknown too: nothing is
+derived from it, though `state.variables` still carries it as sent. See
 [Absent versus zero](#absent-versus-zero).
 
 ### 3. Outage topic
@@ -169,7 +171,7 @@ When an outage ends, after the `outage` topic has been cleared, a summary is pub
 | Field | Meaning |
 |-------|---------|
 | `low_battery_reached` | `ups.status` contained `LB` at some poll during the outage |
-| `min_battery_charge_pct` | The lowest `battery.charge` seen. Absent when the UPS does not report charge, or when the daemon restarted at any time between the outage's start and its summary being published: the minimum is kept in memory only. |
+| `min_battery_charge_pct` | The lowest `battery.charge` seen. Absent when the UPS does not report a charge in 0–100, or when the daemon restarted at any time between the outage's start and its summary being published: the minimum is kept in memory only. |
 | `clock_synced` | Whether both times can be trusted. Absent where it cannot be determined (anywhere but Linux). |
 | `spans_restart` | The daemon restarted during the outage, or was not running when it ended |
 
@@ -648,6 +650,26 @@ unknowns disappear.
 
 This is why `computed/` is device-dependent: the CyberPower and APC units
 publish all seven metrics, while the Riello publishes four (no `load_watts`, `battery_runtime_mins` or `battery_runtime_hours`).
+
+### Impossible readings
+
+A driver that misdecodes its device's reply passes on the result as
+confidently as a real reading. After a short outage in October 2026 the
+Riello, which had never reported charge or runtime, began reporting
+`battery.charge` 3434 and `battery.runtime` 3308760 (38 days), and once
+`input.voltage` 24346. Its driver decodes hex digits without checking them,
+and no valid digits give those values.
+
+So `battery.charge` outside 0–100, `battery.runtime` negative or over a week,
+and `input.voltage` negative or over 600 V are treated as unknown
+(`metrics.BatteryChargePct`, `metrics.BatteryRuntimeSecs`): no
+`battery_runtime_*` or `input_voltage_deviation_pct`, no battery fields or
+`estimated_depletion_at` in the outage message, no `min_battery_charge_pct` in
+`last_outage`. `state.variables` still carries the raw values, because it is
+what the device said; `computed` is what was derived from it. A consumer
+that reads `state.variables` directly must range-check them itself. The
+daemon logs when impossible readings start, change and stop, at most once a
+poll interval.
 
 ### Why sentinel values are filtered numerically
 

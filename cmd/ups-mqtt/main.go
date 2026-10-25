@@ -8,7 +8,7 @@ import (
 	"log"
 	"os/signal"
 	"path/filepath"
-	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -102,6 +102,11 @@ type daemon struct {
 	// outage is not logged on every sample.
 	pollErrors    int
 	lastPollErrAt time.Time
+
+	// The impossible readings last logged, and when, so a device stuck
+	// sending one is logged when that starts and stops, not every sample.
+	implausible   string
+	implausibleAt time.Time
 }
 
 // run samples the UPS every sample interval until ctx is cancelled, then
@@ -170,6 +175,7 @@ func (d *daemon) sample(now time.Time, force bool) {
 
 	varMap := nut.VarsToMap(vars)
 	m := metrics.Compute(varMap)
+	d.noteImplausible(now, varMap)
 	d.track(varMap, m)
 
 	poll := d.cfg.NUT.PollInterval.Duration
@@ -215,7 +221,7 @@ func (d *daemon) track(varMap map[string]string, m metrics.Metrics) {
 	tr := d.outage.tracker
 	tr.Restore(m.OnBattery)
 	if m.OnBattery {
-		if _, isNew := tr.OnBattery(m.LowBattery, parseOptional(varMap["battery.charge"])); isNew {
+		if _, isNew := tr.OnBattery(m.LowBattery, metrics.BatteryChargePct(varMap)); isNew {
 			log.Printf("power outage detected — UPS on battery")
 		}
 		return
@@ -224,6 +230,33 @@ func (d *daemon) track(varMap map[string]string, m metrics.Metrics) {
 		log.Printf("power restored")
 		d.lowAnnounced = false // the next outage's low battery is news
 	}
+}
+
+// noteImplausible logs when the UPS starts or stops sending readings that
+// cannot be real (metrics.Implausible).  Nothing is derived from them, but
+// state.variables still carries them as the device sent them.  At most one
+// line a poll interval, so a reading flapping in and out of range is logged
+// as it settles, not on every sample.
+func (d *daemon) noteImplausible(now time.Time, varMap map[string]string) {
+	var names []string
+	bad := metrics.Implausible(varMap)
+	for _, nv := range bad {
+		name, _, _ := strings.Cut(nv, "=")
+		names = append(names, name)
+	}
+	key := strings.Join(names, " ")
+	if key == d.implausible {
+		return
+	}
+	if !d.implausibleAt.IsZero() && now.Sub(d.implausibleAt) < d.cfg.NUT.PollInterval.Duration {
+		return
+	}
+	d.implausible, d.implausibleAt = key, now
+	if key == "" {
+		log.Printf("UPS readings back in range")
+		return
+	}
+	log.Printf("ignoring impossible UPS readings: %s", strings.Join(bad, " "))
 }
 
 // logPollError logs a failed sample when NUT starts failing, then once a
@@ -352,7 +385,7 @@ func publishOutageState(
 
 	if m.OnBattery {
 		st.clear = false
-		o, isNew := tr.OnBattery(m.LowBattery, parseOptional(vars["battery.charge"]))
+		o, isNew := tr.OnBattery(m.LowBattery, metrics.BatteryChargePct(vars))
 		if isNew {
 			log.Printf("power outage detected — UPS on battery")
 		}
@@ -393,14 +426,4 @@ func publishLastOutage(tr *outages.Tracker, pubCfg publisher.PublishConfig, pub 
 	log.Printf("published %s: %s → %s (%s, spans restart: %v)", kind,
 		s.StartedAt.Format(time.RFC3339), s.EndedAt.Format(time.RFC3339), s.Duration(), s.SpansRestart)
 	return nil
-}
-
-// parseOptional parses a numeric NUT value, or returns nil if it is absent
-// or not a number.
-func parseOptional(v string) *float64 {
-	f, err := strconv.ParseFloat(v, 64)
-	if err != nil {
-		return nil
-	}
-	return &f
 }

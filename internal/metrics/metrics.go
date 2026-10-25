@@ -5,6 +5,7 @@ package metrics
 
 import (
 	"math"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -80,7 +81,8 @@ var statusTokens = map[string]string{
 }
 
 // Compute derives all metrics from vars, a map of NUT variable name → string value.
-// Missing or unparseable variables yield nil metrics rather than zeroes.
+// Missing, unparseable or impossible variables yield nil metrics rather than
+// zeroes.
 func Compute(vars map[string]string) Metrics {
 	return Metrics{
 		LoadWatts:                computeLoadWatts(vars),
@@ -108,11 +110,69 @@ func computeLoadWatts(vars map[string]string) *float64 {
 // computeBatteryRuntime converts battery.runtime (seconds) into the unit given
 // by divisor — 60 for minutes, 3600 for hours.
 func computeBatteryRuntime(vars map[string]string, divisor float64) *float64 {
-	runtime, ok := parseFloat(vars["battery.runtime"])
-	if !ok {
+	runtime := BatteryRuntimeSecs(vars)
+	if runtime == nil {
 		return nil
 	}
-	return ptr(round2(runtime / divisor))
+	return ptr(round2(*runtime / divisor))
+}
+
+// Bounds outside which a reading cannot be real.  A driver that misdecodes
+// the device's reply sends such values as confidently as real ones: a Riello
+// iPlug went from reporting no charge or runtime at all to battery.charge
+// 3434 and battery.runtime 3308760 (38 days), and once input.voltage 24346.
+// No UPS battery lasts over a week, and no supply a UPS reports, single-phase
+// or a three-phase line-to-line voltage (480 V and its tolerance), reaches
+// 600 V.
+const (
+	maxBatteryChargePct   = 100
+	maxBatteryRuntimeSecs = 7 * 24 * 60 * 60
+	maxInputVoltage       = 600
+)
+
+// plausible is the numeric NUT variables whose readings are range-checked,
+// with the largest value each can really take.  None can be negative.
+var plausible = map[string]float64{
+	"battery.charge":  maxBatteryChargePct,
+	"battery.runtime": maxBatteryRuntimeSecs,
+	"input.voltage":   maxInputVoltage,
+}
+
+// plausibleFloat parses the named variable and returns it if it lies in its
+// range, else nil: an impossible reading is unknown, not a value.
+func plausibleFloat(vars map[string]string, name string) *float64 {
+	v, ok := parseFloat(vars[name])
+	if !ok || !(v >= 0 && v <= plausible[name]) {
+		return nil
+	}
+	return ptr(v)
+}
+
+// BatteryChargePct returns battery.charge, or nil if it is absent, not a
+// number, or outside 0–100.
+func BatteryChargePct(vars map[string]string) *float64 {
+	return plausibleFloat(vars, "battery.charge")
+}
+
+// BatteryRuntimeSecs returns battery.runtime, or nil if it is absent, not a
+// number, negative, or longer than any UPS battery lasts.
+func BatteryRuntimeSecs(vars map[string]string) *float64 {
+	return plausibleFloat(vars, "battery.runtime")
+}
+
+// Implausible lists the range-checked variables that are present as numbers
+// but out of range, as sorted "name=value" pairs; empty when none are.
+// Their raw values still travel in state.variables; nothing is derived from
+// them.
+func Implausible(vars map[string]string) []string {
+	var out []string
+	for name := range plausible {
+		if _, ok := parseFloat(vars[name]); ok && plausibleFloat(vars, name) == nil {
+			out = append(out, name+"="+vars[name])
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 func computeStatusDisplay(vars map[string]string) string {
@@ -140,8 +200,8 @@ func computeStatusDisplay(vars map[string]string) string {
 // On a line-interactive UPS both describe the same mains specification for
 // the region (230 V here), which makes the substitution sound.
 func computeInputVoltageDeviationPct(vars map[string]string) *float64 {
-	voltage, ok := parseFloat(vars["input.voltage"])
-	if !ok {
+	voltage := plausibleFloat(vars, "input.voltage")
+	if voltage == nil {
 		return nil
 	}
 	nominal, ok := parseFloat(vars["input.voltage.nominal"])
@@ -151,7 +211,7 @@ func computeInputVoltageDeviationPct(vars map[string]string) *float64 {
 	if !ok || nominal == 0 {
 		return nil
 	}
-	return ptr(round2((voltage - nominal) / nominal * 100))
+	return ptr(round2((*voltage - nominal) / nominal * 100))
 }
 
 // hasStatusToken reports whether the space-separated status string contains token.

@@ -897,3 +897,31 @@ func TestPublishLastOutage_UnknownsAbsent(t *testing.T) {
 		t.Errorf("payload lacks spans_restart: %s", msg.Payload)
 	}
 }
+
+// A charge or runtime that cannot be real is unknown: no percentage, no
+// runtime and no depletion date 38 days out.
+func TestPublishOutage_ImpossibleBatteryFieldsOmitted(t *testing.T) {
+	vars := map[string]string{
+		"ups.status":      "OB",
+		"battery.charge":  "3434",
+		"battery.runtime": "3308760",
+		"battery.voltage": "13.1",
+	}
+	fp := &publisher.FakePublisher{}
+	cfg := publisher.PublishConfig{Prefix: "ups", UPSName: "iplug", Retained: true}
+	if err := publisher.PublishOutage(vars, metrics.Compute(vars), time.Now().Add(-30*time.Second), nil, cfg, fp); err != nil {
+		t.Fatalf("PublishOutage: %v", err)
+	}
+	msg, ok := fp.Find("ups/iplug/outage")
+	if !ok {
+		t.Fatal("outage topic not published")
+	}
+	for _, key := range []string{"battery_charge_pct", "battery_runtime_secs", "battery_runtime_mins", "estimated_depletion_at"} {
+		if strings.Contains(msg.Payload, key) {
+			t.Errorf("%s should be absent:\n%s", key, msg.Payload)
+		}
+	}
+	if !strings.Contains(msg.Payload, `"battery_voltage":13.1`) {
+		t.Errorf("battery_voltage lost:\n%s", msg.Payload)
+	}
+}

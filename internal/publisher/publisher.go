@@ -118,8 +118,8 @@ func PublishOutage(
 ) error {
 	now := time.Now().UTC()
 
-	runtimeSecs := optionalVar(vars, "battery.runtime")
-	chargePct := optionalVar(vars, "battery.charge")
+	runtimeSecs := metrics.BatteryRuntimeSecs(vars)
+	chargePct := metrics.BatteryChargePct(vars)
 
 	// Only date a depletion estimate when the UPS actually reports runtime.
 	var depletionAt string
