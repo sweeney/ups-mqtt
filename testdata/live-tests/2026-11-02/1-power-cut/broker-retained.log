@@ -1,0 +1,2 @@
+ups/broker-ups/last_outage {"ups_name":"broker-ups","started_at":"2026-11-02T03:03:39Z","ended_at":"2026-11-02T03:51:21Z","duration_secs":2861,"low_battery_reached":false,"min_battery_charge_pct":25,"clock_synced":true,"spans_restart":false}
+ups/site-ups/state {"online":false,"timestamp":"2026-10-26T13:55:32Z"}

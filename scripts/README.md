@@ -114,16 +114,31 @@ than worked around. Exit codes: `0` healthy, `1` needs physical intervention,
 
 ## Why diagnosing first matters
 
-**`Error: Data stale` has at least two causes, with opposite remedies.**
+**`Error: Data stale` has at least three causes, with different remedies.**
 
 | Signature | Cause | Fix |
 |---|---|---|
-| `ioreg -p IOUSB -w0 -l \| grep '"idVendor" = 1892'` returns nothing | device gone from the bus | reboot |
+| `ioreg -p IOUSB -w0 -l \| grep '"idVendor" = 1892'` returns nothing, and the kernel log's last word on it is `destroying 0x0764/… hardware port disabled` | macOS disabled the port, typically as mains returns after a cut | unplug the USB lead, wait ~10 s, replug |
+| `ioreg` returns nothing, for any other reason or none on record | the host's USB controller is wedged (the long-uptime drop) | replug first; if still missing, reboot |
 | Device present, but the driver probe reports `Product: unknown` and takes ~300 ms to read the ID (vs ~1 ms for its neighbours) | the UPS's own USB interface has hung | unplug the USB lead, wait ~10 s, replug |
 
-In the second case **a host reboot will not help**, because the wedge is in the
+In the last case **a host reboot will not help**, because the wedge is in the
 device rather than the host controller. Diagnosed and cleared without a reboot
-on 2026-09-15.
+on 2026-09-15. The first was cleared the same way on 2026-11-03, after a
+power cut (`docs/live-tests.md`); the driver reclaimed the device by itself.
+
+`ups-doctor.sh` reads the kernel log to tell the first two apart:
+
+```bash
+log show --last 2d --style compact \
+  --predicate 'process == "kernel" AND eventMessage CONTAINS "0x0764/"'
+```
+
+The unified log keeps these lines for only about a day on a busy Mac, so after
+that the doctor says it cannot tell, and advises the replug first anyway: it
+costs nothing, and a disabled port comes back that way. A disabled port can
+also come back by itself; on 2026-11-03 one re-enumerated 5 ms later, so only
+the *last* event counts.
 
 To see this for yourself, probe with the real driver — it enumerates every USB
 device and shows exactly where matching fails:

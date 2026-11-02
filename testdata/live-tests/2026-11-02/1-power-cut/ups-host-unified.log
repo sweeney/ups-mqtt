@@ -1,0 +1,7 @@
+2026-11-02 03:03:37.965 Df kernel[0:6fc] (AppleBCM5701Ethernet) AppleBCM5701Ethernet [en0]: Link down (womp disabled, proxy idle)
+2026-11-02 03:03:37.965 Df kernel[0:6fc] (AppleBCM5701Ethernet) AppleBCM5701Ethernet [en0]: Link down (womp disabled, proxy idle)
+2026-11-02 03:03:37.965 Df kernel[0:80d] (IOAVBDiscoveryPlugin)   IOAVB17221EntityDiscovery(en0): Cable Unplugged
+2026-11-02 03:03:37.967 Df configd[383:27d4d55] [com.apple.IPConfiguration:Server] en0 link INACTIVE
+2026-11-02 03:03:38.071 Df configd[383:27d4d55] [com.apple.IPConfiguration:Server] en0: removed IP address 192.0.2.40
+2026-11-02 03:51:20.848 Df kernel[0:5c1] (IOUSBHostFamily) usb-drd0-port-hs@00100000: AppleUSBHostPort::terminateDevice: destroying 0x0764/0501/0001 (CP1500EPFCLCD): hardware port disabled
+2026-11-02 03:51:44.892 Df configd[383:27dc3e7] [com.apple.IPConfiguration:Server] dhcp_init_reboot(en0) requesting 192.0.2.40

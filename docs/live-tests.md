@@ -293,3 +293,85 @@ The burst at 19:56:47 held, interleaved and all with `clock_synced: true`:
 It ended right: the last `state` to arrive was current, and `last_outage`
 unchanged. A consumer that orders `state` by its `timestamp` sees a sparse
 but correct history of the cut, followed by the present.
+
+## 2026-11-02: unplanned power cut, macOS host (CyberPower)
+
+Data: [`testdata/live-tests/2026-11-02/`](../testdata/live-tests/2026-11-02/).
+
+Not a planned test: a real cut overnight, pieced together the next morning
+from what the hosts had kept. Two UPSes were on the cut circuit: the broker
+host's APC, and the macOS host's CyberPower on USB. Config: poll 30 s, sample 2 s, QoS 1, broker by Tailscale name.
+
+### 1. The cut (`1-power-cut/`)
+
+| Time (UTC) | Event |
+|---|---|
+| 03:03:37.965 | macOS host: en0 `Link down … Cable Unplugged`; its DHCP address goes 0.1 s later |
+| 03:03:39 | broker host's ups-mqtt: outage detected (upsmon agrees at 03:03:40) |
+| 03:03:42 | macOS host's ups-mqtt: outage detected; the `outage` publish times out after 5 s |
+| 03:04:00 | macOS host: MQTT connection lost; every reconnect fails from here on |
+| 03:51:20.66 | broker host's upsmon: on line power |
+| 03:51:20.848 | macOS host: kernel `terminateDevice: destroying 0x0764/… (CP1500EPFCLCD): hardware port disabled`; the UPS leaves the USB bus |
+| 03:51:21 | broker host's ups-mqtt: power restored, `last_outage` published (2861 s, minimum charge 25 %) |
+| 03:51:24 | macOS host: NUT polls fail `DATA-STALE`, and keep failing |
+| 03:51:44 | macOS host: link back, DHCP requests its address |
+| 03:52:02 | macOS host: reconnected after 48 min (51 attempts); republishes, but has no reading to send |
+
+The router and the broker host stayed up: the broker host kept reaching
+the gateway and Tailscale's relays throughout, and logged the macOS host's
+node disappearing from them at 03:04:04. Something between the macOS host
+and the router had no battery behind it: a switch on mains, found the next
+morning. The macOS host's Wi-Fi was off, so it had nothing to fall back on.
+
+What subscribers saw: `broker-ups` reported the cut exactly. `site-ups`
+reported nothing at all. No `outage`, no `last_outage`. Its retained
+`state` read `{"online":false,"timestamp":"2026-10-26T13:55:32Z"}`. That is
+the LWT, set when the process connected six days earlier, and fired when the
+broker lost the client at the start of the cut. Its timestamp is the
+process's connect time, not the time it was fired.
+
+### 2. Recovery (`2-usb-replug-and-switch/`)
+
+The macOS host could not be rebooted, and its outage record was still
+open: it saw the cut begin, then lost both the network and the UPS before
+mains returned, so it never saw the end. Whenever the UPS came back it
+would have closed the outage then, hours late; after a restart, at the
+restart, with `spans_restart`. The record was removed and the daemon restarted on 2026-11-02,
+and a `last_outage` was published by hand with the start the daemon saw
+and the end the kernel gave (the second the port was disabled, which
+matches the broker host's upsmon), 2857 s, no minimum charge: it was never
+recorded.
+
+On 2026-11-03:
+
+| Time (UTC) | Event |
+|---|---|
+| 09:50:37 | UPS's USB lead unplugged and replugged at the Mac: enumerated again within seconds, on another port |
+| 09:50:39 | ups-mqtt: `NUT answering again after 43962 failed samples`; the NUT driver reclaimed the device by itself |
+| 09:55:31 | switch unplugged from mains, to move it onto the CyberPower; en0 down |
+| 09:56:12.345 | kernel: `hardware port disabled` for the UPS again, and re-enumerated 5 ms later |
+| 09:56:40 – 09:57:26 | en0 up, down 9 s later, up for good: the switch booting |
+| 09:57:34 | ups-mqtt reconnected after 1 m 43 s and republished |
+
+The second port disable came while the switch was plugged into the UPS,
+so plugging a load into the UPS can trip it too, not only mains returning.
+This time it came back by itself. The move is not yet proven by a cut:
+the UPS reports `ups.load: 0` before and after, too coarse to see a switch.
+
+### Failure modes found
+
+1. **The host's network not on a battery.** The same as 2026-10-13
+   test 1, on another host: ups-mqtt cannot report what it cannot send.
+   Fixed in the hardware, not yet tested by a cut.
+2. **macOS disables the UPS's USB port as power returns.** Not the
+   long-uptime drop, which needs a reboot: a replug brings it back.
+   `ups-doctor.sh` now reads the UPS's last USB event from the kernel log
+   and says which it is (`scripts/test/ups-doctor_test.sh`). The log keeps
+   those lines for about a day; after that it says it cannot tell, and
+   advises the replug first anyway.
+3. **An outage whose end nobody saw** — open. If the UPS becomes
+   unreadable before mains returns, the tracker keeps the outage open
+   until it can read the UPS again and ends it then, however late. Here it
+   was put right by hand. Ending an outage when the UPS has been
+   unreadable for long, or using another host's end, would need a decision
+   about what the daemon may assume.

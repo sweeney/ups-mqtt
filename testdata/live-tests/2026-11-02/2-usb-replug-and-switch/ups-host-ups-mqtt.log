@@ -1,0 +1,41 @@
+2026/11/03 09:49:29 poll error: polling NUT (43928 failed samples so far): listing variables for "cyberpower": upsd error: DATA-STALE
+2026/11/03 09:49:59 poll error: polling NUT (43943 failed samples so far): listing variables for "cyberpower": upsd error: DATA-STALE
+2026/11/03 09:50:31 poll error: polling NUT (43959 failed samples so far): listing variables for "cyberpower": upsd error: DATA-STALE
+2026/11/03 09:50:39 NUT answering again after 43962 failed samples
+2026/11/03 09:55:44 poll error: publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": timed out after 5s
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": skipped — an earlier publish is still unacknowledged after 5s
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": skipped — an earlier publish is still unacknowledged after 5s
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": skipped — an earlier publish is still unacknowledged after 5s
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": skipped — an earlier publish is still unacknowledged after 5s
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": skipped — an earlier publish is still unacknowledged after 5s
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": skipped — an earlier publish is still unacknowledged after 5s
+publishing to "ups/site-ups/state": skipped — an earlier publish is still unacknowledged after 5s
+2026/11/03 09:55:50 MQTT connection to tcp://broker:1883 lost: pingresp not received, disconnecting — reconnecting
+2026/11/03 09:55:58 MQTT connection failed: connecting to MQTT broker "tcp://broker:1883": network Error : dial tcp 100.64.0.1:1883: connect: operation timed out — retrying in 1s
+2026/11/03 09:56:09 poll error: publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/03 09:56:29 MQTT connection failed (attempt 2): connecting to MQTT broker "tcp://broker:1883": network Error : dial tcp 100.64.0.1:1883: i/o timeout — retrying in 2s
+2026/11/03 09:56:39 poll error: publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/03 09:57:09 poll error: publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/03 09:57:34 reconnected to MQTT broker tcp://broker:1883 after 1m43s (4 attempts)
+2026/11/03 09:57:34 republishing current state after reconnecting
