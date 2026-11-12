@@ -1,0 +1,1 @@
+ups/site-ups/last_outage {"ups_name":"site-ups","started_at":"2026-11-02T03:03:42Z","ended_at":"2026-11-02T03:51:20Z","duration_secs":2857,"low_battery_reached":false,"clock_synced":true,"spans_restart":false}

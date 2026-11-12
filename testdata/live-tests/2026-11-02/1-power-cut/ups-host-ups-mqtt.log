@@ -1,0 +1,882 @@
+2026/10/26 13:55:32 outage state: /Users/user/Library/Application Support/ups-mqtt/outage.json (from $STATE_DIRECTORY)
+2026/10/26 13:55:32 connected to MQTT broker tcp://broker:1883
+2026/10/26 13:55:32 connected to NUT at localhost:3493
+2026/10/26 13:55:32 polling every 30s, sampling every 2s
+2026/11/02 03:03:42 power outage detected — UPS on battery
+2026/11/02 03:03:47 poll error: publishing outage: publishing to "ups/site-ups/outage": timed out after 5s
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": skipped — an earlier publish is still unacknowledged after 5s
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": skipped — an earlier publish is still unacknowledged after 5s
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": skipped — an earlier publish is still unacknowledged after 5s
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": skipped — an earlier publish is still unacknowledged after 5s
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": skipped — an earlier publish is still unacknowledged after 5s
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": skipped — an earlier publish is still unacknowledged after 5s
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": skipped — an earlier publish is still unacknowledged after 5s
+publishing to "ups/site-ups/state": skipped — an earlier publish is still unacknowledged after 5s
+2026/11/02 03:04:00 MQTT connection to tcp://broker:1883 lost: read tcp 100.64.0.2:64345->100.64.0.1:1883: read: operation timed out — reconnecting
+2026/11/02 03:04:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:04:30 MQTT connection failed: connecting to MQTT broker "tcp://broker:1883": network Error : dial tcp 100.64.0.1:1883: i/o timeout — retrying in 1s
+2026/11/02 03:04:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:05:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:05:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:06:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:06:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:07:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:07:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:08:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:08:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:09:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:09:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:10:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:10:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:11:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:11:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:12:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:12:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:13:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:13:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:14:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:14:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:15:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:15:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:16:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:16:32 MQTT connection still failing after 15 attempts over 5m1s (13 not logged): connecting to MQTT broker "tcp://broker:1883": network Error : dial tcp 100.64.0.1:1883: i/o timeout — retrying every 30s
+2026/11/02 03:16:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:17:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:17:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:18:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:18:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:19:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:19:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:20:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:20:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:21:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:21:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:22:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:22:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:23:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:23:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:24:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:24:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:25:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:25:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:26:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:26:32 MQTT connection still failing after 25 attempts over 10m1s (9 not logged): connecting to MQTT broker "tcp://broker:1883": network Error : dial tcp 100.64.0.1:1883: i/o timeout — retrying every 30s
+2026/11/02 03:26:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:27:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:27:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:28:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:28:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:29:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:29:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:30:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:30:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:31:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:31:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:32:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:32:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:33:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:33:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:34:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:34:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:35:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:35:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:36:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:36:32 MQTT connection still failing after 35 attempts over 15m1s (9 not logged): connecting to MQTT broker "tcp://broker:1883": network Error : dial tcp 100.64.0.1:1883: i/o timeout — retrying every 30s
+2026/11/02 03:36:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:37:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:37:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:38:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:38:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:39:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:39:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:40:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:40:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:41:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:41:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:42:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:42:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:43:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:43:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:44:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:44:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:45:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:45:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:46:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:46:32 MQTT connection still failing after 45 attempts over 20m1s (9 not logged): connecting to MQTT broker "tcp://broker:1883": network Error : dial tcp 100.64.0.1:1883: i/o timeout — retrying every 30s
+2026/11/02 03:46:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:47:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:47:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:48:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:48:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:49:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:49:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:50:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:50:42 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:51:12 poll error: publishing outage: publishing to "ups/site-ups/outage": not connected to broker
+publishing "ups/site-ups/computed/on_battery": publishing to "ups/site-ups/computed/on_battery": not connected to broker
+publishing "ups/site-ups/computed/low_battery": publishing to "ups/site-ups/computed/low_battery": not connected to broker
+publishing "ups/site-ups/computed/status_display": publishing to "ups/site-ups/computed/status_display": not connected to broker
+publishing "ups/site-ups/computed/load_watts": publishing to "ups/site-ups/computed/load_watts": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_mins": publishing to "ups/site-ups/computed/battery_runtime_mins": not connected to broker
+publishing "ups/site-ups/computed/battery_runtime_hours": publishing to "ups/site-ups/computed/battery_runtime_hours": not connected to broker
+publishing "ups/site-ups/computed/input_voltage_deviation_pct": publishing to "ups/site-ups/computed/input_voltage_deviation_pct": not connected to broker
+publishing to "ups/site-ups/state": not connected to broker
+2026/11/02 03:51:24 poll error: polling NUT: listing variables for "cyberpower": upsd error: DATA-STALE
+2026/11/02 03:51:56 poll error: polling NUT (17 failed samples so far): listing variables for "cyberpower": upsd error: DATA-STALE
+2026/11/02 03:52:02 reconnected to MQTT broker tcp://broker:1883 after 48m1s (51 attempts)
+2026/11/02 03:52:02 republishing current state after reconnecting
+2026/11/02 03:52:26 poll error: polling NUT (33 failed samples so far): listing variables for "cyberpower": upsd error: DATA-STALE
+2026/11/02 03:52:58 poll error: polling NUT (49 failed samples so far): listing variables for "cyberpower": upsd error: DATA-STALE
+2026/11/02 03:53:28 poll error: polling NUT (64 failed samples so far): listing variables for "cyberpower": upsd error: DATA-STALE

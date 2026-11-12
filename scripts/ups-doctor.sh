@@ -30,9 +30,14 @@ UPSD_LABEL="org.nut.upsd"
 UPSD_PLIST="/Library/LaunchDaemons/${UPSD_LABEL}.plist"
 MQTT_LABEL="net.swee.ups-mqtt"
 USB_VENDOR_DEC=1892            # CyberPower 0x0764, as ioreg reports it
+USB_VENDOR_HEX=$(printf '0x%04x' "$USB_VENDOR_DEC")   # as the kernel log writes it
 NUT_BIN_DIR="/opt/homebrew/bin"
 DRIVER_LOG="/opt/homebrew/var/log/nut-driver.log"
 SETTLE=6                       # seconds to let a driver claim the device
+# How far back to look for the UPS's USB events. The unified log keeps these
+# for about a day on a busy Mac, whatever the window, and a longer window
+# makes `log show` slower, not more thorough.
+USB_LOG_WINDOW="${USB_LOG_WINDOW:-2d}"
 
 MODE="${1:-repair}"
 DRY=0; [ "$MODE" = "diagnose" ] && DRY=1
@@ -59,11 +64,49 @@ GUI_UID=""
 step "USB device"
 on_bus=$(ioreg -p IOUSB -w0 -l 2>/dev/null | grep -c "\"idVendor\" = ${USB_VENDOR_DEC}" || true)
 
+# The UPS's last arrival or departure in the kernel log, as
+# "<date> <time> <message>", or nothing if the log no longer has one.
+last_usb_event() {
+    log show --last "$USB_LOG_WINDOW" --style compact \
+        --predicate "process == \"kernel\" AND eventMessage CONTAINS \"${USB_VENDOR_HEX}/\"" 2>/dev/null \
+        | grep -E 'terminateDevice|enumerated 0x' | tail -1 \
+        | sed -E 's/^([0-9-]+ [0-9:]+)[.0-9]* .*AppleUSBHostPort::[A-Za-z_]+: (.*)$/\1 \2/' || true
+}
+
 if [ "$on_bus" -eq 0 ]; then
     bad "UPS is not on the USB bus at all"
-    note "Nothing in software can fix this. Reseat the USB lead — preferably"
-    note "into a port directly on the machine rather than through a hub — then"
-    note "re-run this script."
+    # Nothing in software brings it back, but why it left decides what will.
+    # Read it before anyone reaches for a reboot.
+    event=$(last_usb_event)
+    when=$(printf '%s' "$event" | cut -d' ' -f1-2)
+    case "$event" in
+    *"destroying ${USB_VENDOR_HEX}/"*"hardware port disabled"*)
+        note "macOS disabled its USB port at ${when}:"
+        note "  ${event#* * }"
+        note "This happens when mains returns after a cut, and on other electrical"
+        note "glitches on the lead. The port stays off until the cable is"
+        note "reconnected: unplug the UPS's USB lead at the Mac, wait ~10s, replug."
+        note "No reboot needed; the driver reclaims it by itself (2026-11-03)."
+        ;;
+    *"destroying ${USB_VENDOR_HEX}/"*)
+        note "it left the bus at ${when}:"
+        note "  ${event#* * }"
+        note "Reseat the USB lead, preferably into a port directly on the machine"
+        note "rather than through a hub. If it is still missing after that, the"
+        note "host's USB controller is wedged and only a reboot clears it."
+        ;;
+    *)
+        if [ -n "$event" ]; then
+            note "the kernel log has its arrival at ${when} but not its departure."
+        else
+            note "the kernel log no longer says why it left (it keeps about a day)."
+        fi
+        note "Reseat the USB lead first: a port macOS disabled comes back that way."
+        note "If it is still missing, the host's USB controller is wedged (the"
+        note "long-uptime drop), and only a reboot clears it."
+        ;;
+    esac
+    note "Then re-run this script."
     exit 1
 fi
 ok "UPS present on the USB bus"

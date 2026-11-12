@@ -1,0 +1,12 @@
+2026-11-03 09:50:37.160 Df kernel[0:2a4d278] (IOUSBHostFamily) usb-drd1-port-hs@01100000: AppleUSBHostPort::enumerateDeviceComplete_block_invoke: enumerated 0x0764/0501/0001 (CP1500EPFCLCD / 1) at 12 Mbps
+2026-11-03 09:55:31.165 Df kernel[0:6fc] (AppleBCM5701Ethernet) AppleBCM5701Ethernet [en0]: Link down (womp disabled, proxy idle)
+2026-11-03 09:55:31.165 Df kernel[0:6fc] (AppleBCM5701Ethernet) AppleBCM5701Ethernet [en0]: Link down (womp disabled, proxy idle)
+2026-11-03 09:55:31.167 Df configd[383:2a4e368] [com.apple.IPConfiguration:Server] en0 link INACTIVE
+2026-11-03 09:55:31.274 Df configd[383:2a4e368] [com.apple.IPConfiguration:Server] en0: removed IP address 192.0.2.40
+2026-11-03 09:56:12.345 Df kernel[0:61c] (IOUSBHostFamily) usb-drd1-port-hs@01100000: AppleUSBHostPort::terminateDevice: destroying 0x0764/0501/0001 (CP1500EPFCLCD): hardware port disabled
+2026-11-03 09:56:12.350 Df kernel[0:2a4d278] (IOUSBHostFamily) usb-drd1-port-hs@01100000: AppleUSBHostPort::enumerateDeviceComplete_block_invoke: enumerated 0x0764/0501/0001 (CP1500EPFCLCD / 2) at 12 Mbps
+2026-11-03 09:56:40.119 Df configd[383:2a4e8d7] [com.apple.IPConfiguration:Server] en0 link ACTIVE
+2026-11-03 09:56:49.161 Df kernel[0:6fc] (AppleBCM5701Ethernet) AppleBCM5701Ethernet [en0]: Link down (womp disabled, proxy idle)
+2026-11-03 09:56:49.161 Df kernel[0:6fc] (AppleBCM5701Ethernet) AppleBCM5701Ethernet [en0]: Link down (womp disabled, proxy idle)
+2026-11-03 09:56:49.163 Df configd[383:2a4e8d8] [com.apple.IPConfiguration:Server] en0 link INACTIVE
+2026-11-03 09:57:26.376 Df configd[383:2a4ea65] [com.apple.IPConfiguration:Server] en0 link ACTIVE

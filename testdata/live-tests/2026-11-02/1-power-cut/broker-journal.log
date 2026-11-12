@@ -1,0 +1,7 @@
+Nov 02 03:03:39.866951 broker ups-mqtt[854439]: 2026/11/02 03:03:39 power outage detected — UPS on battery
+Nov 02 03:03:40.315234 broker nut-monitor[1015443]: UPS apc@localhost on battery
+Nov 02 03:03:40.344710 broker nut-monitor[2513075]: Network UPS Tools upsmon 2.8.1
+Nov 02 03:51:20.661303 broker nut-monitor[1015443]: UPS apc@localhost on line power
+Nov 02 03:51:20.669418 broker nut-monitor[2520598]: Network UPS Tools upsmon 2.8.1
+Nov 02 03:51:21.865080 broker ups-mqtt[854439]: 2026/11/02 03:51:21 power restored
+Nov 02 03:51:21.872942 broker ups-mqtt[854439]: 2026/11/02 03:51:21 published last_outage: 2026-11-02T03:03:39Z → 2026-11-02T03:51:21Z (47m41.999632534s, spans restart: false)
