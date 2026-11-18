@@ -603,7 +603,7 @@ go test -coverprofile=c.out ./internal/metrics/ && go tool cover -func=c.out
 for t in scripts/test/*_test.sh; do bash "$t"; done   # the shell scripts' tests
 ```
 
-NUT is faked in-process (`FakePoller`, and `fakeUPSD`, which speaks the upsd protocol). Most tests use `FakePublisher`; the live-test replays (`TestLiveReplay_*`), the bridged replays (`TestBridgedReplay_*`) and the shutdown bound run a real `mosquitto` behind a fault-injecting proxy. They are skipped if `mosquitto` is not installed, and CI installs it and fails rather than skips. `internal/metrics` is enforced at **100% statement coverage** by CI.
+NUT is faked in-process (`FakePoller`, and `fakeUPSD`, which speaks the upsd protocol). Most tests use `FakePublisher`; the live-test replays (`TestLiveReplay_*`), the bridged replays (`TestBridgedReplay_*`) and the shutdown bound run a real `mosquitto` behind a fault-injecting proxy. They are skipped if `mosquitto` is not installed, and CI installs it and fails rather than skips. On Ubuntu 26.04 the `apparmor` package confines `/usr/sbin/mosquitto` to `/etc/mosquitto`, so it cannot read the configs these tests write to temp dirs and fails with `Unable to open config file`; unload the profile with `sudo apparmor_parser -R /etc/apparmor.d/mosquitto` (CI does). `internal/metrics` is enforced at **100% statement coverage** by CI.
 
 ---
 
@@ -772,6 +772,6 @@ If `Poll()` returns an error during normal operation (NUT restart, USB disconnec
 
 GitHub Actions runs two jobs on every push and pull request:
 
-**`test`** — installs Mosquitto for the replay tests, `go mod verify`, `go vet`, `go test -race -count=1 ./...`, every `scripts/test/*_test.sh`, coverage enforcement (metrics must be 100%), rich step summary with per-package coverage bars and slow-test list.
+**`test`** — installs Mosquitto for the replay tests and unloads Ubuntu's AppArmor profile for it, `go mod verify`, `go vet`, `go test -race -count=1 ./...`, every `scripts/test/*_test.sh`, coverage enforcement (metrics must be 100%), rich step summary with per-package coverage bars and slow-test list.
 
 **`build`** — cross-compiles for linux/amd64, linux/arm64, and linux/armv6, reports binary sizes, uploads artifacts (90-day retention).
