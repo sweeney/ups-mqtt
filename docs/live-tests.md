@@ -501,7 +501,9 @@ on the main broker, with a timestamp 14½ minutes wrong.
    not say so.** Both the LWT and the snapshot carry a `timestamp`, but
    only the snapshot carries `clock_synced`. After a long cut the LWT is
    all but certain to fire at the first clock sync (above), stamped with
-   the unsynced time. Open: put `clock_synced` in the LWT too.
+   the unsynced time. Fixed: the LWT and the shutdown announcement carry
+   `clock_synced` too (`TestFormatOffline_ClockSynced`,
+   `TestPublishOffline_CarriesClockSynced`).
 3. **ups-mqtt does not log low battery.** The journal of the dead boot
    ends at 23:12:30, 50 s after LB, and has no trace of it. Only
    `outage.json` and MQTT do. Open.

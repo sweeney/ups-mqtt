@@ -197,7 +197,7 @@ The outage in progress is kept in `outage.json`, written only on transitions (st
 
 "Published" means the broker sent PUBACK. Behind a bridged local broker that is the local one, and from there delivery is up to the bridge's queue, which Mosquitto saves to disk only every `autosave_interval`. A power loss within that window can lose a queued `last_outage` after the state file is gone. Tighten the broker config if that matters.
 
-`state` and `computed/*` follow `mqtt.retained`; `outage`, `last_outage`, the offline announcement and the LWT are always retained. An LWT (last will and testament) of `{"online":false,"timestamp":"…"}` is registered at startup so MQTT subscribers see the device go offline immediately if the daemon dies unexpectedly. Its `timestamp` is when the daemon started, since that is when it is registered.
+`state` and `computed/*` follow `mqtt.retained`; `outage`, `last_outage`, the offline announcement and the LWT are always retained. An LWT (last will and testament) of `{"online":false,"timestamp":"…","clock_synced":…}` is registered at startup so MQTT subscribers see the device go offline immediately if the daemon dies unexpectedly. Its `timestamp` is when the daemon started, since that is when it is registered, and `clock_synced` says whether the clock was synced then; both stay fixed for the life of the process, reconnects included. Distrust the `timestamp` when `clock_synced` is `false`. After a power cut the daemon usually starts before the clock syncs, and Mosquitto, which times keep-alives by the wall clock, drops every client at the sync and fires their LWTs: on 2026-11-18 that announced a running daemon offline with a time 14½ minutes wrong (docs/live-tests.md). Like the snapshot, it omits `clock_synced` where sync cannot be determined (not Linux).
 
 ### QoS: telemetry and events
 
@@ -752,7 +752,7 @@ That's it. The JSON state topic and the MQTT computed topic both pick it up auto
 On `SIGTERM`/`SIGINT`:
 1. Stop the poll ticker
 2. Attempt one final `Poll()` — if it succeeds, publish a complete state snapshot
-3. Publish `{"online":false,"timestamp":"…"}` to the state topic (retained)
+3. Publish `{"online":false,"timestamp":"…","clock_synced":…}` to the state topic (retained), with the clock's sync at that moment
 4. Close NUT and MQTT connections. If the offline announcement failed, leave without a clean DISCONNECT, so the broker publishes the LWT in its place
 5. Exit 0
 

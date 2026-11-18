@@ -275,7 +275,7 @@ func replayOn(t *testing.T, topo func(*testing.T) topology, tl timeline, faults 
 		},
 	}
 	mqttCfg(&cfg.MQTT)
-	pub, err := publisher.NewMQTTPublisherWith(cfg.MQTT, replayStateTopic, publisher.FormatOffline(), publisher.Tuning{
+	pub, err := publisher.NewMQTTPublisherWith(cfg.MQTT, replayStateTopic, publisher.FormatOffline(nil), publisher.Tuning{
 		KeepAlive:      time.Second,
 		PingTimeout:    time.Second,
 		PublishTimeout: replayTimeout,
@@ -512,7 +512,7 @@ func TestShutdown_BoundedAgainstDeadBroker(t *testing.T) {
 		},
 	}
 	const publishTimeout = time.Second
-	pub, err := publisher.NewMQTTPublisherWith(cfg.MQTT, replayStateTopic, publisher.FormatOffline(), publisher.Tuning{
+	pub, err := publisher.NewMQTTPublisherWith(cfg.MQTT, replayStateTopic, publisher.FormatOffline(nil), publisher.Tuning{
 		KeepAlive: 30 * time.Second, PingTimeout: 10 * time.Second,
 		PublishTimeout: publishTimeout,
 		Reconnect:      retry.Backoff{Initial: time.Second, Max: 30 * time.Second},

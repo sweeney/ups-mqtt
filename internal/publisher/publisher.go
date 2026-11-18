@@ -70,6 +70,12 @@ type StateMessage struct {
 type OnlineState struct {
 	Online    bool   `json:"online"`
 	Timestamp string `json:"timestamp"`
+	// ClockSynced says whether Timestamp can be trusted, as in StateMessage.
+	// For the LWT both are fixed when it is registered, at the first
+	// connect: after a power cut that is often before the clock syncs, and
+	// the broker may fire it at the sync itself (docs/live-tests.md,
+	// 2026-11-18).  Omitted where sync cannot be determined.
+	ClockSynced *bool `json:"clock_synced,omitempty"`
 }
 
 // OutageMessage is published to {prefix}/{ups_name}/outage whenever the UPS is
@@ -310,11 +316,14 @@ func PublishAll(
 	return errors.Join(errs...)
 }
 
-// FormatOffline returns the JSON payload for the offline announcement.
-func FormatOffline() string {
+// FormatOffline returns the JSON payload for the offline announcement and
+// the LWT, stamped now.  clockSynced is whether the wall clock is synced now
+// (nil if unknown), so whether the timestamp can be trusted.
+func FormatOffline(clockSynced *bool) string {
 	payload, _ := json.Marshal(OnlineState{
-		Online:    false,
-		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		Online:      false,
+		Timestamp:   time.Now().UTC().Format(time.RFC3339),
+		ClockSynced: clockSynced,
 	})
 	return string(payload)
 }

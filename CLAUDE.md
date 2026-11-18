@@ -140,9 +140,13 @@ for t in scripts/test/*_test.sh; do bash "$t"; done   # script tests (CI runs th
 - `state` is published every poll regardless of change, so it doubles as a
   heartbeat. It is also the LWT topic, so it carries two shapes: a full snapshot
   while alive, `{"online":false,…}` when the broker declares the client dead.
-  The snapshot carries `clock_synced`, the clock's sync at that poll: after a
-  power cut a bridged broker can forward states stamped by an unsynced clock
-  among stale retained values (docs/live-tests.md, test 5).
+  Both carry `clock_synced`: the snapshot the clock's sync at that poll, the
+  offline shape the sync when it was made (for the LWT, at the first
+  connect; paho fixes the will for the life of the client). After a power
+  cut a bridged broker can forward states stamped by an unsynced clock among
+  stale retained values (docs/live-tests.md, test 5), and Mosquitto drops
+  every client at the first clock sync, firing an LWT stamped before it
+  (2026-11-18).
 - `publisher.noisyVariableFamilies` denylists `driver.*` and
   `output.L2.*`/`output.L3.*` from `state.variables`. Never filter
   `battery.charge` or `input.voltage` wholesale — statehouse's ups adapter

@@ -112,7 +112,7 @@ func TestRestartAfterOutage_ClearsStaleRetainedOutage(t *testing.T) {
 	// broker notices the dead connection and publishes the LWT.
 	broker.Publish(publisher.Message{ //nolint:errcheck
 		Topic:    rielloStateTopic,
-		Payload:  publisher.FormatOffline(),
+		Payload:  publisher.FormatOffline(nil),
 		Retained: true,
 	})
 

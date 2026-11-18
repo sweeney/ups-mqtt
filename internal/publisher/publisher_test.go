@@ -255,12 +255,50 @@ func TestStateTopic(t *testing.T) {
 // ---- FormatOffline --------------------------------------------------------
 
 func TestFormatOffline(t *testing.T) {
-	payload := publisher.FormatOffline()
+	payload := publisher.FormatOffline(nil)
 	if !strings.Contains(payload, `"online":false`) {
 		t.Errorf("FormatOffline payload missing online:false: %s", payload)
 	}
 	if !strings.Contains(payload, `"timestamp"`) {
 		t.Errorf("FormatOffline payload missing timestamp: %s", payload)
+	}
+}
+
+// The offline announcement and the LWT carry a timestamp, so, like a state
+// snapshot, they must say whether the clock it came from was synced.  After
+// a long power cut the LWT fires at the first NTP sync, stamped by the
+// unsynced clock (docs/live-tests.md, 2026-11-18).  Unknown is omitted, as
+// in the snapshot.
+func TestFormatOffline_ClockSynced(t *testing.T) {
+	yes, no := true, false
+	for _, tc := range []struct {
+		name   string
+		synced *bool
+		want   string // substring; "" means the key must be absent
+	}{
+		{"synced", &yes, `"clock_synced":true`},
+		{"not synced", &no, `"clock_synced":false`},
+		{"unknown", nil, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			payload := publisher.FormatOffline(tc.synced)
+			var got map[string]any
+			if err := json.Unmarshal([]byte(payload), &got); err != nil {
+				t.Fatalf("payload %s is not JSON: %v", payload, err)
+			}
+			if got["online"] != false {
+				t.Errorf("online = %v, want false", got["online"])
+			}
+			if tc.want == "" {
+				if _, ok := got["clock_synced"]; ok {
+					t.Errorf("payload %s has clock_synced, want it omitted when unknown", payload)
+				}
+				return
+			}
+			if !strings.Contains(payload, tc.want) {
+				t.Errorf("payload %s, want %s", payload, tc.want)
+			}
+		})
 	}
 }
 

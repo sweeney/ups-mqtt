@@ -41,7 +41,9 @@ func main() {
 
 	// Connect to MQTT broker first so LWT is registered before we talk to NUT.
 	lwtTopic := publisher.StateTopic(cfg.MQTT.TopicPrefix, cfg.NUT.EffectiveLabel())
-	lwtPayload := publisher.FormatOffline()
+	// The LWT is fixed here for the life of the process, so its timestamp
+	// and clock_synced are this moment's, not the moment it fires.
+	lwtPayload := publisher.FormatOffline(tracker.ClockSynced())
 
 	pub, err := publisher.NewMQTTPublisher(cfg.MQTT, lwtTopic, lwtPayload)
 	if err != nil {
@@ -152,7 +154,7 @@ loop:
 	}
 
 	// Always publish the offline announcement.
-	if err := publishOffline(d.pub, lwtTopic, d.cfg.MQTT.EffectiveEventQOS()); err != nil {
+	if err := publishOffline(d.pub, lwtTopic, d.cfg.MQTT.EffectiveEventQOS(), d.outage.tracker.ClockSynced()); err != nil {
 		log.Printf("publishing offline announcement: %v", err)
 	}
 
@@ -277,11 +279,12 @@ func (d *daemon) logPollError(now time.Time, err error) {
 
 // publishOffline announces a clean shutdown on the state topic, in the same
 // shape the broker would publish as the LWT.  It is an event, so it goes at
-// the event QoS like the LWT it stands in for.
-func publishOffline(pub publisher.Publisher, topic string, qos byte) error {
+// the event QoS like the LWT it stands in for.  clockSynced is the clock's
+// sync now, which says whether its timestamp can be trusted.
+func publishOffline(pub publisher.Publisher, topic string, qos byte, clockSynced *bool) error {
 	return pub.Publish(publisher.Message{
 		Topic:    topic,
-		Payload:  publisher.FormatOffline(),
+		Payload:  publisher.FormatOffline(clockSynced),
 		Retained: true,
 		QOS:      qos,
 	})
