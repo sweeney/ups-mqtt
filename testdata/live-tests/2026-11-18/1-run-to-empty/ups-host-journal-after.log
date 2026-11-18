@@ -1,0 +1,235 @@
+Nov 18 23:12:03.411227 ups-host systemd[1]: Starting systemd-timesyncd.service - Network Time Synchronization...
+Nov 18 23:12:03.789254 ups-host systemd[1]: Started systemd-timesyncd.service - Network Time Synchronization.
+Nov 18 23:12:05.881707 ups-host systemd-timesyncd[315]: Network configuration changed, trying to establish connection.
+Nov 18 23:12:06.153485 ups-host systemd-timesyncd[315]: Network configuration changed, trying to establish connection.
+Nov 18 23:12:06.583916 ups-host systemd-timesyncd[315]: Network configuration changed, trying to establish connection.
+Nov 18 23:12:06.588147 ups-host systemd-timesyncd[315]: Network configuration changed, trying to establish connection.
+Nov 18 23:12:06.588513 ups-host systemd-timesyncd[315]: Network configuration changed, trying to establish connection.
+Nov 18 23:12:12.086303 ups-host systemd[1]: Starting nut-driver@iplug.service - Network UPS Tools - device driver for NUT device 'iplug'...
+Nov 18 23:12:12.496441 ups-host systemd[1]: Starting NetworkManager.service - Network Manager...
+Nov 18 23:12:12.587528 ups-host nut-driver@iplug[636]: Network UPS Tools - Riello USB driver 0.11 (2.8.1)
+Nov 18 23:12:12.587528 ups-host nut-driver@iplug[636]: Warning: This is an experimental driver.
+Nov 18 23:12:12.587528 ups-host nut-driver@iplug[636]: Some features may not function correctly.
+Nov 18 23:12:13.343770 ups-host NetworkManager[634]: <info>  [1795043533.3435] NetworkManager (version 1.52.1) is starting... (boot:00000000-0000-0000-0000-000000000004)
+Nov 18 23:12:13.343836 ups-host NetworkManager[634]: <info>  [1795043533.3437] Read config: /etc/NetworkManager/NetworkManager.conf, /usr/lib/NetworkManager/conf.d/{no-mac-addr-change.conf,rpi-no-scan-rand-mac-address.conf}, /run/NetworkManager/conf.d/{10-globally-managed-devices.conf,netplan.conf}
+Nov 18 23:12:13.400621 ups-host NetworkManager[634]: <info>  [1795043533.4005] manager[0x55bdb65620]: monitoring kernel firmware directory '/lib/firmware'.
+Nov 18 23:12:13.400740 ups-host NetworkManager[634]: <info>  [1795043533.4007] monitoring ifupdown state file '/run/network/ifstate'.
+Nov 18 23:12:13.414038 ups-host NetworkManager[634]: <info>  [1795043533.4139] hostname: hostname: using hostnamed
+Nov 18 23:12:13.414123 ups-host NetworkManager[634]: <info>  [1795043533.4140] hostname: static hostname changed from (none) to "ups-host"
+Nov 18 23:12:13.416042 ups-host NetworkManager[634]: <info>  [1795043533.4159] dns-mgr: init: dns=default,systemd-resolved rc-manager=symlink (auto)
+Nov 18 23:12:13.430130 ups-host NetworkManager[634]: <info>  [1795043533.4300] rfkill1: found Wi-Fi radio killswitch (at /sys/devices/platform/soc/3f300000.mmcnr/mmc_host/mmc1/mmc1:0001/mmc1:0001:1/ieee80211/phy0/rfkill1) (driver brcmfmac)
+Nov 18 23:12:13.431111 ups-host NetworkManager[634]: <info>  [1795043533.4310] manager[0x55bdb65620]: rfkill: Wi-Fi hardware radio set enabled
+Nov 18 23:12:13.431201 ups-host NetworkManager[634]: <info>  [1795043533.4311] manager[0x55bdb65620]: rfkill: WWAN hardware radio set enabled
+Nov 18 23:12:13.532218 ups-host NetworkManager[634]: <info>  [1795043533.5321] Loaded device plugin: NMBluezManager (/usr/lib/aarch64-linux-gnu/NetworkManager/1.52.1/libnm-device-plugin-bluetooth.so)
+Nov 18 23:12:13.537388 ups-host NetworkManager[634]: <info>  [1795043533.5373] Loaded device plugin: NMWwanFactory (/usr/lib/aarch64-linux-gnu/NetworkManager/1.52.1/libnm-device-plugin-wwan.so)
+Nov 18 23:12:13.555134 ups-host NetworkManager[634]: <info>  [1795043533.5550] Loaded device plugin: NMTeamFactory (/usr/lib/aarch64-linux-gnu/NetworkManager/1.52.1/libnm-device-plugin-team.so)
+Nov 18 23:12:13.577711 ups-host NetworkManager[634]: <info>  [1795043533.5776] Loaded device plugin: NMWifiFactory (/usr/lib/aarch64-linux-gnu/NetworkManager/1.52.1/libnm-device-plugin-wifi.so)
+Nov 18 23:12:13.583063 ups-host NetworkManager[634]: <info>  [1795043533.5829] Loaded device plugin: NMAtmManager (/usr/lib/aarch64-linux-gnu/NetworkManager/1.52.1/libnm-device-plugin-adsl.so)
+Nov 18 23:12:13.584240 ups-host NetworkManager[634]: <info>  [1795043533.5841] manager: rfkill: Wi-Fi enabled by radio killswitch; enabled by state file
+Nov 18 23:12:13.584516 ups-host NetworkManager[634]: <info>  [1795043533.5844] manager: rfkill: WWAN enabled by radio killswitch; enabled by state file
+Nov 18 23:12:13.584727 ups-host NetworkManager[634]: <info>  [1795043533.5846] manager: Networking is enabled by state file
+Nov 18 23:12:13.599285 ups-host NetworkManager[634]: <info>  [1795043533.5992] settings: Loaded settings plugin: ifupdown ("/usr/lib/aarch64-linux-gnu/NetworkManager/1.52.1/libnm-settings-plugin-ifupdown.so")
+Nov 18 23:12:13.599434 ups-host NetworkManager[634]: <info>  [1795043533.5994] settings: Loaded settings plugin: keyfile (internal)
+Nov 18 23:12:13.599496 ups-host NetworkManager[634]: <info>  [1795043533.5994] ifupdown: management mode: unmanaged
+Nov 18 23:12:13.600562 ups-host NetworkManager[634]: <info>  [1795043533.6005] ifupdown: interfaces file /etc/network/interfaces doesn't exist
+Nov 18 23:12:15.178142 ups-host riello_usb[740]: Startup successful
+Nov 18 23:12:15.178436 ups-host riello_usb[740]: upsnotify: notify about state 2 with libsystemd: was requested, but not running as a service unit now, will not spam more about it
+Nov 18 23:12:15.179801 ups-host nut-driver@iplug[566]: Network UPS Tools - UPS driver controller 2.8.1
+Nov 18 23:12:15.178452 ups-host riello_usb[740]: upsnotify: failed to notify about state 2: no notification tech defined, will not spam more about it
+Nov 18 23:12:15.178465 ups-host riello_usb[740]: upsnotify: logged the systemd watchdog situation once, will not spam more about it
+Nov 18 23:12:16.376561 ups-host systemd[1]: Started nut-driver@iplug.service - Network UPS Tools - device driver for NUT device 'iplug'.
+Nov 18 23:12:24.596355 ups-host NetworkManager[634]: <info>  [1795043544.5962] dhcp: init: Using DHCP client 'internal'
+Nov 18 23:12:24.597460 ups-host NetworkManager[634]: <info>  [1795043544.5974] manager: (lo): new Loopback device (/org/freedesktop/NetworkManager/Devices/1)
+Nov 18 23:12:24.602207 ups-host NetworkManager[634]: <info>  [1795043544.6021] device (lo): state change: unmanaged -> unavailable (reason 'connection-assumed', managed-type: 'external')
+Nov 18 23:12:24.604175 ups-host NetworkManager[634]: <info>  [1795043544.6041] device (lo): state change: unavailable -> disconnected (reason 'connection-assumed', managed-type: 'external')
+Nov 18 23:12:24.610501 ups-host NetworkManager[634]: <info>  [1795043544.6104] device (lo): Activation: starting connection 'lo' (00000000-0000-0000-0000-000000000006)
+Nov 18 23:12:24.614605 ups-host NetworkManager[634]: <info>  [1795043544.6145] manager: (eth0): new Ethernet device (/org/freedesktop/NetworkManager/Devices/2)
+Nov 18 23:12:24.615946 ups-host NetworkManager[634]: <info>  [1795043544.6158] device (eth0): state change: unmanaged -> unavailable (reason 'managed', managed-type: 'external')
+Nov 18 23:12:24.643778 ups-host NetworkManager[634]: <info>  [1795043544.6436] device (wlan0): driver supports Access Point (AP) mode
+Nov 18 23:12:24.646807 ups-host NetworkManager[634]: <info>  [1795043544.6467] manager: (wlan0): new 802.11 Wi-Fi device (/org/freedesktop/NetworkManager/Devices/3)
+Nov 18 23:12:24.648616 ups-host NetworkManager[634]: <info>  [1795043544.6485] device (wlan0): state change: unmanaged -> unavailable (reason 'managed', managed-type: 'external')
+Nov 18 23:12:24.670300 ups-host NetworkManager[634]: <info>  [1795043544.6702] failed to open /run/network/ifstate
+Nov 18 23:12:24.672568 ups-host systemd[1]: Started NetworkManager.service - Network Manager.
+Nov 18 23:12:24.673097 ups-host NetworkManager[634]: <info>  [1795043544.6729] bus-manager: acquired D-Bus service "org.freedesktop.NetworkManager"
+Nov 18 23:12:24.687524 ups-host systemd[1]: Starting nut-server.service - Network UPS Tools - power devices information server...
+Nov 18 23:12:24.705555 ups-host systemd[1]: Starting pi-helper.service - Pi Helper Daemon...
+Nov 18 23:12:24.750142 ups-host NetworkManager[634]: <info>  [1795043544.7500] device (lo): state change: disconnected -> prepare (reason 'none', managed-type: 'external')
+Nov 18 23:12:24.754841 ups-host NetworkManager[634]: <info>  [1795043544.7547] device (lo): state change: prepare -> config (reason 'none', managed-type: 'external')
+Nov 18 23:12:24.757444 ups-host NetworkManager[634]: <info>  [1795043544.7573] device (lo): state change: config -> ip-config (reason 'none', managed-type: 'external')
+Nov 18 23:12:24.760345 ups-host NetworkManager[634]: <info>  [1795043544.7602] modem-manager: oFono is not available
+Nov 18 23:12:24.761128 ups-host NetworkManager[634]: <info>  [1795043544.7610] device (lo): state change: ip-config -> ip-check (reason 'none', managed-type: 'external')
+Nov 18 23:12:24.802309 ups-host NetworkManager[634]: <info>  [1795043544.8022] device (lo): state change: ip-check -> secondaries (reason 'none', managed-type: 'external')
+Nov 18 23:12:24.803118 ups-host NetworkManager[634]: <info>  [1795043544.8030] device (lo): state change: secondaries -> activated (reason 'none', managed-type: 'external')
+Nov 18 23:12:24.805331 ups-host NetworkManager[634]: <info>  [1795043544.8052] device (lo): Activation: successful, device activated.
+Nov 18 23:12:24.847975 ups-host systemd[1]: Started nut-server.service - Network UPS Tools - power devices information server.
+Nov 18 23:12:24.924995 ups-host systemd[1]: Starting nut-monitor.service - Network UPS Tools - power device monitor and shutdown controller...
+Nov 18 23:12:24.997250 ups-host systemd[1]: Started nut-monitor.service - Network UPS Tools - power device monitor and shutdown controller.
+Nov 18 23:12:25.030877 ups-host systemd[1]: Started pi-helper.service - Pi Helper Daemon.
+Nov 18 23:12:25.074907 ups-host NetworkManager[634]: <info>  [1795043545.0748] device (wlan0): supplicant interface state: internal-starting -> disconnected
+Nov 18 23:12:25.075348 ups-host NetworkManager[634]: <info>  [1795043545.0752] Wi-Fi P2P device controlled by interface wlan0 created
+Nov 18 23:12:25.076450 ups-host NetworkManager[634]: <info>  [1795043545.0763] manager: (p2p-dev-wlan0): new 802.11 Wi-Fi P2P device (/org/freedesktop/NetworkManager/Devices/4)
+Nov 18 23:12:25.077389 ups-host NetworkManager[634]: <info>  [1795043545.0773] device (p2p-dev-wlan0): state change: unmanaged -> unavailable (reason 'managed', managed-type: 'external')
+Nov 18 23:12:25.079148 ups-host NetworkManager[634]: <info>  [1795043545.0790] device (wlan0): state change: unavailable -> disconnected (reason 'supplicant-available', managed-type: 'full')
+Nov 18 23:12:25.082134 ups-host NetworkManager[634]: <info>  [1795043545.0820] device (p2p-dev-wlan0): state change: unavailable -> disconnected (reason 'none', managed-type: 'full')
+Nov 18 23:12:25.201436 ups-host nut-server[1066]: fopen /run/nut/upsd.pid: No such file or directory
+Nov 18 23:12:25.201436 ups-host nut-server[1066]: Could not find PID file '/run/nut/upsd.pid' to see if previous upsd instance is already running!
+Nov 18 23:12:25.202797 ups-host nut-monitor[1074]: fopen /run/nut/upsmon.pid: No such file or directory
+Nov 18 23:12:25.202797 ups-host nut-monitor[1074]: Could not find PID file to see if previous upsmon instance is already running!
+Nov 18 23:12:25.208989 ups-host nut-server[1066]: listening on ::1 port 3493
+Nov 18 23:12:25.209289 ups-host nut-server[1066]: listening on 127.0.0.1 port 3493
+Nov 18 23:12:25.209130 ups-host upsd[1066]: listening on ::1 port 3493
+Nov 18 23:12:25.209218 ups-host upsd[1066]: listening on 127.0.0.1 port 3493
+Nov 18 23:12:25.209840 ups-host nut-server[1066]: Connected to UPS [iplug]: riello_usb-iplug
+Nov 18 23:12:25.209840 ups-host nut-server[1066]: Found 1 UPS defined in ups.conf
+Nov 18 23:12:25.209640 ups-host upsd[1066]: Connected to UPS [iplug]: riello_usb-iplug
+Nov 18 23:12:25.209689 ups-host upsd[1066]: Found 1 UPS defined in ups.conf
+Nov 18 23:12:25.212177 ups-host nut-monitor[1074]: Using power down flag file /etc/killpower
+Nov 18 23:12:25.239814 ups-host nut-server[1066]: Running as foreground process, not saving a PID file
+Nov 18 23:12:25.240150 ups-host nut-server[1066]: upsnotify: notify about state 2 with libsystemd: was requested, but not running as a service unit now, will not spam more about it
+Nov 18 23:12:25.240150 ups-host nut-server[1066]: upsnotify: failed to notify about state 2: no notification tech defined, will not spam more about it
+Nov 18 23:12:25.240150 ups-host nut-server[1066]: upsnotify: logged the systemd watchdog situation once, will not spam more about it
+Nov 18 23:12:25.239837 ups-host upsd[1066]: Running as foreground process, not saving a PID file
+Nov 18 23:12:25.239904 ups-host upsd[1066]: upsnotify: notify about state 2 with libsystemd: was requested, but not running as a service unit now, will not spam more about it
+Nov 18 23:12:25.239923 ups-host upsd[1066]: upsnotify: failed to notify about state 2: no notification tech defined, will not spam more about it
+Nov 18 23:12:25.239941 ups-host upsd[1066]: upsnotify: logged the systemd watchdog situation once, will not spam more about it
+Nov 18 23:12:25.264514 ups-host nut-monitor[1074]: Network UPS Tools upsmon 2.8.1
+Nov 18 23:12:25.264514 ups-host nut-monitor[1074]: Fatal error: insufficient power configured!
+Nov 18 23:12:25.264514 ups-host nut-monitor[1074]: Sum of power values........: 0
+Nov 18 23:12:25.264514 ups-host nut-monitor[1074]: Minimum value (MINSUPPLIES): 1
+Nov 18 23:12:25.264514 ups-host nut-monitor[1074]: Edit your upsmon.conf and change the values.
+Nov 18 23:12:25.267706 ups-host systemd[1]: nut-monitor.service: Main process exited, code=exited, status=1/FAILURE
+Nov 18 23:12:25.268316 ups-host systemd[1]: nut-monitor.service: Failed with result 'exit-code'.
+Nov 18 23:12:25.444320 ups-host systemd[1]: nut-monitor.service: Scheduled restart job, restart counter is at 1.
+Nov 18 23:12:25.450550 ups-host systemd[1]: Starting nut-monitor.service - Network UPS Tools - power device monitor and shutdown controller...
+Nov 18 23:12:25.513878 ups-host systemd[1]: Started nut-monitor.service - Network UPS Tools - power device monitor and shutdown controller.
+Nov 18 23:12:25.571282 ups-host nut-monitor[1090]: fopen /run/nut/upsmon.pid: No such file or directory
+Nov 18 23:12:25.571282 ups-host nut-monitor[1090]: Could not find PID file to see if previous upsmon instance is already running!
+Nov 18 23:12:25.572367 ups-host nut-monitor[1090]: Using power down flag file /etc/killpower
+Nov 18 23:12:25.572816 ups-host nut-monitor[1090]: Network UPS Tools upsmon 2.8.1
+Nov 18 23:12:25.572816 ups-host nut-monitor[1090]: Fatal error: insufficient power configured!
+Nov 18 23:12:25.572816 ups-host nut-monitor[1090]: Sum of power values........: 0
+Nov 18 23:12:25.572816 ups-host nut-monitor[1090]: Minimum value (MINSUPPLIES): 1
+Nov 18 23:12:25.572816 ups-host nut-monitor[1090]: Edit your upsmon.conf and change the values.
+Nov 18 23:12:25.575977 ups-host systemd[1]: nut-monitor.service: Main process exited, code=exited, status=1/FAILURE
+Nov 18 23:12:25.576564 ups-host systemd[1]: nut-monitor.service: Failed with result 'exit-code'.
+Nov 18 23:12:25.694227 ups-host systemd[1]: nut-monitor.service: Scheduled restart job, restart counter is at 2.
+Nov 18 23:12:25.700357 ups-host systemd[1]: Starting nut-monitor.service - Network UPS Tools - power device monitor and shutdown controller...
+Nov 18 23:12:25.781673 ups-host systemd[1]: Started nut-monitor.service - Network UPS Tools - power device monitor and shutdown controller.
+Nov 18 23:12:25.847089 ups-host nut-monitor[1094]: fopen /run/nut/upsmon.pid: No such file or directory
+Nov 18 23:12:25.847089 ups-host nut-monitor[1094]: Could not find PID file to see if previous upsmon instance is already running!
+Nov 18 23:12:25.848311 ups-host nut-monitor[1094]: Using power down flag file /etc/killpower
+Nov 18 23:12:25.848683 ups-host nut-monitor[1094]: Network UPS Tools upsmon 2.8.1
+Nov 18 23:12:25.848683 ups-host nut-monitor[1094]: Fatal error: insufficient power configured!
+Nov 18 23:12:25.848683 ups-host nut-monitor[1094]: Sum of power values........: 0
+Nov 18 23:12:25.848683 ups-host nut-monitor[1094]: Minimum value (MINSUPPLIES): 1
+Nov 18 23:12:25.848683 ups-host nut-monitor[1094]: Edit your upsmon.conf and change the values.
+Nov 18 23:12:25.851698 ups-host systemd[1]: nut-monitor.service: Main process exited, code=exited, status=1/FAILURE
+Nov 18 23:12:25.852311 ups-host systemd[1]: nut-monitor.service: Failed with result 'exit-code'.
+Nov 18 23:12:26.148430 ups-host NetworkManager[634]: <info>  [1795043546.1483] device (eth0): carrier: link connected
+Nov 18 23:12:26.149610 ups-host NetworkManager[634]: <info>  [1795043546.1495] device (eth0): state change: unavailable -> disconnected (reason 'carrier-changed', managed-type: 'full')
+Nov 18 23:12:26.152251 ups-host NetworkManager[634]: <info>  [1795043546.1521] policy: auto-activating connection 'netplan-eth0' (00000000-0000-0000-0000-000000000001)
+Nov 18 23:12:26.154751 ups-host NetworkManager[634]: <info>  [1795043546.1546] device (eth0): Activation: starting connection 'netplan-eth0' (00000000-0000-0000-0000-000000000001)
+Nov 18 23:12:26.155322 ups-host NetworkManager[634]: <info>  [1795043546.1552] device (eth0): state change: disconnected -> prepare (reason 'none', managed-type: 'full')
+Nov 18 23:12:26.156352 ups-host NetworkManager[634]: <info>  [1795043546.1562] manager: NetworkManager state is now CONNECTING
+Nov 18 23:12:26.157113 ups-host NetworkManager[634]: <info>  [1795043546.1570] device (eth0): state change: prepare -> config (reason 'none', managed-type: 'full')
+Nov 18 23:12:26.161451 ups-host NetworkManager[634]: <info>  [1795043546.1613] device (eth0): state change: config -> ip-config (reason 'none', managed-type: 'full')
+Nov 18 23:12:26.163567 ups-host NetworkManager[634]: <info>  [1795043546.1634] dhcp4 (eth0): activation: beginning transaction (timeout in 45 seconds)
+Nov 18 23:12:26.194190 ups-host systemd[1]: nut-monitor.service: Scheduled restart job, restart counter is at 3.
+Nov 18 23:12:26.200342 ups-host systemd[1]: Starting nut-monitor.service - Network UPS Tools - power device monitor and shutdown controller...
+Nov 18 23:12:26.267266 ups-host systemd[1]: Started nut-monitor.service - Network UPS Tools - power device monitor and shutdown controller.
+Nov 18 23:12:26.335344 ups-host nut-monitor[1098]: fopen /run/nut/upsmon.pid: No such file or directory
+Nov 18 23:12:26.335344 ups-host nut-monitor[1098]: Could not find PID file to see if previous upsmon instance is already running!
+Nov 18 23:12:26.336412 ups-host nut-monitor[1098]: Using power down flag file /etc/killpower
+Nov 18 23:12:26.336871 ups-host nut-monitor[1098]: Network UPS Tools upsmon 2.8.1
+Nov 18 23:12:26.336871 ups-host nut-monitor[1098]: Fatal error: insufficient power configured!
+Nov 18 23:12:26.336871 ups-host nut-monitor[1098]: Sum of power values........: 0
+Nov 18 23:12:26.336871 ups-host nut-monitor[1098]: Minimum value (MINSUPPLIES): 1
+Nov 18 23:12:26.336871 ups-host nut-monitor[1098]: Edit your upsmon.conf and change the values.
+Nov 18 23:12:26.340001 ups-host systemd[1]: nut-monitor.service: Main process exited, code=exited, status=1/FAILURE
+Nov 18 23:12:26.340589 ups-host systemd[1]: nut-monitor.service: Failed with result 'exit-code'.
+Nov 18 23:12:26.342809 ups-host riello_usb[740]: sock_connect: enabling asynchronous mode (auto)
+Nov 18 23:12:26.395705 ups-host pi-helper[1078]: [pi-helper] 2026/11/18 23:12:26 starting pi-helper daemon
+Nov 18 23:12:26.395705 ups-host pi-helper[1078]: [pi-helper] 2026/11/18 23:12:26 writing to: /run/pi-helper.env
+Nov 18 23:12:26.402845 ups-host pi-helper[1078]: [network] 2026/11/18 23:12:26 state changed: disconnected/ → disconnected/ (wifi: disconnected → disconnected, ip:  → )
+Nov 18 23:12:26.431641 ups-host pi-helper[1078]: [pi-helper] 2026/11/18 23:12:26 wifi: wlan0: disabling power save...
+Nov 18 23:12:26.439230 ups-host pi-helper[1078]: [pi-helper] 2026/11/18 23:12:26 wifi: wlan0: power save disabled
+Nov 18 23:12:26.444419 ups-host systemd[1]: nut-monitor.service: Scheduled restart job, restart counter is at 4.
+Nov 18 23:12:26.450747 ups-host systemd[1]: Starting nut-monitor.service - Network UPS Tools - power device monitor and shutdown controller...
+Nov 18 23:12:26.526793 ups-host systemd[1]: Started nut-monitor.service - Network UPS Tools - power device monitor and shutdown controller.
+Nov 18 23:12:26.587389 ups-host nut-monitor[1113]: fopen /run/nut/upsmon.pid: No such file or directory
+Nov 18 23:12:26.587389 ups-host nut-monitor[1113]: Could not find PID file to see if previous upsmon instance is already running!
+Nov 18 23:12:26.588592 ups-host nut-monitor[1113]: Using power down flag file /etc/killpower
+Nov 18 23:12:26.588981 ups-host nut-monitor[1113]: Network UPS Tools upsmon 2.8.1
+Nov 18 23:12:26.588981 ups-host nut-monitor[1113]: Fatal error: insufficient power configured!
+Nov 18 23:12:26.588981 ups-host nut-monitor[1113]: Sum of power values........: 0
+Nov 18 23:12:26.588981 ups-host nut-monitor[1113]: Minimum value (MINSUPPLIES): 1
+Nov 18 23:12:26.588981 ups-host nut-monitor[1113]: Edit your upsmon.conf and change the values.
+Nov 18 23:12:26.592064 ups-host systemd[1]: nut-monitor.service: Main process exited, code=exited, status=1/FAILURE
+Nov 18 23:12:26.592649 ups-host systemd[1]: nut-monitor.service: Failed with result 'exit-code'.
+Nov 18 23:12:26.742298 ups-host pi-helper[1078]: [pi-helper] 2026/11/18 23:12:26 wifi: netplan-wlan0-swee.net: autoconnect-retries already infinite
+Nov 18 23:12:26.742298 ups-host pi-helper[1078]: [pi-helper] 2026/11/18 23:12:26 daemon running, press Ctrl+C to stop
+Nov 18 23:12:26.761394 ups-host systemd[1]: nut-monitor.service: Scheduled restart job, restart counter is at 5.
+Nov 18 23:12:26.762959 ups-host systemd[1]: nut-monitor.service: Start request repeated too quickly.
+Nov 18 23:12:26.763021 ups-host systemd[1]: nut-monitor.service: Failed with result 'exit-code'.
+Nov 18 23:12:26.763772 ups-host systemd[1]: Failed to start nut-monitor.service - Network UPS Tools - power device monitor and shutdown controller.
+Nov 18 23:12:27.104794 ups-host NetworkManager[634]: <info>  [1795043547.1046] manager: (tailscale0): new Tun device (/org/freedesktop/NetworkManager/Devices/5)
+Nov 18 23:12:52.310172 ups-host NetworkManager[634]: <info>  [1795043572.3100] device (eth0): carrier: link connected
+Nov 18 23:12:54.072641 ups-host NetworkManager[634]: <info>  [1795043574.0725] device (eth0): carrier: link connected
+Nov 18 23:13:11.252147 ups-host NetworkManager[634]: <info>  [1795043591.2520] device (eth0): state change: ip-config -> failed (reason 'ip-config-unavailable', managed-type: 'full')
+Nov 18 23:13:11.254188 ups-host NetworkManager[634]: <info>  [1795043591.2540] manager: NetworkManager state is now DISCONNECTED
+Nov 18 23:13:11.255820 ups-host NetworkManager[634]: <warn>  [1795043591.2556] device (eth0): Activation: failed for connection 'netplan-eth0'
+Nov 18 23:13:11.257156 ups-host NetworkManager[634]: <info>  [1795043591.2570] device (eth0): state change: failed -> disconnected (reason 'none', managed-type: 'full')
+Nov 18 23:13:11.279520 ups-host NetworkManager[634]: <info>  [1795043591.2793] dhcp4 (eth0): canceled DHCP transaction
+Nov 18 23:13:11.279601 ups-host NetworkManager[634]: <info>  [1795043591.2795] dhcp4 (eth0): activation: beginning transaction (timeout in 45 seconds)
+Nov 18 23:13:11.279691 ups-host NetworkManager[634]: <info>  [1795043591.2796] dhcp4 (eth0): state changed no lease
+Nov 18 23:13:11.287640 ups-host NetworkManager[634]: <info>  [1795043591.2875] policy: auto-activating connection 'netplan-eth0' (00000000-0000-0000-0000-000000000001)
+Nov 18 23:13:11.290711 ups-host NetworkManager[634]: <info>  [1795043591.2905] device (eth0): Activation: starting connection 'netplan-eth0' (00000000-0000-0000-0000-000000000001)
+Nov 18 23:13:11.291524 ups-host NetworkManager[634]: <info>  [1795043591.2914] device (eth0): state change: disconnected -> prepare (reason 'none', managed-type: 'full')
+Nov 18 23:13:11.293372 ups-host NetworkManager[634]: <info>  [1795043591.2932] manager: NetworkManager state is now CONNECTING
+Nov 18 23:13:11.294604 ups-host NetworkManager[634]: <info>  [1795043591.2944] device (eth0): state change: prepare -> config (reason 'none', managed-type: 'full')
+Nov 18 23:13:11.301553 ups-host NetworkManager[634]: <info>  [1795043591.3014] device (eth0): state change: config -> ip-config (reason 'none', managed-type: 'full')
+Nov 18 23:13:11.305118 ups-host NetworkManager[634]: <info>  [1795043591.3050] dhcp4 (eth0): activation: beginning transaction (timeout in 45 seconds)
+Nov 18 23:13:11.310635 ups-host NetworkManager[634]: <info>  [1795043591.3104] dhcp4 (eth0): state changed new lease, address=192.0.2.87, acd pending
+Nov 18 23:13:11.475364 ups-host NetworkManager[634]: <info>  [1795043591.4752] dhcp4 (eth0): state changed new lease, address=192.0.2.87
+Nov 18 23:13:11.480130 ups-host NetworkManager[634]: <info>  [1795043591.4800] policy: set 'netplan-eth0' (eth0) as default for IPv4 routing and DNS
+Nov 18 23:13:11.484783 ups-host pi-helper[1078]: [network] 2026/11/18 23:13:11 state changed: disconnected/ → connected/ethernet (wifi: disconnected → disconnected, ip:  → 192.0.2.87)
+Nov 18 23:13:11.484783 ups-host pi-helper[1078]: [pi-helper] 2026/11/18 23:13:11 network: state changed: status: disconnected → connected, ip:  → 192.0.2.87, type:  → ethernet
+Nov 18 23:13:11.509278 ups-host NetworkManager[634]: <info>  [1795043591.5092] device (eth0): state change: ip-config -> ip-check (reason 'none', managed-type: 'full')
+Nov 18 23:13:11.596025 ups-host NetworkManager[634]: <info>  [1795043591.5959] device (eth0): state change: ip-check -> secondaries (reason 'none', managed-type: 'full')
+Nov 18 23:13:11.596751 ups-host NetworkManager[634]: <info>  [1795043591.5966] device (eth0): state change: secondaries -> activated (reason 'none', managed-type: 'full')
+Nov 18 23:13:11.598464 ups-host NetworkManager[634]: <info>  [1795043591.5983] manager: NetworkManager state is now CONNECTED_SITE
+Nov 18 23:13:11.599744 ups-host NetworkManager[634]: <info>  [1795043591.5996] device (eth0): Activation: successful, device activated.
+Nov 18 23:13:11.601914 ups-host NetworkManager[634]: <info>  [1795043591.6018] manager: NetworkManager state is now CONNECTED_GLOBAL
+Nov 18 23:13:11.602901 ups-host NetworkManager[634]: <info>  [1795043591.6028] manager: startup complete
+Nov 18 23:13:11.629557 ups-host systemd[1]: Starting mosquitto.service - Mosquitto MQTT Broker...
+Nov 18 23:13:11.967321 ups-host mosquitto[1195]: 1795043591: Loading config file /etc/mosquitto/conf.d/10-local.conf
+Nov 18 23:13:11.967321 ups-host mosquitto[1195]: 1795043591: Loading config file /etc/mosquitto/conf.d/20-bridge-broker.conf
+Nov 18 23:13:31.984692 ups-host mosquitto[1195]: 1795043591: Warning: Error resolving bridge address: Temporary failure in name resolution.
+Nov 18 23:13:32.009814 ups-host systemd[1]: Started mosquitto.service - Mosquitto MQTT Broker.
+Nov 18 23:13:32.050716 ups-host systemd[1]: Started ups-mqtt.service - UPS MQTT Bridge (NUT).
+Nov 18 23:13:33.549989 ups-host ups-mqtt[1203]: 2026/11/18 23:13:33 ups-mqtt starting (NUT: localhost:3493, UPS: iplug, label: site-ups, MQTT: tcp://127.0.0.1:1883)
+Nov 18 23:13:34.194830 ups-host ups-mqtt[1203]: 2026/11/18 23:13:33 outage state: /var/lib/ups-mqtt/outage.json (from $STATE_DIRECTORY)
+Nov 18 23:13:34.194830 ups-host ups-mqtt[1203]: 2026/11/18 23:13:33 connected to MQTT broker tcp://127.0.0.1:1883
+Nov 18 23:13:34.194830 ups-host ups-mqtt[1203]: 2026/11/18 23:13:33 connected to NUT at localhost:3493
+Nov 18 23:13:34.194830 ups-host ups-mqtt[1203]: 2026/11/18 23:13:33 polling every 10s, sampling every 2s
+Nov 18 23:13:34.194830 ups-host ups-mqtt[1203]: 2026/11/18 23:13:33 outage started 2026-11-18T21:54:42Z ran the battery low and the host has rebooted since; it ended at boot
+Nov 18 23:28:13.348214 ups-host systemd-timesyncd[315]: Contacted time server 203.0.113.63:123 (2.debian.pool.ntp.org).
+Nov 18 23:28:13.348770 ups-host systemd-timesyncd[315]: Initial clock synchronization to Wed 2026-11-18 23:28:13.347353 GMT.
+Nov 18 23:28:13.426170 ups-host ups-mqtt[1203]: 2026/11/18 23:28:13 MQTT connection to tcp://127.0.0.1:1883 lost: EOF — reconnecting
+Nov 18 23:28:13.454566 ups-host ups-mqtt[1203]: 2026/11/18 23:28:13 reconnected to MQTT broker tcp://127.0.0.1:1883 after 0s (1 attempts)
+Nov 18 23:28:13.454566 ups-host ups-mqtt[1203]: 2026/11/18 23:28:13 republishing current state after reconnecting
+Nov 18 23:28:13.436438 ups-host upsd[1066]: Data for UPS [iplug] is stale - check driver
+Nov 18 23:28:13.458094 ups-host nut-server[1066]: Data for UPS [iplug] is stale - check driver
+Nov 18 23:28:13.460658 ups-host ups-mqtt[1203]: 2026/11/18 23:28:13 published last_outage: 2026-11-18T21:54:42Z → 2026-11-18T23:26:25Z (1h31m43.231324931s, spans restart: true)
+Nov 18 23:28:13.485085 ups-host nut-server[1066]: UPS [iplug] data is no longer stale
+Nov 18 23:28:13.484975 ups-host upsd[1066]: UPS [iplug] data is no longer stale
+Nov 18 23:28:14.206340 ups-host NetworkManager[634]: <info>  [1795044494.2062] device (tailscale0): state change: unmanaged -> unavailable (reason 'connection-assumed', managed-type: 'external')
+Nov 18 23:28:14.217700 ups-host NetworkManager[634]: <info>  [1795044494.2175] device (tailscale0): state change: unavailable -> disconnected (reason 'connection-assumed', managed-type: 'external')
+Nov 18 23:28:14.225683 ups-host NetworkManager[634]: <info>  [1795044494.2255] device (tailscale0): Activation: starting connection 'tailscale0' (00000000-0000-0000-0000-000000000007)
+Nov 18 23:28:14.227704 ups-host NetworkManager[634]: <info>  [1795044494.2275] device (tailscale0): state change: disconnected -> prepare (reason 'none', managed-type: 'external')
+Nov 18 23:28:14.230292 ups-host NetworkManager[634]: <info>  [1795044494.2301] device (tailscale0): state change: prepare -> config (reason 'none', managed-type: 'external')
+Nov 18 23:28:14.232546 ups-host NetworkManager[634]: <info>  [1795044494.2324] device (tailscale0): state change: config -> ip-config (reason 'none', managed-type: 'external')
+Nov 18 23:28:14.240818 ups-host NetworkManager[634]: <info>  [1795044494.2407] device (tailscale0): state change: ip-config -> ip-check (reason 'none', managed-type: 'external')
+Nov 18 23:28:14.358797 ups-host NetworkManager[634]: <info>  [1795044494.3587] device (tailscale0): state change: ip-check -> secondaries (reason 'none', managed-type: 'external')
+Nov 18 23:28:14.359919 ups-host NetworkManager[634]: <info>  [1795044494.3598] device (tailscale0): state change: secondaries -> activated (reason 'none', managed-type: 'external')
+Nov 18 23:28:14.362370 ups-host NetworkManager[634]: <info>  [1795044494.3622] device (tailscale0): Activation: successful, device activated.

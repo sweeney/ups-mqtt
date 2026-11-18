@@ -91,8 +91,24 @@ func (b *Broker) start() {
 	}
 	if !waitListening(b.Addr, 5*time.Second) {
 		b.Stop()
-		b.t.Fatalf("mosquitto did not listen on %s:\n%s", b.Addr, b.logs.String())
+		logs := b.logs.String()
+		b.t.Fatalf("mosquitto did not listen on %s:\n%s%s", b.Addr, logs, startFailureHint(logs))
 	}
+}
+
+// startFailureHint explains a start failure whose cause the broker's own
+// output hides, or returns "" for any other.  Ubuntu 26.04's apparmor
+// package ships an enforced profile, /etc/apparmor.d/mosquitto, that lets
+// /usr/sbin/mosquitto read config only under /etc/mosquitto, so a config
+// in a test's temp dir fails with nothing but "Unable to open config file".
+// CI unloads the profile before running the tests (.github/workflows/ci.yml).
+func startFailureHint(logs string) string {
+	if !strings.Contains(logs, "Unable to open config file") {
+		return ""
+	}
+	return "\nIf the file exists, AppArmor is the likely cause: Ubuntu 26.04 confines " +
+		"/usr/sbin/mosquitto to /etc/mosquitto (/etc/apparmor.d/mosquitto). To run these " +
+		"tests, unload the profile: sudo apparmor_parser -R /etc/apparmor.d/mosquitto\n"
 }
 
 // Stop kills the broker.  It is safe to call more than once.

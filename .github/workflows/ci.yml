@@ -24,6 +24,15 @@ jobs:
       - name: Install Mosquitto
         run: sudo apt-get update -q && sudo apt-get install -y -q mosquitto
 
+      # Ubuntu 26.04's apparmor package confines /usr/sbin/mosquitto to
+      # /etc/mosquitto, so it cannot read the configs the tests write to
+      # their temp dirs ("Unable to open config file").  Unload the profile.
+      - name: Let Mosquitto read the tests' configs
+        run: |
+          if [ -e /etc/apparmor.d/mosquitto ]; then
+            sudo apparmor_parser -R /etc/apparmor.d/mosquitto
+          fi
+
       - name: Verify module graph
         run: go mod verify
 

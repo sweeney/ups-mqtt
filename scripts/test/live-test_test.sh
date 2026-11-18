@@ -22,6 +22,9 @@ echo "boot-a" > "$WORK/boot_id"
 
 cleanup() {
   # Stop anything a failed test left running.
+  for f in "$OUTDIR"/*/host-sub.pid "$OUTDIR"/*/link.pid; do
+    [[ -f "$f" ]] && kill -- "-$(cat "$f")" 2>/dev/null || true
+  done
   for f in "$FAKEHOME"/live-tests/*/pids "$FAKEHOME"/live-tests/*/main.pid "$OUTDIR"/*/sub.pid; do
     [[ -f "$f" ]] || continue
     while read -r p; do kill "$p" 2>/dev/null || true; done < "$f"
@@ -41,12 +44,16 @@ HOME="'"$FAKEHOME"'" exec bash -c "$*"'
 # scp [-q] [-r] SRC DST, with HOST:path meaning the fake home.
 stub scp 'args=(); for a in "$@"; do case $a in -q) ;; -r) ;; *:*) args+=("'"$FAKEHOME"'/${a#*:}") ;; *) args+=("$a") ;; esac; done
 cp -R "${args[0]}" "${args[1]}"'
-stub upsc 'case "$*" in "-l localhost") echo iplug ;; *ups.status) echo OL ;; *battery.voltage) echo 13.4 ;; esac'
+# With no variable named, upsc lists them all, padding kept, as the real one
+# does; the SSL notice goes to stderr.
+stub upsc 'case "$*" in "-l localhost") echo iplug ;; *ups.status) echo OL ;; *battery.voltage) echo 13.4 ;;
+  *@localhost) echo "Init SSL without certificate database" >&2
+    printf "%s\n" "battery.voltage: 13.4" "ups.model: USV5   " "ups.mfr: A \"B\" \\C" "ups.status: OL" ;; esac'
 stub journalctl 'case " $* " in *" -f "*) exec sleep 1000 ;; esac'
 # Keeps its own name in ps, as the real one does (no exec).
 stub mosquitto_sub 'echo "2026-10-13T20:00:00+0100 1 ups/site-ups/state {}"; while :; do sleep 1; done'
 stub ip 'echo "default via 192.0.2.1 dev eth0"'
-stub ping 'exit 0'
+stub ping 'echo "64 bytes from 192.0.2.9: icmp_seq=0 ttl=64 time=1.23 ms"'
 stub getent 'exit 0'
 stub ss 'echo "ESTAB 0 0 127.0.0.1:5000 127.0.0.1:1883"'
 
@@ -93,6 +100,8 @@ check "check: exit 1"                  '[[ $CODE == 1 ]]'
 check "check: says what it would do"   '[[ $OUT == *"Would: record into ~/live-tests/run1"* && $OUT == *"Would: subscribe"* ]]'
 check "check: nothing recorded"        '[[ ! -e $RUN ]]'
 check "check: no local subscriber"     '[[ ! -e $OUTDIR/run1/sub.pid ]]'
+check "check: says host broker, link"  '[[ $OUT == *"Would: record host'"'"'s own broker"* && $OUT == *"Would: ping host"* ]]'
+check "check: no helpers"              '[[ ! -e $OUTDIR/run1/host-sub.pid && ! -e $OUTDIR/run1/link.pid ]]'
 check "check: recorder not copied"    '[[ ! -e $FAKEHOME/live-tests ]]'
 
 # ── start ──────────────────────────────────────────────────────────────────
@@ -105,17 +114,26 @@ check "start: ups.log recorded"        'grep -q " OL 13.4" "$RUN/ups.log"'
 check "start: net.log recorded"        'grep -q "carrier=.* inet=up dns=ok mqtt_conns=1 state=\[\]" "$RUN/net.log"'
 check "start: resolv.conf recorded"    'grep -q "100.100.100.100" "$RUN/resolv.log"'
 check "start: broker recorded"         'grep -q "ups/site-ups/state" "$OUTDIR/run1/broker.log"'
+check "start: listvar snapshot"        'grep -qE "^=== [0-9-]{10}T[0-9:]{8}(\.[0-9]{3})?Z$" "$RUN/listvar.log"'
+check "  wire format, padding kept"    'grep -qxF "VAR iplug ups.model \"USV5   \"" "$RUN/listvar.log"'
+check "  quotes, backslashes escaped"  'grep -qxF "VAR iplug ups.mfr \"A \\\"B\\\" \\\\C\"" "$RUN/listvar.log"'
+check "  SSL notice dropped"           '! grep -q "Init SSL" "$RUN/listvar.log"'
+check "start: host broker recorded"    'grep -qE "^[0-9-]{10}T[0-9:]{8}\.[0-9]{3}Z .*ups/site-ups/state" "$OUTDIR/run1/host-broker.log"'
+check "start: link recorded"           'grep -qE "^[0-9-]{10}T[0-9:]{8}Z time=1.23 ms$" "$OUTDIR/run1/link.log"'
+check "start: helpers alive"           'alive "$OUTDIR/run1/host-sub.pid" && alive "$OUTDIR/run1/link.pid"'
 pids_before=$(cat "$RUN/pids")
+helpers_before=$(cat "$OUTDIR/run1/host-sub.pid" "$OUTDIR/run1/link.pid")
 
 # ── start again is a no-op ─────────────────────────────────────────────────
 run host start run1
 check "restart: exit 0, says so"       '[[ $CODE == 0 && $OUT == *"already recording"* && $OUT == *"already subscribed"* ]]'
 check "restart: same recorders"        '[[ "$(cat "$RUN/pids")" == "$pids_before" ]]'
+check "restart: same helpers"          '[[ "$(cat "$OUTDIR/run1/host-sub.pid" "$OUTDIR/run1/link.pid")" == "$helpers_before" ]]'
 run --check host start run1
 check "check while running: exit 0"    '[[ $CODE == 0 && $OUT == *"already recording"* ]]'
 
 run host status run1
-check "status: running, subscribed"    '[[ $OUT == *"host:   running"* && $OUT == *"broker: subscribed"* ]]'
+check "status: running, subscribed"    '[[ $OUT == *"host:   running"* && $OUT == *"broker: subscribed"* && $OUT == *"host broker: recording"* && $OUT == *"link:   pinging"* ]]'
 
 # ── stop ───────────────────────────────────────────────────────────────────
 run --check host stop run1
@@ -125,6 +143,8 @@ check "stop: exit 0"                   '[[ $CODE == 0 ]]'
 sleep 0.3
 check "stop: recorders gone"           '! alive "$RUN/pids"'
 check "stop: subscriber gone"          '[[ ! -e $OUTDIR/run1/sub.pid ]]'
+# The whole group: the stub ssh's mosquitto_sub and the ping loop's sleep too.
+check "stop: helpers and children gone" 'for g in $helpers_before; do ! kill -0 -- "-$g" 2>/dev/null || exit 1; done'
 check "stop: stopped-at written"       '[[ -s $RUN/stopped-at ]]'
 run host status run1
 check "status: stopped"                '[[ $OUT == *"host:   stopped"* && $OUT == *"broker: not subscribed"* ]]'
@@ -135,7 +155,7 @@ check "stop again: exit 0"             '[[ $CODE == 0 && $OUT == *"not recording
 run --check host collect run1
 check "check collect: exit 1"          '[[ $CODE == 1 && ! -e $OUTDIR/run1/host ]]'
 run host collect run1
-check "collect: exit 0"                '[[ $CODE == 0 && -s $OUTDIR/run1/host/ups.log ]]'
+check "collect: exit 0"                '[[ $CODE == 0 && -s $OUTDIR/run1/host/ups.log && -s $OUTDIR/run1/host/listvar.log ]]'
 run host collect run1
 check "collect again: replaces"        '[[ $CODE == 0 && -s $OUTDIR/run1/host/ups.log && ! -e $OUTDIR/run1/host.tmp ]]'
 run host collect nosuch
