@@ -20,6 +20,11 @@
 #   --check         say what would be done, change nothing
 #   --yes, -y       do not ask before replacing an earlier run or DEST
 #
+# Here, start also records the host's own broker over ssh (host-broker.log,
+# each line prefixed with when it arrived here; a bridged host's broker
+# listens on localhost only) and pings the host every second (link.log), so
+# a run shows both sides of a bridge and when the path to the host was down.
+#
 # A run lives in ~/live-tests/NAME on the host and OUT/NAME here.  start and
 # stop are idempotent.  start asks before clearing an earlier run of the same
 # NAME.
@@ -130,7 +135,7 @@ scrub() {
     out=$(sed -E -f "$map" <<<"$f")   # file names can carry identifiers too
     mkdir -p "$TMP/$(dirname "$out")"
     sed -E -f "$map" "$src/$f" > "$TMP/$out" || die "sed failed on $src/$f"
-  done < <(cd "$src" && find . -type f ! -name pids ! -name main.pid ! -name watch.err ! -name sub.pid)
+  done < <(cd "$src" && find . -type f ! -name pids ! -name main.pid ! -name watch.err ! -name '*.pid')
 
   local leftover="" p rc
   while IFS= read -r p; do
@@ -163,6 +168,52 @@ if [[ ${ARGS[0]:-} == scrub ]]; then
   exit 0
 fi
 
+# ── local helpers, started by start under nohup ────────────────────────────
+# Each runs until stop kills its process group.
+
+# stamp: prefix each line with the UTC time it arrived here, to the ms.
+stamp() {
+  perl -MTime::HiRes=time -MPOSIX=strftime -ne '$| = 1; $t = time;
+    printf "%s.%03dZ %s", strftime("%Y-%m-%dT%H:%M:%S", gmtime($t)), ($t - int($t)) * 1000, $_'
+}
+utc() { perl -MPOSIX=strftime -e 'print strftime("%Y-%m-%dT%H:%M:%SZ", gmtime)'; }
+
+helper_loop() {
+  while :; do
+    "$@" || true
+    sleep 2
+  done
+}
+
+# _host-sub HOST DIR TOPIC...: the host's own broker, seen over ssh.  A host
+# behind a bridge keeps its broker on localhost, so this is the only view of
+# what ups-mqtt published before the bridge carried it (or did not).
+host_sub_once() {
+  local host=$1 dir=$2; shift 2
+  local remote="mosquitto_sub -h localhost -v -F '%I %r %q %t %p' -t '\$SYS/broker/connection/#'" t
+  for t in "$@"; do remote+=" -t $(printf %q "$t")"; done
+  echo "$(utc) connecting" >&2
+  ssh -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=3 \
+    "$host" "$remote" < /dev/null | stamp >> "$dir/host-broker.log"
+  echo "$(utc) disconnected" >&2
+}
+
+# _link HOST DIR: one ping a second from here to the host.
+link_once() {
+  local addr=${1#*@} dir=$2 wait=(-W 2) r
+  [[ $(uname) == Darwin ]] && wait=(-t 2)
+  while :; do
+    r=$(ping -c1 "${wait[@]}" "$addr" 2>/dev/null | grep -oE 'time=[0-9.]+ ?ms' || echo LOST)
+    echo "$(utc) $r"
+    sleep 1
+  done >> "$dir/link.log"
+}
+
+case ${ARGS[0]:-} in
+  _host-sub) helper_loop host_sub_once "${ARGS[@]:1}"; exit 0 ;;
+  _link)     helper_loop link_once "${ARGS[1]}" "${ARGS[2]}"; exit 0 ;;
+esac
+
 # ── host commands ──────────────────────────────────────────────────────────
 [[ ${#ARGS[@]} -eq 3 ]] || { usage >&2; die "expected HOST COMMAND NAME"; }
 HOST=${ARGS[0]} CMD=${ARGS[1]} NAME=${ARGS[2]}
@@ -184,12 +235,40 @@ local_running() {
   ps -p "$(cat "$LOCAL_DIR/sub.pid")" -o command= 2>/dev/null | grep -q mosquitto_sub
 }
 
+# helper_running KIND: the helper loop (host-sub or link) is alive and is
+# still this script's.
+helper_running() {
+  [[ -s "$LOCAL_DIR/$1.pid" ]] || return 1
+  ps -p "$(cat "$LOCAL_DIR/$1.pid")" -o command= 2>/dev/null | grep -q -- "live-test.sh.*_$1"
+}
+
 stop_local() {
   if local_running; then
     kill "$(cat "$LOCAL_DIR/sub.pid")" 2>/dev/null || true
     say "stopped the local subscriber"
   fi
   rm -f "$LOCAL_DIR/sub.pid"
+  local kind
+  for kind in host-sub link; do
+    if helper_running "$kind"; then
+      # Its own process group (start_helper), so ssh and ping go too.
+      kill -- "-$(cat "$LOCAL_DIR/$kind.pid")" 2>/dev/null || true
+      say "stopped the $kind recorder"
+    fi
+    rm -f "$LOCAL_DIR/$kind.pid"
+  done
+}
+
+start_helper() {
+  local kind=$1
+  if helper_running "$kind"; then
+    say "$kind recorder already running"
+    return
+  fi
+  set -m   # a process group of its own, which stop kills whole
+  nohup bash "$0" "_$kind" "$HOST" "$LOCAL_DIR" "${TOPICS[@]}" > /dev/null 2>> "$LOCAL_DIR/$kind.err" < /dev/null &
+  echo $! > "$LOCAL_DIR/$kind.pid"
+  set +m
 }
 
 case "$CMD" in
@@ -208,7 +287,11 @@ case "$CMD" in
       esac
       local_running && echo "Already subscribed to $BROKER." \
         || echo "Would: subscribe to ${TOPICS[*]} on $BROKER into $LOCAL_DIR/broker.log"
-      [[ $status == running ]] && local_running && exit 0
+      helper_running host-sub && echo "Already recording $HOST's own broker." \
+        || echo "Would: record $HOST's own broker over ssh into $LOCAL_DIR/host-broker.log"
+      helper_running link && echo "Already pinging $HOST." \
+        || echo "Would: ping $HOST every second into $LOCAL_DIR/link.log"
+      [[ $status == running ]] && local_running && helper_running link && exit 0
       exit 1
     fi
     rsh "mkdir -p ~/$REMOTE_BASE" && scp -q "$WATCH" "$HOST:$REMOTE_BASE/live-test-watch.sh" \
@@ -236,16 +319,26 @@ case "$CMD" in
       fi
       say "subscribed to ${TOPICS[*]} on $BROKER → $LOCAL_DIR/broker.log"
     fi
+    if rsh "command -v mosquitto_sub >/dev/null"; then
+      start_helper host-sub
+      say "recording $HOST's own broker over ssh → $LOCAL_DIR/host-broker.log"
+    else
+      say "$HOST has no mosquitto_sub; not recording its own broker"
+    fi
+    start_helper link
+    say "pinging $HOST every second → $LOCAL_DIR/link.log"
     say "recording run $NAME; stop with: $0 $HOST stop $NAME"
     ;;
   status)
     echo "host:   $(remote_status)"
     if local_running; then echo "broker: subscribed"; else echo "broker: not subscribed"; fi
+    if helper_running host-sub; then echo "host broker: recording"; else echo "host broker: not recording"; fi
+    if helper_running link; then echo "link:   pinging"; else echo "link:   not pinging"; fi
     ;;
   stop)
     if [[ $CHECK == 1 ]]; then
       status=$(remote_status)
-      if [[ $status != running ]] && ! local_running; then
+      if [[ $status != running ]] && ! local_running && ! helper_running host-sub && ! helper_running link; then
         echo "Nothing to stop (host: $status)."
         exit 0
       fi

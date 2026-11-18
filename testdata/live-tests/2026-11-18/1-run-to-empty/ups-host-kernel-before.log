@@ -1,0 +1,10 @@
+Nov 18 22:19:59.151872 ups-host kernel: hwmon hwmon1: Undervoltage detected!
+Nov 18 22:20:03.183923 ups-host kernel: hwmon hwmon1: Voltage normalised
+Nov 18 22:32:04.911893 ups-host kernel: hwmon hwmon1: Undervoltage detected!
+Nov 18 22:32:08.943889 ups-host kernel: hwmon hwmon1: Voltage normalised
+Nov 18 22:34:05.871993 ups-host kernel: hwmon hwmon1: Undervoltage detected!
+Nov 18 22:34:09.903916 ups-host kernel: hwmon hwmon1: Voltage normalised
+Nov 18 22:46:11.631876 ups-host kernel: hwmon hwmon1: Undervoltage detected!
+Nov 18 22:46:15.667936 ups-host kernel: hwmon hwmon1: Voltage normalised
+Nov 18 23:12:24.111883 ups-host kernel: hwmon hwmon1: Undervoltage detected!
+Nov 18 23:12:30.159889 ups-host kernel: hwmon hwmon1: Voltage normalised

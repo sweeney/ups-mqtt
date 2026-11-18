@@ -17,9 +17,10 @@ This records, every second on the host:
 - the UPS status and battery voltage;
 - the link, internet and broker-name resolution, plus the TCP connections on port 1883 and the ups-mqtt state directory;
 - every change to `resolv.conf`;
-- the journal and kernel log.
+- the journal and kernel log;
+- every UPS variable every 2 s (`listvar.log`), in upsd's `LIST VAR` wire format, so a snapshot can be copied into `internal/nut/testdata/` as a fixture.
 
-It also subscribes to `ups/#` and `sites/#` on the broker. Behind the local bridge, point `--broker` at the main broker: that is where subscribers see the result.
+It also subscribes to `ups/#` and `sites/#` on the broker. Behind the local bridge, point `--broker` at the main broker: that is where subscribers see the result. Both sides of the bridge are recorded from your machine. The host's own broker listens only on localhost, so it is read over ssh into `host-broker.log`, each line prefixed with when it arrived, reconnecting if the path drops. A ping a second goes into `link.log`, so a gap can be put down to the uplink or to the bridge.
 
 When power has been back long enough:
 
@@ -375,3 +376,179 @@ the UPS reports `ups.load: 0` before and after, too coarse to see a switch.
    was put right by hand. Ending an outage when the UPS has been
    unreadable for long, or using another host's end, would need a decision
    about what the daemon may assume.
+
+## 2026-11-18: unplanned run to empty, Pi host (Riello)
+
+Data: [`testdata/live-tests/2026-11-18/`](../testdata/live-tests/2026-11-18/).
+
+Not planned: mains failed in the evening and stayed off until the UPS died,
+which makes this an unplanned repeat of 2026-10-13 test 5 on the same
+hardware and config (poll 10 s, sample 2 s, behind the bridged local
+broker). Recorded with `scripts/live-test.sh` from 11½ min in, from both
+sides of the bridge: the main broker, and the Pi's local broker read over
+ssh. The full UPS snapshots (`ups-host-listvar.log`) are new.
+
+### 1. The run (`1-run-to-empty/`)
+
+| Time (UTC) | Event |
+|---|---|
+| 21:54:42 | ups-mqtt: outage detected |
+| 21:54:42–23:14:52 | `outage` every 10 s; none missed in the 412 recorded. Battery 12.4 V, 12.1 V after 30 min, 11.8 V after 50, 11.3 V after 70 |
+| throughout | the driver reports `battery.charge` 3434 and `battery.runtime` 3308760 (38 days); both kept out of `state.variables`, `computed/` and `outage` |
+| 22:19:59–23:12:24 | kernel: undervoltage, five times, 4–6 s each |
+| 23:11:40.9 | `upsc`: OB LB at 10.8 V. ups-mqtt publishes `low_battery: true` at 23:11:42 |
+| 23:14:52 | last publish reaches the main broker: OB LB, 10.3 V |
+| ≈23:15:00 | the Pi loses power (its 1 s log ends at 23:14:42; pings fail from 23:15:03). The router evidently shares the UPS: the internet stayed up throughout the cut, and the router was still booting after the Pi had come back |
+| 23:15:38 | `sites/site/bridge 0` on the main broker, 46 s after the last publish |
+| 23:26:25 | mains back, the Pi boots, its clock set to 23:11:59 from the last saved time (14½ min slow) |
+| ≈23:27:58 | ups-mqtt starts (23:13:33 by the slow clock): "outage started 21:54:42Z ran the battery low and the host has rebooted since; it ended at boot". Its start waited 20 s on Mosquitto, which stalled resolving the bridge's address while the router booted |
+| 23:28:13.35 | NTP: first clock sync |
+| 23:28:13.43 | the local broker drops every client, ups-mqtt among them, as having exceeded their keep-alive (below). ups-mqtt: `MQTT connection to tcp://127.0.0.1:1883 lost: EOF`, reconnected within the second, republished current state, and published `last_outage` |
+| 23:28:30 | the router's uplink is back; the bridge reconnects and the main broker gets 32 messages for this site in one second (below) |
+
+`last_outage`: 21:54:42Z → 23:26:25Z (exactly boot), 5503 s,
+`low_battery_reached: true`, `spans_restart: true`, `clock_synced: true`,
+no minimum charge (the only charge reading was impossible).
+
+The battery behaved as it did five weeks earlier: 80 min 10 s from the cut
+to the last publish (test 5: 80 min 54 s), LB at 10.8 V both times, and
+3 min 11 s from LB to the last publish (test 5: 3 min 29 s).
+
+### What the service did
+
+Everything it is designed to do, and all of it right:
+- An `outage` every poll for 80 minutes, and `low_battery: true` within
+  1.1 s of the UPS raising LB. LB came at a scheduled poll, so this run
+  does not show whether the at-once publish of a sample fired; test 5 does.
+- The Riello's impossible readings never reached a consumer.
+- The open outage survived the hard power-off in `outage.json`, which had
+  recorded the LB. On boot the record was from an earlier boot and had seen
+  LB, so the outage ended at boot, as designed.
+- It held `last_outage` until the clock synced, 15 s after it started,
+  and anchored the times on the monotonic clock and the boot time, so the
+  14½ min clock error never reached them.
+- It reconnected at once when the local broker dropped it, and
+  republished, which put the retained topics right.
+
+### What subscribers saw
+
+**The death.** Nothing for 46 s, then `sites/site/bridge 0`. ups-mqtt's
+LWT cannot fire at that point: it is registered with the local broker,
+which died with the host. The retained `state` stayed on the last
+snapshot, OB LB at 10.3 V, for 13½ minutes. As the README says, behind a
+bridge `online:false` only covers the process dying. A consumer that sees
+`bridge 0` after an OB LB `state` should take it that the site ran flat.
+
+**The return.** The main broker got everything in the same second:
+
+1. `bridge 1`;
+2. the `last_outage` from 25 October, and the `outage` from 23:11:42
+   (OB LB). These are the local broker's retained values as it last saved
+   them before the death (`autosave_interval` 300 s), as in test 5;
+3. the `outage` clear, then `state` `{"online":false,"timestamp":"2026-11-18T23:13:33Z"}`:
+   ups-mqtt's LWT, fired when the local broker dropped it at the clock sync
+   (below). Its timestamp is the process's connect time by the slow
+   clock, so it is 14½ minutes wrong. Unlike a snapshot, it carries no `clock_synced`
+   to say so;
+4. the new `last_outage`, current `state` and `computed/*`;
+5. second copies of 2–4, the old `last_outage` among them: the local
+   broker's retained values queued again on connect attempts (2026-10-14);
+6. a third copy of the new `last_outage`.
+
+The last value of every topic was right. A consumer acting on arrival
+order would have seen, within one second, an outage in progress, two
+offline announcements and an older outage summary arrive after the newer
+one. Order `outage` and `state` by `timestamp`, and `last_outage` by
+`ended_at`.
+
+No `state` from before the clock sync reached the main broker. In test 5
+three did; this time the bridge was not connecting until after the sync,
+and QoS 0 telemetry is not queued while it is down.
+
+**The disconnect at the clock sync.** The local broker's log (root only)
+says why every client was dropped at 23:28:13:
+
+```
+1795044493: Saving in-memory database to /var/lib/mosquitto//mosquitto.db.
+1795044493: Client <weather client> has exceeded timeout, disconnecting.
+1795044493: Client <ups-mqtt> has exceeded timeout, disconnecting.
+1795044493: Client <network monitor> has exceeded timeout, disconnecting.
+```
+
+Mosquitto 2.0.21 times keep-alives (and its autosave) by the wall clock.
+The clock stepped forward 14½ minutes, so every client looked silent for
+14½ minutes, against an allowance of 1.5 × 30 s. The broker dropped all
+of them and fired their wills. The step is the time the Pi spent without
+power (its clock resumes from the last time it saved), so this will
+happen after every reboot that follows a long cut. In test 5 the old client
+logged nothing of the kind, and the broker's log of that day has since been
+rotated away. But the host-setup project's monitor stalled until just after
+that sync, which fits.
+
+It cost nothing here: ups-mqtt reconnected within the second and
+republished. But it is why a running process was announced `online:false`
+on the main broker, with a timestamp 14½ minutes wrong.
+
+### Failure modes found
+
+1. **Nothing shuts the Pi down.** `nut-monitor` (upsmon) has failed at
+   every boot since 2026-10-14: `Fatal error: insufficient power configured!
+   … MINSUPPLIES … Edit your upsmon.conf`, i.e. no working `MONITOR` line.
+   upsd is fine, so ups-mqtt kept working and nothing in MQTT shows it.
+   Two hard power-offs in five weeks. The SD card survived both. The files
+   being written lost their last 10–30 s and ended in NUL padding.
+2. **ups-mqtt's offline announcement can carry an unsynced time and does
+   not say so.** Both the LWT and the snapshot carry a `timestamp`, but
+   only the snapshot carries `clock_synced`. After a long cut the LWT is
+   all but certain to fire at the first clock sync (above), stamped with
+   the unsynced time. Open: put `clock_synced` in the LWT too.
+3. **ups-mqtt does not log low battery.** The journal of the dead boot
+   ends at 23:12:30, 50 s after LB, and has no trace of it. Only
+   `outage.json` and MQTT do. Open.
+4. **A replayed `last_outage` has nothing to order it by** except
+   `ended_at`. A consumer that keeps the last to arrive was only right
+   because a third copy of the new one came last. Open: document the
+   `ended_at` rule, or give it a `timestamp`.
+5. **The Pi sees undervoltage on battery.** Five 4–6 s events in 80 min
+   (two in test 5); `vcgencmd get_throttled` reports 0x50000 (undervoltage
+   and throttling have occurred). The Pi's power supply runs on the UPS's
+   inverter output. Hardware, not this repo; it adds to the risk to the
+   SD card.
+
+### Shutting the Pi down safely
+
+LB gave 3 min 11 s of warning here and 3 min 29 s in test 5, at this load.
+That is plenty for a Pi to halt (well under 30 s), so upsmon's standard LB
+shutdown is enough as the trigger. No timer is needed. A timer on
+`ONBATT` would only cut the router off earlier: it shares the UPS.
+
+The risk is the race. If mains returns after the Pi has halted but
+before the battery runs out, the UPS never drops its output. A Pi 3 has
+no power button and cannot wake itself, so it stays off and unreachable
+until someone power-cycles it.
+
+The NUT answer is to have the UPS cycle its output even then. upsmon
+writes `POWERDOWNFLAG`, and at the very end of the halt (filesystems
+read-only) NUT's shutdown hook tells the UPS to turn its output off after
+`ups.delay.shutdown` and back on when mains is present. The Riello lists
+`shutdown.return` ("Turn off the load and return when power is back"),
+`ups.delay.shutdown` and `ups.delay.reboot` (both 5 s now; up to 3
+digits), and `driver.flag.allow_killpower` (0 now). What is not known is
+whether this UPS honours `shutdown.return` when mains is *already* back,
+which is exactly the race. Some UPSes ignore it on line. That needs
+testing with someone on site:
+
+1. on mains, `upsmon -c fsd`: the Pi halts, and the UPS must drop and
+   restore its output within `ups.delay.shutdown` + `ups.delay.reboot` +
+   a few seconds. The router cycles too.
+2. a cut with mains restored after the halt but before the battery dies:
+   the same must happen.
+
+If the Riello fails test 1, `shutdown.return` cannot be trusted with the
+race. The alternative is not to halt: on LB, stop what writes, sync,
+remount read-only and wait. If mains returns, reboot; if not, the power
+dies on a clean filesystem. That depends on nothing in the UPS, but it is
+more work and needs its own tests.
+
+Either way the upsmon config is host setup, outside this repo. The one
+change here would be for `ups-doctor.sh` to report a failed `nut-monitor`.

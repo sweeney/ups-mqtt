@@ -1,0 +1,6 @@
+Nov 18 23:12:03.177340 ups-host kernel: Booting Linux on physical CPU 0x0000000000 [0x410fd034]
+Nov 18 23:12:03.177729 ups-host kernel: Machine model: Raspberry Pi 3 Model B Rev 1.2
+Nov 18 23:12:03.251452 ups-host systemd[1]: System time advanced to timestamp on /var/lib/systemd/timesync/clock: Wed 2026-11-18 23:11:59 GMT
+Nov 18 23:12:03.955576 ups-host systemd-journald[276]: /var/log/journal/00000000000000000000000000000003/system.journal: Realtime clock jumped backwards relative to last journal entry, rotating.
+Nov 18 23:12:07.303228 ups-host kernel: hwmon hwmon1: Undervoltage detected!
+Nov 18 23:12:13.351207 ups-host kernel: hwmon hwmon1: Voltage normalised

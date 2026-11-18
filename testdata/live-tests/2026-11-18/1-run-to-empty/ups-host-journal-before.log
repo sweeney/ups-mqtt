@@ -1,0 +1,2 @@
+Nov 18 21:54:42.142565 ups-host ups-mqtt[1933856]: 2026/11/18 21:54:42 power outage detected — UPS on battery
+Nov 18 22:37:54.328034 ups-host NetworkManager[632]: <info>  [1795041474.3279] dhcp4 (eth0): state changed new lease, address=192.0.2.87

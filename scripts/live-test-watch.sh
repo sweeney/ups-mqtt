@@ -15,6 +15,9 @@
 #
 # Files written to DIR:
 #   ups.log      HH:MM:SS.mmm ups.status battery.voltage (upsc, every 1 s)
+#   listvar.log  every variable, as "=== <UTC time>" then upsd's
+#                VAR <ups> <name> "<value>" lines (every
+#                WATCH_LISTVAR_INTERVAL s, default 2)
 #   net.log      link carrier, internet, broker name, MQTT connections,
 #                ups-mqtt state dir (every 1 s)
 #   resolv.log   /etc/resolv.conf, each time it changes
@@ -34,6 +37,7 @@ set -euo pipefail
 STATE_DIR="${WATCH_STATE_DIR:-/var/lib/ups-mqtt}"
 RESOLV="${WATCH_RESOLV:-/etc/resolv.conf}"
 BOOT_ID_FILE="${WATCH_BOOT_ID:-/proc/sys/kernel/random/boot_id}"
+LISTVAR_INTERVAL="${WATCH_LISTVAR_INTERVAL:-2}"
 
 die() { echo "ERROR: $*" >&2; exit 2; }
 
@@ -65,6 +69,24 @@ record() {
       echo "$(date +%T.%3N) $(upsc "$ups@localhost" ups.status 2>/dev/null) $(upsc "$ups@localhost" battery.voltage 2>/dev/null)"
       sleep 1
     done ) >> "$dir/ups.log" 2>&1 &
+  echo $! >> "$dir/pids"
+
+  # Every variable, in upsd's wire format so a snapshot can go straight into
+  # internal/nut/testdata.  upsc prints values verbatim (padding included);
+  # only " and \ need escaping back.
+  ( while :; do
+      t=$(date -u +%FT%T.%3NZ)
+      [[ $t != *N* ]] || t=$(date -u +%FT%TZ)   # BSD date has no %N
+      echo "=== $t"
+      upsc "$ups@localhost" 2>&1 | awk -v ups="$ups" '
+        /^Init SSL/ { next }
+        { i = index($0, ": ")
+          if (i == 0) { print "ERR " $0; next }
+          k = substr($0, 1, i - 1); v = substr($0, i + 2)
+          gsub(/\\/, "\\\\", v); gsub(/"/, "\\\"", v)
+          printf "VAR %s %s \"%s\"\n", ups, k, v }'
+      sleep "$LISTVAR_INTERVAL"
+    done ) >> "$dir/listvar.log" 2>&1 &
   echo $! >> "$dir/pids"
 
   ( while :; do
