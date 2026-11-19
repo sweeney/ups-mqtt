@@ -352,9 +352,10 @@ func (g *gatedClient) IsConnectionOpen() bool {
 // madeClients records the clients a publisher's factory makes; the factory
 // runs on the reconnect goroutine.
 type madeClients struct {
-	mu   sync.Mutex
-	list []mqtt.Client
-	next func() mqtt.Client
+	mu    sync.Mutex
+	list  []mqtt.Client
+	next  func() mqtt.Client
+	waits []time.Duration // the publisher's backoff waits, recorded, not slept
 }
 
 func (m *madeClients) n() int { m.mu.Lock(); defer m.mu.Unlock(); return len(m.list) }
@@ -368,10 +369,9 @@ func (m *madeClients) at(i int) mqtt.Client {
 // records every client it makes; made.next, when set, supplies the next.
 func connectedPublisher(t *testing.T) (*MQTTPublisher, *madeClients) {
 	t.Helper()
-	var waits []time.Duration
-	p := newTestPublisher(&fakeClient{}, &waits)
-	p.will = func() string { return `{"online":false}` }
 	made := &madeClients{}
+	p := newTestPublisher(&fakeClient{}, &made.waits)
+	p.will = func() string { return `{"online":false}` }
 	p.newClient = func(string) mqtt.Client {
 		made.mu.Lock()
 		defer made.mu.Unlock()
@@ -455,5 +455,65 @@ func waitFor(t *testing.T, cond func() bool, what string) {
 			t.Fatalf("timed out waiting for %s", what)
 		}
 		time.Sleep(time.Millisecond)
+	}
+}
+
+// droppingClient connects and is lost at once: its Connect reports the loss
+// to the publisher before returning, while the reconnect that made it is
+// still running and has not yet stood down.
+type droppingClient struct {
+	*fakeClient
+	p *MQTTPublisher
+}
+
+func (d *droppingClient) Connect() mqtt.Token {
+	d.connectCalls++
+	d.p.connectionLost(d, errors.New("EOF")) // e.g. Mosquitto's drop at the clock sync
+	return newFakeToken(true, nil)
+}
+func (d *droppingClient) IsConnectionOpen() bool { return false }
+
+// A loss that arrives while a reconnect is finishing must not be dropped
+// (PR #34 review): the running loop has already connected and is past the
+// point where it would retry, so if the new loss simply returned, nothing
+// would ever reconnect and the daemon would stay off MQTT, silently, until
+// restarted.  The running loop goes round again instead.
+func TestReconnect_LossWhileFinishingIsNotDropped(t *testing.T) {
+	captureLog(t)
+	p, made := connectedPublisher(t)
+	dropped := false
+	made.mu.Lock()
+	made.next = func() mqtt.Client {
+		if !dropped {
+			dropped = true
+			return &droppingClient{fakeClient: &fakeClient{}, p: p}
+		}
+		return &fakeClient{connectErrs: []error{nil}}
+	}
+	made.mu.Unlock()
+
+	done := make(chan struct{})
+	go func() { p.connectionLost(made.at(0), errors.New("EOF")); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("reconnect did not finish")
+	}
+	if made.n() != 3 {
+		t.Fatalf("made %d clients; want the dropped reconnect followed by another", made.n())
+	}
+	// Going round again waits out the initial backoff first, so a
+	// connection that drops as soon as it is made cannot spin.
+	if want := p.reconnect.Initial; len(made.waits) != 1 || made.waits[0] != want {
+		t.Errorf("waits before going round again = %v, want [%s]", made.waits, want)
+	}
+	if !p.cur().IsConnectionOpen() {
+		t.Error("left disconnected after a loss during the reconnect")
+	}
+	p.mu.Lock()
+	still := p.reconnecting
+	p.mu.Unlock()
+	if still {
+		t.Error("reconnecting left set after the loop ended")
 	}
 }

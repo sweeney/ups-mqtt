@@ -160,7 +160,10 @@ for t in scripts/test/*_test.sh; do bash "$t"; done   # script tests (CI runs th
   client ID, so each CONNECT takes the last one's session and fires its
   will: a loss reported by a replaced client is ignored, and only one
   reconnect runs at a time (`TestConnectionLost_FromAReplacedClientIsIgnored`,
-  `TestReconnect_OnlyOneAtATime`). After a power
+  `TestReconnect_OnlyOneAtATime`). A loss that arrives while it runs is not
+  dropped: the running loop goes round again, after the initial backoff,
+  deciding that and standing down under one lock
+  (`TestReconnect_LossWhileFinishingIsNotDropped`). After a power
   cut a bridged broker can forward states stamped by an unsynced clock among
   stale retained values (docs/live-tests.md, test 5), and Mosquitto drops
   every client at the first clock sync, firing an LWT stamped before it

@@ -126,6 +126,9 @@ type MQTTPublisher struct {
 	// loops at once would keep kicking each other's connection, announcing
 	// the daemon offline each time (PR #34 review).
 	reconnecting bool
+	// lostAgain is a loss reported while a reconnectLoop runs; it makes that
+	// loop go round again rather than end with nothing connected.
+	lostAgain bool
 }
 
 // NewMQTTPublisher creates an MQTT client with DefaultTuning but does not
@@ -263,39 +266,71 @@ func (p *MQTTPublisher) connectionLost(c mqtt.Client, err error) {
 func (p *MQTTPublisher) reconnectLoop(lostAt time.Time) {
 	p.mu.Lock()
 	if p.reconnecting {
+		// The running loop may already have connected and be on its way
+		// out, past retrying; dropping this loss would leave nothing to
+		// reconnect (PR #34 review).  Have it go round again instead.
+		p.lostAgain = true
 		p.mu.Unlock()
-		return // one is already running; it ends connected or shut down
+		return
 	}
-	p.reconnecting = true
-	ctx, closed := p.ctx, p.closed
+	p.reconnecting, p.lostAgain = true, false
+	ctx := p.ctx
 	p.mu.Unlock()
-	defer func() {
-		p.mu.Lock()
-		p.reconnecting = false
-		p.mu.Unlock()
-	}()
+	// standDown clears reconnecting; every return goes through it, so a
+	// loss after it finds the flag clear and starts its own loop.
+	standDown := func() { p.mu.Lock(); p.reconnecting = false; p.mu.Unlock() }
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if closed || ctx.Err() != nil {
-		return // shutting down
-	}
 
-	res, err := retry.Connect(ctx, "MQTT", p.reconnect, func() error { return p.connectOnce(ctx) }, p.wait)
-	if err != nil {
-		return // shutting down
-	}
+	attempts := 0
+	for {
+		p.mu.Lock()
+		closed := p.closed
+		p.mu.Unlock()
+		if closed || ctx.Err() != nil {
+			standDown()
+			return // shutting down
+		}
+		res, err := retry.Connect(ctx, "MQTT", p.reconnect, func() error { return p.connectOnce(ctx) }, p.wait)
+		if err != nil {
+			standDown()
+			return // shutting down
+		}
+		attempts += res.Attempts
 
-	p.mu.Lock()
-	closed = p.closed
-	p.stalled = nil // its connection is gone; the new one starts clean
-	p.mu.Unlock()
-	if closed {
-		p.cur().Disconnect(0) // connected just as Close ran
-		return
+		// Whether to go round again, and standing down if not, in one
+		// critical section: a loss reported before it sets lostAgain (or
+		// has closed the connection), and one after it finds reconnecting
+		// clear.
+		p.mu.Lock()
+		again := p.lostAgain || !p.client.IsConnectionOpen()
+		p.lostAgain = false
+		closed = p.closed
+		if !again || closed {
+			p.reconnecting = false
+			p.stalled = nil // its connection is gone; the new one starts clean
+		}
+		c := p.client
+		p.mu.Unlock()
+		if closed {
+			c.Disconnect(0) // connected just as Close ran
+			return
+		}
+		if again {
+			// Not at once: a connection that drops as soon as it is made
+			// (another process with this client ID) must not spin.
+			log.Printf("MQTT connection to %s lost again while reconnecting — reconnecting", p.broker)
+			if err := p.wait(ctx, p.reconnect.Initial); err != nil {
+				standDown()
+				return // shutting down
+			}
+			continue
+		}
+		break
 	}
 	log.Printf("reconnected to MQTT broker %s after %s (%d attempts)",
-		p.broker, time.Since(lostAt).Round(time.Second), res.Attempts)
+		p.broker, time.Since(lostAt).Round(time.Second), attempts)
 
 	select {
 	case p.reconnected <- struct{}{}:
