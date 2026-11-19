@@ -514,8 +514,8 @@ on the main broker, with a timestamp 14½ minutes wrong.
 3. **ups-mqtt does not log low battery.** The journal of the dead boot
    ends at 23:12:30, 50 s after LB, and has no trace of it. Only
    `outage.json` and MQTT do. Fixed: its onset is logged with the battery
-   voltage, and its end too, at most once a poll interval
-   (`TestSample_LogsLowBattery*`).
+   voltage, at once, and its end too, at most once a poll interval
+   (`TestSample_LogsLowBattery*`, `TestSample_LowBatteryOnsetNotHeldBackByAClear`).
 4. **A replayed `last_outage` has nothing to order it by** except
    `ended_at`. A consumer that keeps the last to arrive was only right
    because a third copy of the new one came last. Fixed: `last_outage`

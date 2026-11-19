@@ -273,14 +273,16 @@ func (d *daemon) noteImplausible(now time.Time, varMap map[string]string) {
 // that the host is about to lose power, and the journal is where an outage
 // is pieced together afterwards; on 2026-11-18 it had no trace of it
 // (docs/live-tests.md).  The onset gives the battery voltage, verbatim, and
-// the charge only when it is plausible.  Like noteImplausible it logs at
-// most once a poll interval, so LB flickering on every sample is logged as
-// it settles.
+// the charge only when it is plausible.  The onset is never held back: it
+// is the line most wanted from a host about to die, whose journal may lose
+// its last seconds.  A clear is logged at most once a poll interval after
+// the last line, so LB flickering on every sample logs at most a clear and
+// an onset a poll interval.
 func (d *daemon) noteLowBattery(now time.Time, varMap map[string]string, m metrics.Metrics) {
 	if m.LowBattery == d.lowLogged {
 		return
 	}
-	if !d.lowLoggedAt.IsZero() && now.Sub(d.lowLoggedAt) < d.cfg.NUT.PollInterval.Duration {
+	if !m.LowBattery && now.Sub(d.lowLoggedAt) < d.cfg.NUT.PollInterval.Duration {
 		return
 	}
 	d.lowLogged, d.lowLoggedAt = m.LowBattery, now

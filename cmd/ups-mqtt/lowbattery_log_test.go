@@ -105,8 +105,29 @@ func TestSample_LogsLowBatteryCleared(t *testing.T) {
 	}
 }
 
-// LB that flickers on every 2 s sample must not flood the journal: a change
-// is logged at most once a poll interval, as with impossible readings.
+// The onset is the line most wanted in the journal of a host about to die,
+// so it is never held back behind a logged clear (PR #34 review).  Here a
+// load spike raises LB mid-outage, it clears, and the real LB follows 4 s
+// later: that is logged with the sample that saw it, not a poll later.
+func TestSample_LowBatteryOnsetNotHeldBackByAClear(t *testing.T) {
+	logs := captureLogs(t)
+	seq := [][]nut.Variable{riello("OB LB", "11.0")} // the spike, t=0
+	for range 5 {
+		seq = append(seq, riello("OB", "11.1")) // t=2..10: clears; logged at 10
+	}
+	seq = append(seq, riello("OB", "11.0"), riello("OB LB", "10.8")) // t=12; the real LB at t=14
+	d, _, clk := samplingDaemon(seq...)
+	sampleAt(d, clk, time.Date(2026, 11, 18, 23, 11, 28, 0, time.UTC), len(seq))
+
+	onsets := lines(logs, "low battery: ")
+	if len(onsets) != 2 || !strings.Contains(onsets[1], "battery.voltage 10.8") {
+		t.Errorf("want the spike and the real LB each logged as it came, got:\n%s", logs)
+	}
+}
+
+// LB that flickers on every 2 s sample must not flood the journal: clears
+// are logged at most once a poll interval, and an onset only after a logged
+// clear, so at most two lines a poll interval.
 func TestSample_FlappingLowBatteryLogsSparingly(t *testing.T) {
 	logs := captureLogs(t)
 	var seq [][]nut.Variable
@@ -120,7 +141,7 @@ func TestSample_FlappingLowBatteryLogsSparingly(t *testing.T) {
 	d, _, clk := samplingDaemon(seq...)
 	sampleAt(d, clk, time.Date(2026, 11, 18, 23, 11, 0, 0, time.UTC), len(seq))
 
-	if got := lines(logs, "low battery"); len(got) == 0 || len(got) > 3 {
-		t.Errorf("flapping LB logged %d lines over 30 s, want 1–3:\n%s", len(got), logs)
+	if got := lines(logs, "low battery"); len(got) == 0 || len(got) > 7 {
+		t.Errorf("flapping LB logged %d lines over 30 s, want at most two a poll interval:\n%s", len(got), logs)
 	}
 }

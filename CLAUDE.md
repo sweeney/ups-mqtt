@@ -140,10 +140,11 @@ for t in scripts/test/*_test.sh; do bash "$t"; done   # script tests (CI runs th
   sample sees on/off battery or low battery (`daemon.sample`), at most once
   per poll (the first low battery of an outage excepted), so flapping power
   cannot multiply it. Low battery's onset and end are logged
-  (`daemon.noteLowBattery`), at most once a poll interval like the
-  impossible-readings log: the journal is where a dead host's last minutes
-  are read afterwards. The tracker follows every sample (`daemon.track`), so
-  outage times are a sample's even when the publish was held back. Keep the
+  (`daemon.noteLowBattery`): the onset at once, a clear at most once a poll
+  interval, since the journal is where a dead host's last minutes are read
+  afterwards and may lose its last seconds. The tracker follows every
+  sample (`daemon.track`), so outage times are a sample's even when the
+  publish was held back. Keep the
   publish rate: the Pi's bridged local broker queues one QoS 1 `outage` per
   publish while its uplink is down, and its cap was sized for 10 s polls.
 - `state` is published every poll regardless of change, so it doubles as a
