@@ -87,6 +87,12 @@ type Summary struct {
 	// Final is false for an interim summary published before the clock
 	// synced; a corrected one follows.
 	Final bool
+
+	// PublishedAt is when Due handed the summary out, by the tracker's
+	// clock like the times above, which ClockSynced therefore covers too.
+	// It is last_outage's timestamp: what orders a summary replayed out of
+	// order, the corrected one after an interim one.
+	PublishedAt time.Time
 }
 
 // Duration is EndedAt − StartedAt.
@@ -378,6 +384,7 @@ func (t *Tracker) Due() (Summary, bool) {
 	default:
 		return Summary{}, false
 	}
+	s.PublishedAt = t.clock.Now()
 	return s, true
 }
 

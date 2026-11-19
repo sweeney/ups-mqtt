@@ -232,8 +232,8 @@ func TestReplay_RunToEmpty_2026_11_18(t *testing.T) {
 	if lo.ClockSynced == nil || !*lo.ClockSynced {
 		t.Errorf("clock_synced = %v, want true", lo.ClockSynced)
 	}
-	if lo.Timestamp == "" {
-		t.Error("last_outage has no timestamp")
+	if want := clk2.Now().UTC().Format(time.RFC3339); lo.Timestamp != want {
+		t.Errorf("last_outage timestamp %s, want the synced clock's %s", lo.Timestamp, want)
 	}
 	if store.Rec != nil {
 		t.Errorf("outage.json left after the summary: %+v", store.Rec)

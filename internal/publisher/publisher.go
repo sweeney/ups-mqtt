@@ -181,8 +181,9 @@ func ClearOutage(cfg PublishConfig, pub Publisher) error {
 //
 // Timestamp is when it was published, as in StateMessage and OutageMessage,
 // so a summary replayed out of order by a bridge can be told from a newer
-// one (docs/live-tests.md, 2026-11-18).  It comes from the same clock as the
-// other times, so ClockSynced covers it too.
+// one (docs/live-tests.md, 2026-11-18).  It is the summary's PublishedAt,
+// which the tracker takes from the same clock as the other times, so
+// ClockSynced covers it too.
 type LastOutageMessage struct {
 	Timestamp           string   `json:"timestamp"`
 	UPSName             string   `json:"ups_name"`
@@ -204,7 +205,7 @@ func LastOutageTopic(prefix, upsName string) string {
 // an event: always retained, at the event QoS.
 func PublishLastOutage(s outages.Summary, cfg PublishConfig, pub Publisher) error {
 	payload, err := json.Marshal(LastOutageMessage{
-		Timestamp:           time.Now().UTC().Format(time.RFC3339),
+		Timestamp:           s.PublishedAt.UTC().Format(time.RFC3339),
 		UPSName:             cfg.UPSName,
 		StartedAt:           s.StartedAt.UTC().Format(time.RFC3339),
 		EndedAt:             s.EndedAt.UTC().Format(time.RFC3339),

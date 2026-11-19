@@ -896,14 +896,13 @@ func TestPublishLastOutage(t *testing.T) {
 		ClockSynced:         boolPtr(true),
 		SpansRestart:        false,
 		Final:               true,
+		PublishedAt:         start.Add(2275 * time.Second),
 	}
 	fp := &publisher.FakePublisher{}
 	cfg := publisher.PublishConfig{Prefix: "ups", UPSName: "site-ups", TelemetryQOS: 0, EventQOS: 1}
-	before := time.Now().UTC().Truncate(time.Second)
 	if err := publisher.PublishLastOutage(s, cfg, fp); err != nil {
 		t.Fatal(err)
 	}
-	after := time.Now().UTC()
 	msg, ok := fp.Retained("ups/site-ups/last_outage")
 	if !ok {
 		t.Fatal("last_outage not retained")
@@ -911,53 +910,31 @@ func TestPublishLastOutage(t *testing.T) {
 	if msg.QOS != 1 {
 		t.Errorf("QoS = %d, want the event QoS 1", msg.QOS)
 	}
-	ts := publishedTimestamp(t, msg.Payload, before, after)
-	want := `{"timestamp":"` + ts + `","ups_name":"site-ups","started_at":"2026-10-13T10:02:10Z","ended_at":"2026-10-13T10:40:00Z",` +
+	want := `{"timestamp":"2026-10-13T10:40:05Z","ups_name":"site-ups","started_at":"2026-10-13T10:02:10Z","ended_at":"2026-10-13T10:40:00Z",` +
 		`"duration_secs":2270,"low_battery_reached":true,"min_battery_charge_pct":61,"clock_synced":true,"spans_restart":false}`
 	if msg.Payload != want {
 		t.Errorf("payload\n got %s\nwant %s", msg.Payload, want)
 	}
 }
 
-// publishedTimestamp returns the payload's "timestamp", failing the test
-// unless it is RFC 3339 and between before and after.
-func publishedTimestamp(t *testing.T, payload string, before, after time.Time) string {
-	t.Helper()
-	var p struct {
-		Timestamp string `json:"timestamp"`
-	}
-	if err := json.Unmarshal([]byte(payload), &p); err != nil {
-		t.Fatalf("payload %s: %v", payload, err)
-	}
-	at, err := time.Parse(time.RFC3339, p.Timestamp)
-	if err != nil {
-		t.Fatalf("timestamp %q in %s: %v", p.Timestamp, payload, err)
-	}
-	if at.Before(before) || at.After(after) {
-		t.Errorf("timestamp %s, want the publish time, between %s and %s", at, before, after)
-	}
-	return p.Timestamp
-}
-
 // A replayed last_outage needs something to be ordered by.  When the
 // bridge came back on 2026-11-18 the main broker received the previous
 // summary after the new one, and only a third copy of the new one put it
 // right.  Like state and outage, last_outage carries the time it was
-// published, from a clock whose sync clock_synced gives: an interim summary
-// is stamped by the unsynced clock and the corrected one that follows by
-// the synced one.
+// published: the summary's PublishedAt, which the tracker takes from the
+// same clock as the other times, so clock_synced covers it.
 func TestPublishLastOutage_Timestamp(t *testing.T) {
 	start := time.Date(2026, 11, 18, 21, 54, 42, 0, time.UTC)
-	for _, final := range []bool{false, true} {
-		s := outages.Summary{StartedAt: start, EndedAt: start.Add(5503 * time.Second),
-			ClockSynced: boolPtr(final), SpansRestart: true, Final: final}
-		fp := &publisher.FakePublisher{}
-		before := time.Now().UTC().Truncate(time.Second)
-		if err := publisher.PublishLastOutage(s, publisher.PublishConfig{Prefix: "ups", UPSName: "x"}, fp); err != nil {
-			t.Fatal(err)
-		}
-		msg, _ := fp.Find("ups/x/last_outage")
-		publishedTimestamp(t, msg.Payload, before, time.Now().UTC())
+	s := outages.Summary{StartedAt: start, EndedAt: start.Add(5503 * time.Second),
+		ClockSynced: boolPtr(true), SpansRestart: true, Final: true,
+		PublishedAt: time.Date(2026, 11, 18, 23, 28, 13, 400_000_000, time.UTC)}
+	fp := &publisher.FakePublisher{}
+	if err := publisher.PublishLastOutage(s, publisher.PublishConfig{Prefix: "ups", UPSName: "x"}, fp); err != nil {
+		t.Fatal(err)
+	}
+	msg, _ := fp.Find("ups/x/last_outage")
+	if !strings.HasPrefix(msg.Payload, `{"timestamp":"2026-11-18T23:28:13Z",`) {
+		t.Errorf("payload %s, want it to lead with the summary's PublishedAt", msg.Payload)
 	}
 }
 

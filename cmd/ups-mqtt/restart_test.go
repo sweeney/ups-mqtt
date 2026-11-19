@@ -343,6 +343,12 @@ func TestRestartUnsynced_InterimThenCorrectedLastOutage(t *testing.T) {
 	if final.EndedAt != bootedAt.UTC().Format(time.RFC3339) || final.ClockSynced == nil || !*final.ClockSynced {
 		t.Errorf("corrected last_outage = %+v, want ended at the true boot %s, clock_synced", final, bootedAt.UTC().Format(time.RFC3339))
 	}
+	// Each is stamped by the clock as it was then: the corrected one after
+	// the step, so later than the interim one.
+	if final.Timestamp != clk.Now().UTC().Format(time.RFC3339) || final.Timestamp <= interim.Timestamp {
+		t.Errorf("timestamps: interim %s, corrected %s; want the corrected one at the synced clock's %s",
+			interim.Timestamp, final.Timestamp, clk.Now().UTC().Format(time.RFC3339))
+	}
 	if store.Rec != nil {
 		t.Error("state file left after the corrected summary")
 	}

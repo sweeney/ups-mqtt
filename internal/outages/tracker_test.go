@@ -44,6 +44,25 @@ func assertSynced(t *testing.T, got *bool, want bool) {
 	}
 }
 
+// A summary is stamped with when it was handed out, by the tracker's clock
+// like every other time in it, so last_outage's timestamp follows the same
+// clock clock_synced describes and a test's FakeClock can see it.  The
+// corrected summary after an interim one is stamped later.
+func TestTracker_SummaryStampedFromItsClock(t *testing.T) {
+	clk, store := syncedClock(), &MemoryStore{}
+	tr := NewTracker(clk, store)
+	tr.Restore(false)
+	tr.OnBattery(false, nil)
+	clk.Advance(5 * time.Minute)
+	tr.OnMains()
+	clk.Advance(3 * time.Second)
+
+	s := mustDue(t, tr)
+	if !s.PublishedAt.Equal(clk.Now()) {
+		t.Errorf("PublishedAt = %s, want the tracker clock's now, %s", s.PublishedAt, clk.Now())
+	}
+}
+
 // ── A normal outage, all in one process ────────────────────────────────────
 
 func TestTracker_NormalOutage(t *testing.T) {
