@@ -172,7 +172,7 @@ When an outage ends, after the `outage` topic has been cleared, a summary is pub
 
 | Field | Meaning |
 |-------|---------|
-| `timestamp` | When this summary was published, as in `state` and `outage`. A bridge reconnecting can deliver an older summary after a newer one (`docs/live-tests.md`, 2026-11-18); keep the one with the latest `timestamp`, and for a summary from before this field existed, the latest `ended_at`. An interim summary and the corrected one after it are told apart the same way. |
+| `timestamp` | When this summary was published, as in `state` and `outage`. A bridge reconnecting can deliver an older summary after a newer one (`docs/live-tests.md`, 2026-11-18); keep the one with the latest `timestamp`, and for a summary from before this field existed, the latest `ended_at`. Two summaries with the same `started_at` are an interim one and its correction: keep the one with `clock_synced: true`, whatever their `timestamp` says. An interim summary is stamped by the unsynced clock, which can run ahead as well as behind. |
 | `low_battery_reached` | `ups.status` contained `LB` at some poll during the outage |
 | `min_battery_charge_pct` | The lowest `battery.charge` seen. Absent when the UPS does not report a charge in 0–100, or when the daemon restarted at any time between the outage's start and its summary being published: the minimum is kept in memory only. |
 | `clock_synced` | Whether the times can be trusted, `timestamp` included. Absent where it cannot be determined (anywhere but Linux). |
@@ -232,7 +232,7 @@ Every QoS key must be 0, 1 or 2; anything else is a startup error.
 
 - `state`, `outage`: order by `timestamp`, and distrust one whose `clock_synced` is `false`.
 - `{"online":false,…}` on `state`: an LWT is stamped when the daemon *connected*, not when it fired. A `false` `clock_synced` means the time is wrong, and a newer full snapshot overrides it whatever the order.
-- `last_outage`: keep the latest `timestamp`, or for summaries from before that field, the latest `ended_at`.
+- `last_outage`: between two summaries of the same outage (same `started_at`), keep the one with `clock_synced: true`; otherwise keep the latest `timestamp`, or for summaries from before that field, the latest `ended_at`. Going by `timestamp` alone is only safe when the unsynced clock runs behind, as the Pi's did; a host whose clock runs ahead would rank the interim summary above its correction.
 
 After a long cut, expect one offline announcement even though the daemon kept running. The host boots with its clock about as far behind as it was without power. Mosquitto times keep-alives by the wall clock, so at the first NTP sync it drops every local client and fires their LWTs. The daemon reconnects and republishes within the second. See [the live tests](docs/live-tests.md), 2026-10-14 and 2026-11-18.
 
