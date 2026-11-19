@@ -734,6 +734,8 @@ The integration scenario tests (`internal/integration_scenarios_test.go`) are bu
 - **Noisy battery charge readings** during discharge (100% → 79% → 82%)
 - **`input.voltage = "0"`** for one poll during reconnect — the daemon reports −100% deviation without panicking
 
+**Riello iPlug** — `TestReplay_RunToEmpty_2026_11_18` replays a real run to empty from the device's own `LIST VAR` replies, recorded every 2–10 s in [`testdata/live-tests/2026-11-18/`](testdata/live-tests/2026-11-18/). It covers the 68 recorded minutes on battery, with the misdecoded 3434 % charge and 38-day runtime, LB at 10.8 V, and the host dying. A fresh process then starts after the reboot with the clock 14½ minutes slow, and the clock later syncs. It checks that no poll is missed, that the first LB goes out with the sample that saw it and is logged, that nothing is derived from the impossible readings, and that the summary ends at the real boot by the branch the Pi's journal shows it took.
+
 ### Label and topic routing
 
 The `label` field in config decouples the MQTT topic name from the NUT device identifier. `NUTConfig.EffectiveLabel()` returns the label if set, falling back to `ups_name`. All topic routing — including the LWT, outage topic, and JSON state — uses `EffectiveLabel()`, so renaming a device in MQTT never requires changes to the NUT configuration.

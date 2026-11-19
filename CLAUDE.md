@@ -28,6 +28,8 @@ internal/metrics/              pure computed metrics (100% test coverage)
 internal/publisher/            Publisher interface, topic routing, JSON, FakePublisher
 internal/integration_test.go   end-to-end: FakePoller → metrics → FakePublisher
 internal/integration_scenarios_test.go  replays captured power cuts (FakePoller.Sequence)
+cmd/ups-mqtt/replay_run_to_empty_test.go  the 2026-11-18 run to empty from the Riello's
+                               recorded LIST VAR snapshots, across the reboot
 internal/nut/testdata/         wire-format fixtures from every real device
 internal/retry/                connect with capped backoff and sparing failure logs
 internal/mqtttest/             real Mosquitto, fault-injecting TCP proxy, recorder (tests only)
@@ -79,7 +81,9 @@ for t in scripts/test/*_test.sh; do bash "$t"; done   # script tests (CI runs th
   whether the topic is clear (a predecessor may have died mid-outage, e.g. the
   host lost power), so the first poll on mains clears it unconditionally.
   `TestRestartAfterOutage_*` replays that against the Riello fixture with
-  `FakePublisher.Retained` standing in for the broker.
+  `FakePublisher.Retained` standing in for the broker, and
+  `TestReplay_RunToEmpty_2026_11_18` against the device's own recorded bytes
+  (`testdata/live-tests/2026-11-18/`).
 - QoS is per message, not per client: telemetry (`state`, `computed/*`) goes at
   `mqtt.telemetry_qos`; events (`outage` and its clear, `last_outage`, the
   offline announcement, the LWT) at `mqtt.event_qos`. Both fall back to

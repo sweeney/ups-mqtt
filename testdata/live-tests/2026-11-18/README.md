@@ -13,7 +13,7 @@ main broker. Identifiers are replaced: Tailscale addresses are
 
 | File | What |
 |---|---|
-| `ups-host-listvar.log` | upsd's `LIST VAR iplug` reply verbatim (wire format, as `internal/nut/testdata`), each headed `=== <time>`. Every 10 s until 23:10, then every 2 s until the death |
+| `ups-host-listvar.log` | upsd's `LIST VAR iplug` reply verbatim (wire format, as `internal/nut/testdata`), each headed `=== <time>`. One every 10 s until 23:10 (thinned from the 2 s recording by elapsed time, so there are no gaps), then every 2 s until the death. `TestReplay_RunToEmpty_2026_11_18` (`cmd/ups-mqtt`) replays it through the daemon |
 | `ups-host-ups.log` | `ups.status` and `battery.voltage` from `upsc`, every 1 s |
 | `ups-host-net.log` | link carrier, internet, broker-name lookup, MQTT connections, ups-mqtt's state directory, every 1 s (`dns=FAIL` is an artefact: the broker was given as a bare address, which has no reverse name) |
 | `ups-host-resolv.log` | `/etc/resolv.conf` |

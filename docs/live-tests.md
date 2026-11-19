@@ -416,7 +416,11 @@ to the last publish (test 5: 80 min 54 s), LB at 10.8 V both times, and
 
 ### What the service did
 
-Everything it is designed to do, and all of it right:
+Everything it is designed to do, and all of it right. The run is replayed
+from the recorded snapshots in `TestReplay_RunToEmpty_2026_11_18`
+(`cmd/ups-mqtt`): both lifetimes of the daemon, the slow clock and its
+step, against what the device sent.
+
 - An `outage` every poll for 80 minutes, and `low_battery: true` within
   1.1 s of the UPS raising LB. LB came at a scheduled poll, so this run
   does not show whether the at-once publish of a sample fired; test 5 does.
