@@ -174,7 +174,7 @@ if [[ $CHECK == 1 ]]; then
   elif [[ ${UPSMON_ACTIVE} == inactive && ${UPSMON_ENABLED} == disabled ]]; then
     attention "nut-monitor (upsmon) is disabled: nothing will shut this host down when the UPS runs flat"
     echo "     if that is not deliberate: sudo systemctl enable --now nut-monitor"
-  elif [[ ${UPSMON_ACTIVE} == inactive ]]; then
+  elif [[ ${UPSMON_ACTIVE} == inactive && ${UPSMON_ENABLED} == enabled ]]; then
     attention "nut-monitor (upsmon) is enabled but not running: nothing will shut this host down when the UPS runs flat"
     echo "     see why: journalctl -u nut-monitor -b"
   else

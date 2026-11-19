@@ -340,6 +340,10 @@ chk "$(up 'load=loaded active=inactive enabled=disabled')"
 check "disabled: attention, says so"    '[[ $CODE == 1 && $OUT == *"disabled"* && $OUT == *"systemctl enable --now nut-monitor"* && $OUT != *"journalctl"* ]]'
 chk "$(up 'load=loaded active=inactive enabled=enabled')"
 check "enabled, not running: journal"   '[[ $CODE == 1 && $OUT == *"enabled but not running"* && $OUT == *"journalctl -u nut-monitor"* ]]'
+# Review of #34: unknown is not enabled.  With is-enabled unread, say only
+# what is known.
+chk "$(up 'load=loaded active=inactive enabled=')"
+check "inactive, enablement unread"     '[[ $CODE == 1 && $OUT == *"is '"'"'inactive'"'"'"* && $OUT != *"enabled but"* && $OUT == *"journalctl -u nut-monitor"* ]]'
 chk "$(sed 's|^arch .*|arch mips|' <<<"$GOOD_PROBE")"
 check "unsupported arch: exit 1"        '[[ $CODE == 1 && $OUT == *"unsupported architecture: mips"* ]]'
 chk "$(sed 's|^config .*|config absent|' <<<"$GOOD_PROBE")"
