@@ -120,6 +120,12 @@ type MQTTPublisher struct {
 	lastFailed bool
 	// closed stops a reconnect in flight from outliving Close.
 	closed bool
+	// reconnecting is set while a reconnectLoop runs, so only one does.
+	// Every client connects with the same client ID, so each new CONNECT
+	// takes the session from the last and drops it, firing its will; two
+	// loops at once would keep kicking each other's connection, announcing
+	// the daemon offline each time (PR #34 review).
+	reconnecting bool
 }
 
 // NewMQTTPublisher creates an MQTT client with DefaultTuning but does not
@@ -240,18 +246,34 @@ func (p *MQTTPublisher) connectOnce(ctx context.Context) error {
 func (p *MQTTPublisher) Reconnected() <-chan struct{} { return p.reconnected }
 
 // connectionLost is paho's handler for an unexpected disconnect (not one
-// asked for by Close).  It runs on its own goroutine.
-func (p *MQTTPublisher) connectionLost(_ mqtt.Client, err error) {
+// asked for by Close).  It runs on its own goroutine.  A loss reported by a
+// client that has already been replaced is ignored: its successor is in
+// charge, and reconnecting would kick the healthy connection.
+func (p *MQTTPublisher) connectionLost(c mqtt.Client, err error) {
+	if c != p.cur() {
+		return
+	}
 	log.Printf("MQTT connection to %s lost: %v — reconnecting", p.broker, err)
 	p.reconnectLoop(time.Now())
 }
 
 // reconnectLoop retries until connected, the publisher's context ends, or
-// it is closed.
+// it is closed.  Only one runs at a time, whichever path starts it (a lost
+// connection, or the stall recovery in isStalled); a second returns at once.
 func (p *MQTTPublisher) reconnectLoop(lostAt time.Time) {
 	p.mu.Lock()
+	if p.reconnecting {
+		p.mu.Unlock()
+		return // one is already running; it ends connected or shut down
+	}
+	p.reconnecting = true
 	ctx, closed := p.ctx, p.closed
 	p.mu.Unlock()
+	defer func() {
+		p.mu.Lock()
+		p.reconnecting = false
+		p.mu.Unlock()
+	}()
 	if ctx == nil {
 		ctx = context.Background()
 	}

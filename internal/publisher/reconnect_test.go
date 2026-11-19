@@ -8,6 +8,7 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"log"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -318,7 +319,7 @@ func TestConnect_BuildsTheWillAtEachConnect(t *testing.T) {
 	}
 	// The link drops (here, at the clock sync) and the publisher reconnects.
 	clients[0].connected = false
-	p.connectionLost(nil, errors.New("EOF"))
+	p.connectionLost(clients[0], errors.New("EOF"))
 
 	if len(wills) != 2 || wills[0] != `{"online":false,"n":1}` || wills[1] != `{"online":false,"n":2}` {
 		t.Fatalf("wills registered = %q, want a fresh one per connect", wills)
@@ -328,5 +329,131 @@ func TestConnect_BuildsTheWillAtEachConnect(t *testing.T) {
 	}
 	if !p.cur().IsConnectionOpen() {
 		t.Error("the new client is not connected")
+	}
+}
+
+// gatedClient is a fakeClient whose Connect finishes only when gate is
+// completed, so a test can hold a reconnect in flight.
+type gatedClient struct {
+	*fakeClient
+	gate *fakeToken
+}
+
+func (g *gatedClient) Connect() mqtt.Token { g.connectCalls++; return g.gate }
+func (g *gatedClient) IsConnectionOpen() bool {
+	select {
+	case <-g.gate.Done():
+		return g.disconnects == 0
+	default:
+		return false
+	}
+}
+
+// madeClients records the clients a publisher's factory makes; the factory
+// runs on the reconnect goroutine.
+type madeClients struct {
+	mu   sync.Mutex
+	list []mqtt.Client
+	next func() mqtt.Client
+}
+
+func (m *madeClients) n() int { m.mu.Lock(); defer m.mu.Unlock(); return len(m.list) }
+func (m *madeClients) at(i int) mqtt.Client {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.list[i]
+}
+
+// connectedPublisher is a publisher connected through a factory that
+// records every client it makes; made.next, when set, supplies the next.
+func connectedPublisher(t *testing.T) (*MQTTPublisher, *madeClients) {
+	t.Helper()
+	var waits []time.Duration
+	p := newTestPublisher(&fakeClient{}, &waits)
+	p.will = func() string { return `{"online":false}` }
+	made := &madeClients{}
+	p.newClient = func(string) mqtt.Client {
+		made.mu.Lock()
+		defer made.mu.Unlock()
+		var c mqtt.Client = &fakeClient{connectErrs: []error{nil}}
+		if made.next != nil {
+			c = made.next()
+		}
+		made.list = append(made.list, c)
+		return c
+	}
+	if err := p.Connect(context.Background()); err != nil {
+		t.Fatalf("Connect() = %v", err)
+	}
+	return p, made
+}
+
+// Every client connects with the same client ID, so each new CONNECT takes
+// the session from the last and drops it, firing its will.  A lost
+// connection reported by a client already replaced must not start a
+// reconnect: its successor is in charge, and reconnecting would kick the
+// healthy connection and announce it offline (PR #34 review).
+func TestConnectionLost_FromAReplacedClientIsIgnored(t *testing.T) {
+	captureLog(t)
+	p, made := connectedPublisher(t)
+	stale := made.at(0)
+	p.connectionLost(stale, errors.New("EOF")) // the real loss: reconnects
+	if made.n() != 2 {
+		t.Fatalf("made %d clients, want a reconnect", made.n())
+	}
+	current := made.at(1).(*fakeClient)
+
+	p.connectionLost(stale, errors.New("EOF")) // late, from the old client
+	if made.n() != 2 {
+		t.Errorf("a loss reported by the replaced client made a new client (%d)", made.n())
+	}
+	if current.disconnects != 0 || !current.IsConnectionOpen() {
+		t.Error("the current connection was disturbed by the old client's loss")
+	}
+}
+
+// Only one reconnect runs at a time, whichever path starts it: two at once
+// would each kick the other's session in turn.  Here a stall recovery and
+// paho's own loss notice overlap.
+func TestReconnect_OnlyOneAtATime(t *testing.T) {
+	captureLog(t)
+	p, made := connectedPublisher(t)
+	gate := newFakeToken(false, nil)
+	made.mu.Lock()
+	made.next = func() mqtt.Client { return &gatedClient{fakeClient: &fakeClient{}, gate: gate} }
+	made.mu.Unlock()
+	var once sync.Once
+	release := func() { once.Do(gate.complete) }
+	defer release() // never leave a reconnect hanging
+
+	first := make(chan struct{})
+	go func() { p.reconnectLoop(time.Now()); close(first) }() // e.g. the stall recovery
+	waitFor(t, func() bool { return made.n() == 2 }, "the first reconnect to start")
+
+	second := make(chan struct{})
+	go func() { p.connectionLost(p.cur(), errors.New("ping timeout")); close(second) }() // paho notices too
+	select {
+	case <-second:
+	case <-time.After(time.Second):
+		t.Fatal("a second reconnect ran alongside the first (it is waiting on the same connect)")
+	}
+	if made.n() != 2 {
+		t.Errorf("a second reconnect ran alongside the first: %d clients made", made.n())
+	}
+	release()
+	<-first
+	if !p.cur().IsConnectionOpen() {
+		t.Error("not connected after the reconnect")
+	}
+}
+
+func waitFor(t *testing.T, cond func() bool, what string) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for !cond() {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %s", what)
+		}
+		time.Sleep(time.Millisecond)
 	}
 }

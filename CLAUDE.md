@@ -156,7 +156,11 @@ for t in scripts/test/*_test.sh; do bash "$t"; done   # script tests (CI runs th
   the client is made, so `MQTTPublisher` makes a new client, with the will
   as it is then, at every connect (clean session, so nothing is lost): the
   reconnect after the first clock sync registers a synced will
-  (`TestLiveWill_ReconnectRegistersAFreshWill`). After a power
+  (`TestLiveWill_ReconnectRegistersAFreshWill`). All its clients share one
+  client ID, so each CONNECT takes the last one's session and fires its
+  will: a loss reported by a replaced client is ignored, and only one
+  reconnect runs at a time (`TestConnectionLost_FromAReplacedClientIsIgnored`,
+  `TestReconnect_OnlyOneAtATime`). After a power
   cut a bridged broker can forward states stamped by an unsynced clock among
   stale retained values (docs/live-tests.md, test 5), and Mosquitto drops
   every client at the first clock sync, firing an LWT stamped before it
