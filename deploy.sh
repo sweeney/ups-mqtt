@@ -19,9 +19,9 @@
 #                      default, so a deploy always names the host it changes.
 #   --host USER@HOST   the ssh target; overrides the site's
 #   --check            read-only: the deployed build, the prerequisites, the
-#                      passwordless sudo the deploy needs, the service, and
-#                      the unit diff.  Exit 0 ready to deploy, 1 something
-#                      needs attention first, 2 error.
+#                      passwordless sudo the deploy needs, the service, NUT's
+#                      upsmon (nut-monitor), and the unit diff.  Exit 0
+#                      ready to deploy, 1 something needs attention, 2 error.
 #
 # Prerequisites on the target host (one-time, run first-install.sh):
 #   - /etc/ups-mqtt/config.toml exists
@@ -115,6 +115,7 @@ if [[ $CHECK == 1 ]]; then
     echo versions \$(ls -d ~/${SERVICE}/${SERVICE}-2* 2>/dev/null | wc -l)
     echo config \$([ -f /etc/${SERVICE}/config.toml ] && echo present || echo absent)
     echo active \$(systemctl is-active ${SERVICE} 2>/dev/null || true)
+    echo upsmon \$(systemctl show -p LoadState --value nut-monitor 2>/dev/null) \$(systemctl is-active nut-monitor 2>/dev/null || true)
     sudo -n -l 2>/dev/null | sed 's/^/sudoers /'
   ") || { echo "ERROR: cannot read ${TARGET}'s state over ssh" >&2; exit 2; }
   field() { awk -v k="$1" '$1 == k {sub(/^[^ ]+ ?/, ""); print; exit}' <<<"${PROBE}"; }
@@ -146,6 +147,19 @@ if [[ $CHECK == 1 ]]; then
   else
     attention "service is '$(field active)'"
   fi
+  # upsmon is not ours, but it is what shuts the host down when the UPS
+  # runs flat, and its failure shows nowhere else: on 2026-11-18 the Pi's
+  # had failed at every boot for five weeks and the host lost power hard
+  # (docs/live-tests.md).  Not installed is a choice, so only noted.
+  read -r UPSMON_LOAD UPSMON_ACTIVE <<<"$(field upsmon)" || true
+  case "${UPSMON_LOAD:-}/${UPSMON_ACTIVE:-}" in
+    loaded/active) echo "    upsmon:    active (shuts the host down on low battery)" ;;
+    not-found/*)   echo "    upsmon:    not installed: nothing shuts this host down on low battery" ;;
+    /*)            echo "    upsmon:    unknown (could not read nut-monitor's state)" ;;
+    *)
+      attention "nut-monitor (upsmon) is '${UPSMON_ACTIVE:-unknown}': nothing will shut this host down when the UPS runs flat"
+      echo "     see why: journalctl -u nut-monitor -b" ;;
+  esac
   # sudo -l with a command only says whether it is allowed at all, password
   # or not, so read the entries themselves.  An entry is "(RUNAS) cmd, cmd",
   # each cmd possibly prefixed by tags (NOPASSWD:, PASSWD:, SETENV: …); a

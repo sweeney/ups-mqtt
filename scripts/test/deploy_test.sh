@@ -260,6 +260,7 @@ current /home/u/ups-mqtt/ups-mqtt-20261014-210455
 versions 3
 config present
 active active
+upsmon loaded active
 sudoers User u may run the following commands on host:
 sudoers     (ALL : ALL) ALL
 sudoers     (root) NOPASSWD: /usr/bin/systemctl daemon-reload, /usr/bin/systemctl restart ups-mqtt, /usr/bin/tee /etc/ups-mqtt/config.toml'
@@ -308,6 +309,20 @@ chk "$(sed 's|^link .*|link none|' <<<"$GOOD_PROBE")"
 check "not installed: exit 1"           '[[ $CODE == 1 && $OUT == *"./first-install.sh --host pi@host first"* ]] && read_only'
 chk "$(sed 's|^active .*|active failed|' <<<"$GOOD_PROBE")"
 check "service down: exit 1"            '[[ $CODE == 1 && $OUT == *"service is '"'"'failed'"'"'"* ]]'
+# upsmon is what shuts the host down when the UPS runs flat.  On 2026-11-18
+# the Pi's had failed at every boot for five weeks (a broken upsmon.conf),
+# nothing in MQTT showed it, and the host lost power hard
+# (docs/live-tests.md).
+check "  …reports upsmon"               '[[ $OUT == *"upsmon:    active"* ]]'
+chk "$(sed 's|^upsmon .*|upsmon loaded failed|' <<<"$GOOD_PROBE")"
+check "upsmon failed: exit 1"           '[[ $CODE == 1 && $OUT == *"nut-monitor (upsmon) is '"'"'failed'"'"'"* ]] && read_only'
+check "  …says what it means"           '[[ $OUT == *"nothing will shut this host down"* && $OUT == *"journalctl -u nut-monitor"* ]]'
+chk "$(sed 's|^upsmon .*|upsmon not-found inactive|' <<<"$GOOD_PROBE")"
+check "no upsmon: noted, exit 0"        '[[ $CODE == 0 && $OUT == *"upsmon:    not installed"* ]]'
+chk "$(grep -v '^upsmon' <<<"$GOOD_PROBE")"
+check "upsmon unreadable: noted"        '[[ $CODE == 0 && $OUT == *"upsmon:    unknown"* ]]'
+chk "$(sed 's|^upsmon .*|upsmon loaded activating|' <<<"$GOOD_PROBE")"
+check "upsmon restarting: attention"    '[[ $CODE == 1 && $OUT == *"nut-monitor (upsmon) is '"'"'activating'"'"'"* ]]'
 chk "$(sed 's|^arch .*|arch mips|' <<<"$GOOD_PROBE")"
 check "unsupported arch: exit 1"        '[[ $CODE == 1 && $OUT == *"unsupported architecture: mips"* ]]'
 chk "$(sed 's|^config .*|config absent|' <<<"$GOOD_PROBE")"

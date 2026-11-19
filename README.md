@@ -515,7 +515,7 @@ so the addresses stay out of the repo), then:
 ./deploy.sh --install-sudoers --site NAME # install the narrow sudo rule deploy.sh needs
 ```
 
-`--check` reads the host and changes nothing: the deployed build, whether the prerequisites and config are there, whether the root commands a deploy runs need no password, the service's state, and the diff between the installed unit and this checkout's. It exits 0 when the host is ready, 1 when something needs attention, with the command that fixes it.
+`--check` reads the host and changes nothing: the deployed build, whether the prerequisites and config are there, whether the root commands a deploy runs need no password, the service's state, whether NUT's `upsmon` (`nut-monitor`) is running, and the diff between the installed unit and this checkout's. `upsmon` is not part of this project, but it is what shuts the host down when the UPS runs flat, and nothing else would show it had failed. A failed one needs attention; one that is not installed is only noted. It exits 0 when the host is ready, 1 when something needs attention, with the command that fixes it.
 
 `first-install.sh` takes the same `--site` / `--host`. `UPS_MQTT_SITES` names a sites file elsewhere. Without either option both scripts stop and list the known sites.
 

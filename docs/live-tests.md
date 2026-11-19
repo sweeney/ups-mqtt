@@ -502,7 +502,8 @@ on the main broker, with a timestamp 14½ minutes wrong.
    … MINSUPPLIES … Edit your upsmon.conf`, i.e. no working `MONITOR` line.
    upsd is fine, so ups-mqtt kept working and nothing in MQTT shows it.
    Two hard power-offs in five weeks. The SD card survived both. The files
-   being written lost their last 10–30 s and ended in NUL padding.
+   being written lost their last 10–30 s and ended in NUL padding. Open on
+   the host; `deploy.sh --check` now flags it (below).
 2. **ups-mqtt's offline announcement can carry an unsynced time and does
    not say so.** Both the LWT and the snapshot carry a `timestamp`, but
    only the snapshot carries `clock_synced`. After a long cut the LWT is
@@ -562,5 +563,9 @@ remount read-only and wait. If mains returns, reboot; if not, the power
 dies on a clean filesystem. That depends on nothing in the UPS, but it is
 more work and needs its own tests.
 
-Either way the upsmon config is host setup, outside this repo. The one
-change here would be for `ups-doctor.sh` to report a failed `nut-monitor`.
+Either way the upsmon config is host setup, outside this repo. What this
+repo can do is show the failure: `deploy.sh --check` now reports
+`nut-monitor`, and flags a failed one (`scripts/test/deploy_test.sh`). Run
+against both hosts, it flags the Pi's and passes the broker host's.
+(`ups-doctor.sh`, first thought of for this, checks only the macOS host,
+which runs no upsmon.)
