@@ -226,7 +226,15 @@ Every QoS key must be 0, 1 or 2; anything else is a startup error.
 
 **Liveness behind a bridge.** Behind a bridged local broker, `online:false` only covers this process dying: the LWT fires when the daemon loses its connection to the *local* broker. When the site's uplink drops, remote subscribers do not see `online:false`; the retained `state` simply stops updating. To tell whether the site is reachable, watch the bridge's notification topic (e.g. `sites/<site>/bridge`, a retained `1`/`0` published by Mosquitto when the bridge has `notification_topic` set).
 
-When the bridge reconnects it forwards what it holds in one burst: the queued QoS 1 events, QoS 0 states published while a connect attempt was pending, and repeated copies of the retained topics, which the local broker queues again on connect attempts. The last message to arrive is current, but order the rest by their `timestamp`, not by arrival (see [the live tests](docs/live-tests.md), 2026-10-14).
+**When the whole site dies.** If the UPS runs flat, the host, its local broker and (often) the router go together, so this daemon's LWT cannot fire: it is registered with the local broker, which died too. The main broker publishes the bridge's `0` once its keep-alive runs out (46 s after the last message on 2026-11-18). Until power returns, the retained `state` is the last snapshot, typically `OB LB`. Read `bridge 0` after a `state` with `computed.low_battery: true` as *the site ran flat*, not as a network fault. The outage is reported once the host is back: `last_outage` ends at the boot, with `spans_restart: true`.
+
+**When the bridge comes back.** It forwards what it holds in one burst, all in the same second: the queued QoS 1 events, QoS 0 states published while a connect attempt was pending, and repeated copies of the retained topics, which the local broker queues again on connect attempts. After a power loss that includes the local broker's retained values as it last saved them, up to `autosave_interval` (300 s) before the death: an `outage` from before the end, and the *previous* `last_outage`. On 2026-11-18 the burst brought, in order, a stale `outage`, its clear, two offline announcements and the old summary after the new one. Every topic still ended on its right value, but only because the right copy happened to arrive last. Don't act on arrival order:
+
+- `state`, `outage`: order by `timestamp`, and distrust one whose `clock_synced` is `false`.
+- `{"online":false,…}` on `state`: an LWT is stamped when the daemon *connected*, not when it fired. A `false` `clock_synced` means the time is wrong, and a newer full snapshot overrides it whatever the order.
+- `last_outage`: keep the latest `timestamp`, or for summaries from before that field, the latest `ended_at`.
+
+After a long cut, expect one offline announcement even though the daemon kept running. The host boots with its clock about as far behind as it was without power. Mosquitto times keep-alives by the wall clock, so at the first NTP sync it drops every local client and fires their LWTs. The daemon reconnects and republishes within the second. See [the live tests](docs/live-tests.md), 2026-10-14 and 2026-11-18.
 
 ---
 

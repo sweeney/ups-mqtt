@@ -442,6 +442,8 @@ which died with the host. The retained `state` stayed on the last
 snapshot, OB LB at 10.3 V, for 13½ minutes. As the README says, behind a
 bridge `online:false` only covers the process dying. A consumer that sees
 `bridge 0` after an OB LB `state` should take it that the site ran flat.
+The README's *Liveness behind a bridge* now says so, with rules for
+ordering what the reconnect burst brings.
 
 **The return.** The main broker got everything in the same second:
 
