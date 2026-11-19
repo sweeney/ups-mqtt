@@ -8,6 +8,7 @@ import (
 	"log"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -109,6 +110,11 @@ type daemon struct {
 	// sending one is logged when that starts and stops, not every sample.
 	implausible   string
 	implausibleAt time.Time
+
+	// Whether low battery was last logged as on, and when, so it is logged
+	// as it starts and ends, at most once a poll interval.
+	lowLogged   bool
+	lowLoggedAt time.Time
 }
 
 // run samples the UPS every sample interval until ctx is cancelled, then
@@ -178,6 +184,7 @@ func (d *daemon) sample(now time.Time, force bool) {
 	varMap := nut.VarsToMap(vars)
 	m := metrics.Compute(varMap)
 	d.noteImplausible(now, varMap)
+	d.noteLowBattery(now, varMap, m)
 	d.track(varMap, m)
 
 	poll := d.cfg.NUT.PollInterval.Duration
@@ -259,6 +266,35 @@ func (d *daemon) noteImplausible(now time.Time, varMap map[string]string) {
 		return
 	}
 	log.Printf("ignoring impossible UPS readings: %s", strings.Join(bad, " "))
+}
+
+// noteLowBattery logs low battery starting and ending.  It is the warning
+// that the host is about to lose power, and the journal is where an outage
+// is pieced together afterwards; on 2026-11-18 it had no trace of it
+// (docs/live-tests.md).  The onset gives the battery voltage, verbatim, and
+// the charge only when it is plausible.  Like noteImplausible it logs at
+// most once a poll interval, so LB flickering on every sample is logged as
+// it settles.
+func (d *daemon) noteLowBattery(now time.Time, varMap map[string]string, m metrics.Metrics) {
+	if m.LowBattery == d.lowLogged {
+		return
+	}
+	if !d.lowLoggedAt.IsZero() && now.Sub(d.lowLoggedAt) < d.cfg.NUT.PollInterval.Duration {
+		return
+	}
+	d.lowLogged, d.lowLoggedAt = m.LowBattery, now
+	if !m.LowBattery {
+		log.Printf("low battery cleared (ups.status %s)", varMap["ups.status"])
+		return
+	}
+	detail := "ups.status " + varMap["ups.status"]
+	if v, ok := varMap["battery.voltage"]; ok {
+		detail += ", battery.voltage " + v
+	}
+	if c := metrics.BatteryChargePct(varMap); c != nil {
+		detail += ", battery.charge " + strconv.FormatFloat(*c, 'f', -1, 64)
+	}
+	log.Printf("low battery: the UPS reports its battery low (%s)", detail)
 }
 
 // logPollError logs a failed sample when NUT starts failing, then once a

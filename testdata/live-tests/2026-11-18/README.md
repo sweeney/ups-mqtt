@@ -28,7 +28,7 @@ The files the Pi wrote end 10–30 s before it lost power (`ups-host-ups.log`
 at 23:14:42, the last snapshot at 23:14:28): what was still in the page
 cache was lost, and the files ended in NUL padding, stripped here. The
 journal of the dead boot ends at 23:12:30 with `SyncIntervalSec=10s`, so
-it most likely lost nothing: ups-mqtt does not log low battery.
+it most likely lost nothing: ups-mqtt did not log low battery then.
 
 The snapshots were taken by a stopgap loop speaking the upsd protocol
 directly, started before `scripts/live-test-watch.sh` recorded them; its

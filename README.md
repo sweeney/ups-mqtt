@@ -269,7 +269,7 @@ If you run multiple instances against the same broker, each must have a distinct
 
 At most one such immediate publish goes out per poll interval. Power flapping every few seconds — a brownout, a generator transfer — would otherwise publish on every flip; instead a change held back goes out with the next scheduled publish, so a short outage's clear can arrive up to a poll late while its recorded times stay exact. The first low battery of an outage is never held back. Where `sample_interval` does not divide `poll_interval`, publishes drift later rather than earlier. `poll_interval` must be positive and `sample_interval` not negative.
 
-The publish rate is unchanged, which matters behind a bridged local broker: while its uplink is down the bridge queues the QoS 1 outage messages, one per poll. A sample is a single `LIST VAR` round trip to upsd, normally on the same host. A NUT error is logged when it starts and then once per poll interval, not on every sample.
+The publish rate is unchanged, which matters behind a bridged local broker: while its uplink is down the bridge queues the QoS 1 outage messages, one per poll. A sample is a single `LIST VAR` round trip to upsd, normally on the same host. A NUT error is logged when it starts and then once per poll interval, not on every sample. Low battery is logged as it starts, with `ups.status`, the battery voltage and (when plausible) the charge, and again when it clears. A change is logged at most once per poll interval, so LB flickering on every sample is logged as it settles. It is the last warning before a host on the UPS loses power, so it is what you look for in the journal afterwards.
 
 ### Environment variable overrides
 
