@@ -115,7 +115,7 @@ if [[ $CHECK == 1 ]]; then
     echo versions \$(ls -d ~/${SERVICE}/${SERVICE}-2* 2>/dev/null | wc -l)
     echo config \$([ -f /etc/${SERVICE}/config.toml ] && echo present || echo absent)
     echo active \$(systemctl is-active ${SERVICE} 2>/dev/null || true)
-    echo upsmon \$(systemctl show -p LoadState --value nut-monitor 2>/dev/null) \$(systemctl is-active nut-monitor 2>/dev/null || true)
+    echo upsmon load=\$(systemctl show -p LoadState --value nut-monitor 2>/dev/null) active=\$(systemctl is-active nut-monitor 2>/dev/null) enabled=\$(systemctl is-enabled nut-monitor 2>/dev/null)
     sudo -n -l 2>/dev/null | sed 's/^/sudoers /'
   ") || { echo "ERROR: cannot read ${TARGET}'s state over ssh" >&2; exit 2; }
   field() { awk -v k="$1" '$1 == k {sub(/^[^ ]+ ?/, ""); print; exit}' <<<"${PROBE}"; }
@@ -150,16 +150,37 @@ if [[ $CHECK == 1 ]]; then
   # upsmon is not ours, but it is what shuts the host down when the UPS
   # runs flat, and its failure shows nowhere else: on 2026-11-18 the Pi's
   # had failed at every boot for five weeks and the host lost power hard
-  # (docs/live-tests.md).  Not installed is a choice, so only noted.
-  read -r UPSMON_LOAD UPSMON_ACTIVE <<<"$(field upsmon)" || true
-  case "${UPSMON_LOAD:-}/${UPSMON_ACTIVE:-}" in
-    loaded/active) echo "    upsmon:    active (shuts the host down on low battery)" ;;
-    not-found/*)   echo "    upsmon:    not installed: nothing shuts this host down on low battery" ;;
-    /*)            echo "    upsmon:    unknown (could not read nut-monitor's state)" ;;
-    *)
-      attention "nut-monitor (upsmon) is '${UPSMON_ACTIVE:-unknown}': nothing will shut this host down when the UPS runs flat"
-      echo "     see why: journalctl -u nut-monitor -b" ;;
-  esac
+  # (docs/live-tests.md).  The probe gives key=value fields, any of them
+  # possibly empty (systemctl show --value is newer than some systemd), so
+  # it is read by key, and judged by the active state first: a running
+  # upsmon is fine whatever else could not be read.  Not installed and
+  # masked are choices, so only noted; disabled is flagged, with the fix.
+  UPSMON_LOAD="" UPSMON_ACTIVE="" UPSMON_ENABLED=""
+  for kv in $(field upsmon); do
+    case "${kv}" in
+      load=*)    UPSMON_LOAD=${kv#load=} ;;
+      active=*)  UPSMON_ACTIVE=${kv#active=} ;;
+      enabled=*) UPSMON_ENABLED=${kv#enabled=} ;;
+    esac
+  done
+  if [[ ${UPSMON_ACTIVE} == active ]]; then
+    echo "    upsmon:    active (shuts the host down on low battery)"
+  elif [[ ${UPSMON_LOAD} == not-found ]]; then
+    echo "    upsmon:    not installed: nothing shuts this host down on low battery"
+  elif [[ ${UPSMON_LOAD} == masked || ${UPSMON_ENABLED} == masked ]]; then
+    echo "    upsmon:    masked: nothing shuts this host down on low battery (systemctl unmask nut-monitor to use it)"
+  elif [[ -z ${UPSMON_ACTIVE} ]]; then
+    echo "    upsmon:    unknown (could not read nut-monitor's state)"
+  elif [[ ${UPSMON_ACTIVE} == inactive && ${UPSMON_ENABLED} == disabled ]]; then
+    attention "nut-monitor (upsmon) is disabled: nothing will shut this host down when the UPS runs flat"
+    echo "     if that is not deliberate: sudo systemctl enable --now nut-monitor"
+  elif [[ ${UPSMON_ACTIVE} == inactive ]]; then
+    attention "nut-monitor (upsmon) is enabled but not running: nothing will shut this host down when the UPS runs flat"
+    echo "     see why: journalctl -u nut-monitor -b"
+  else
+    attention "nut-monitor (upsmon) is '${UPSMON_ACTIVE}': nothing will shut this host down when the UPS runs flat"
+    echo "     see why: journalctl -u nut-monitor -b"
+  fi
   # sudo -l with a command only says whether it is allowed at all, password
   # or not, so read the entries themselves.  An entry is "(RUNAS) cmd, cmd",
   # each cmd possibly prefixed by tags (NOPASSWD:, PASSWD:, SETENV: …); a
