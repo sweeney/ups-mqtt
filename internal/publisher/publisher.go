@@ -177,7 +177,13 @@ func ClearOutage(cfg PublishConfig, pub Publisher) error {
 // when an outage ends.  Unlike the outage topic, it is never cleared: it is
 // the record a subscriber that was not watching at the time can read
 // afterwards.  Each outage replaces the previous one.
+//
+// Timestamp is when it was published, as in StateMessage and OutageMessage,
+// so a summary replayed out of order by a bridge can be told from a newer
+// one (docs/live-tests.md, 2026-11-18).  It comes from the same clock as the
+// other times, so ClockSynced covers it too.
 type LastOutageMessage struct {
+	Timestamp           string   `json:"timestamp"`
 	UPSName             string   `json:"ups_name"`
 	StartedAt           string   `json:"started_at"`
 	EndedAt             string   `json:"ended_at"`
@@ -197,6 +203,7 @@ func LastOutageTopic(prefix, upsName string) string {
 // an event: always retained, at the event QoS.
 func PublishLastOutage(s outages.Summary, cfg PublishConfig, pub Publisher) error {
 	payload, err := json.Marshal(LastOutageMessage{
+		Timestamp:           time.Now().UTC().Format(time.RFC3339),
 		UPSName:             cfg.UPSName,
 		StartedAt:           s.StartedAt.UTC().Format(time.RFC3339),
 		EndedAt:             s.EndedAt.UTC().Format(time.RFC3339),

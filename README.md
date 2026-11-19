@@ -158,6 +158,7 @@ When an outage ends, after the `outage` topic has been cleared, a summary is pub
 
 ```json
 {
+  "timestamp": "2026-10-13T10:40:00Z",
   "ups_name": "office-ups",
   "started_at": "2026-10-13T10:02:10Z",
   "ended_at": "2026-10-13T10:40:00Z",
@@ -171,9 +172,10 @@ When an outage ends, after the `outage` topic has been cleared, a summary is pub
 
 | Field | Meaning |
 |-------|---------|
+| `timestamp` | When this summary was published, as in `state` and `outage`. A bridge reconnecting can deliver an older summary after a newer one (`docs/live-tests.md`, 2026-11-18); keep the one with the latest `timestamp`, and for a summary from before this field existed, the latest `ended_at`. An interim summary and the corrected one after it are told apart the same way. |
 | `low_battery_reached` | `ups.status` contained `LB` at some poll during the outage |
 | `min_battery_charge_pct` | The lowest `battery.charge` seen. Absent when the UPS does not report a charge in 0–100, or when the daemon restarted at any time between the outage's start and its summary being published: the minimum is kept in memory only. |
-| `clock_synced` | Whether both times can be trusted. Absent where it cannot be determined (anywhere but Linux). |
+| `clock_synced` | Whether the times can be trusted, `timestamp` included. Absent where it cannot be determined (anywhere but Linux). |
 | `spans_restart` | The daemon restarted during the outage, or was not running when it ended |
 
 **When the daemon was not running at the end.** This is the case that matters most: the battery runs flat, the host dies with it, and when mains returns the host boots on restored power. The new process finds the outage still open in its state file and the UPS on mains. It clears the stale `outage` topic and publishes `last_outage` with `spans_restart: true`. `ended_at` is the host's **boot time**, because mains returning is what boots the host. If only the daemon restarted (same kernel `boot_id` as the record), `ended_at` is when this process started. Either way, it is the latest the outage could have ended, not necessarily when it did.

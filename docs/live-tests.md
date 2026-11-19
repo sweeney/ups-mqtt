@@ -511,8 +511,10 @@ on the main broker, with a timestamp 14½ minutes wrong.
    (`TestSample_LogsLowBattery*`).
 4. **A replayed `last_outage` has nothing to order it by** except
    `ended_at`. A consumer that keeps the last to arrive was only right
-   because a third copy of the new one came last. Open: document the
-   `ended_at` rule, or give it a `timestamp`.
+   because a third copy of the new one came last. Fixed: `last_outage`
+   carries the `timestamp` it was published at, like `state` and `outage`
+   (`TestPublishLastOutage_Timestamp`); the README gives the rule, with
+   `ended_at` for summaries from before the field.
 5. **The Pi sees undervoltage on battery.** Five 4–6 s events in 80 min
    (two in test 5); `vcgencmd get_throttled` reports 0x50000 (undervoltage
    and throttling have occurred). The Pi's power supply runs on the UPS's

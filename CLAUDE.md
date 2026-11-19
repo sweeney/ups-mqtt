@@ -116,8 +116,9 @@ for t in scripts/test/*_test.sh; do bash "$t"; done   # script tests (CI runs th
   separate host-setup project; `mqtttest.StartBridged` fails if a substitution
   it makes no longer matches, and the mirror must be kept in step by hand.
 - `{prefix}/{label}/last_outage` is a retained summary published **after** the
-  outage clear when an outage ends; never cleared. `internal/outages.Tracker`
-  owns it: it persists the open outage to `state_dir`, else `$STATE_DIRECTORY`
+  outage clear when an outage ends; never cleared. It carries the `timestamp`
+  it was published at, so a bridge's out-of-order replay can be ordered.
+  `internal/outages.Tracker` owns it: it persists the open outage to `state_dir`, else `$STATE_DIRECTORY`
   (systemd's `StateDirectory=`, or the macOS plist) (`outage.json`, written on
   transitions only, with the kernel `boot_id`; boot ID and boot time are
   Linux-only, `clock_other.go`). After a restart on battery it resumes the
