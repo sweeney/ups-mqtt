@@ -255,12 +255,50 @@ func TestStateTopic(t *testing.T) {
 // ---- FormatOffline --------------------------------------------------------
 
 func TestFormatOffline(t *testing.T) {
-	payload := publisher.FormatOffline()
+	payload := publisher.FormatOffline(nil)
 	if !strings.Contains(payload, `"online":false`) {
 		t.Errorf("FormatOffline payload missing online:false: %s", payload)
 	}
 	if !strings.Contains(payload, `"timestamp"`) {
 		t.Errorf("FormatOffline payload missing timestamp: %s", payload)
+	}
+}
+
+// The offline announcement and the LWT carry a timestamp, so, like a state
+// snapshot, they must say whether the clock it came from was synced.  After
+// a long power cut the LWT fires at the first NTP sync, stamped by the
+// unsynced clock (docs/live-tests.md, 2026-11-18).  Unknown is omitted, as
+// in the snapshot.
+func TestFormatOffline_ClockSynced(t *testing.T) {
+	yes, no := true, false
+	for _, tc := range []struct {
+		name   string
+		synced *bool
+		want   string // substring; "" means the key must be absent
+	}{
+		{"synced", &yes, `"clock_synced":true`},
+		{"not synced", &no, `"clock_synced":false`},
+		{"unknown", nil, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			payload := publisher.FormatOffline(tc.synced)
+			var got map[string]any
+			if err := json.Unmarshal([]byte(payload), &got); err != nil {
+				t.Fatalf("payload %s is not JSON: %v", payload, err)
+			}
+			if got["online"] != false {
+				t.Errorf("online = %v, want false", got["online"])
+			}
+			if tc.want == "" {
+				if _, ok := got["clock_synced"]; ok {
+					t.Errorf("payload %s has clock_synced, want it omitted when unknown", payload)
+				}
+				return
+			}
+			if !strings.Contains(payload, tc.want) {
+				t.Errorf("payload %s, want %s", payload, tc.want)
+			}
+		})
 	}
 }
 
@@ -858,6 +896,7 @@ func TestPublishLastOutage(t *testing.T) {
 		ClockSynced:         boolPtr(true),
 		SpansRestart:        false,
 		Final:               true,
+		PublishedAt:         start.Add(2275 * time.Second),
 	}
 	fp := &publisher.FakePublisher{}
 	cfg := publisher.PublishConfig{Prefix: "ups", UPSName: "site-ups", TelemetryQOS: 0, EventQOS: 1}
@@ -871,10 +910,31 @@ func TestPublishLastOutage(t *testing.T) {
 	if msg.QOS != 1 {
 		t.Errorf("QoS = %d, want the event QoS 1", msg.QOS)
 	}
-	want := `{"ups_name":"site-ups","started_at":"2026-10-13T10:02:10Z","ended_at":"2026-10-13T10:40:00Z",` +
+	want := `{"timestamp":"2026-10-13T10:40:05Z","ups_name":"site-ups","started_at":"2026-10-13T10:02:10Z","ended_at":"2026-10-13T10:40:00Z",` +
 		`"duration_secs":2270,"low_battery_reached":true,"min_battery_charge_pct":61,"clock_synced":true,"spans_restart":false}`
 	if msg.Payload != want {
 		t.Errorf("payload\n got %s\nwant %s", msg.Payload, want)
+	}
+}
+
+// A replayed last_outage needs something to be ordered by.  When the
+// bridge came back on 2026-11-18 the main broker received the previous
+// summary after the new one, and only a third copy of the new one put it
+// right.  Like state and outage, last_outage carries the time it was
+// published: the summary's PublishedAt, which the tracker takes from the
+// same clock as the other times, so clock_synced covers it.
+func TestPublishLastOutage_Timestamp(t *testing.T) {
+	start := time.Date(2026, 11, 18, 21, 54, 42, 0, time.UTC)
+	s := outages.Summary{StartedAt: start, EndedAt: start.Add(5503 * time.Second),
+		ClockSynced: boolPtr(true), SpansRestart: true, Final: true,
+		PublishedAt: time.Date(2026, 11, 18, 23, 28, 13, 400_000_000, time.UTC)}
+	fp := &publisher.FakePublisher{}
+	if err := publisher.PublishLastOutage(s, publisher.PublishConfig{Prefix: "ups", UPSName: "x"}, fp); err != nil {
+		t.Fatal(err)
+	}
+	msg, _ := fp.Find("ups/x/last_outage")
+	if !strings.HasPrefix(msg.Payload, `{"timestamp":"2026-11-18T23:28:13Z",`) {
+		t.Errorf("payload %s, want it to lead with the summary's PublishedAt", msg.Payload)
 	}
 }
 

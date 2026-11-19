@@ -99,7 +99,7 @@ func TestDoPoll_SingleQOS_AppliesToEverything(t *testing.T) {
 func TestPublishOffline_UsesEventQOS(t *testing.T) {
 	cfg := splitQOSCfg()
 	fp := &publisher.FakePublisher{}
-	if err := publishOffline(fp, "ups/cyberpower/state", cfg.MQTT.EffectiveEventQOS()); err != nil {
+	if err := publishOffline(fp, "ups/cyberpower/state", cfg.MQTT.EffectiveEventQOS(), nil); err != nil {
 		t.Fatalf("publishOffline() error: %v", err)
 	}
 	m, ok := fp.Retained("ups/cyberpower/state")
@@ -111,5 +111,19 @@ func TestPublishOffline_UsesEventQOS(t *testing.T) {
 	}
 	if !strings.Contains(m.Payload, `"online":false`) {
 		t.Errorf("payload = %s, want online:false", m.Payload)
+	}
+}
+
+// The shutdown announcement says whether the clock that stamped it was
+// synced, as a state snapshot does.
+func TestPublishOffline_CarriesClockSynced(t *testing.T) {
+	no := false
+	fp := &publisher.FakePublisher{}
+	if err := publishOffline(fp, "ups/cyberpower/state", 1, &no); err != nil {
+		t.Fatalf("publishOffline() error: %v", err)
+	}
+	m, _ := fp.Retained("ups/cyberpower/state")
+	if !strings.Contains(m.Payload, `"clock_synced":false`) {
+		t.Errorf("payload = %s, want clock_synced:false", m.Payload)
 	}
 }

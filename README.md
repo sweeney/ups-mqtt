@@ -158,6 +158,7 @@ When an outage ends, after the `outage` topic has been cleared, a summary is pub
 
 ```json
 {
+  "timestamp": "2026-10-13T10:40:00Z",
   "ups_name": "office-ups",
   "started_at": "2026-10-13T10:02:10Z",
   "ended_at": "2026-10-13T10:40:00Z",
@@ -171,9 +172,10 @@ When an outage ends, after the `outage` topic has been cleared, a summary is pub
 
 | Field | Meaning |
 |-------|---------|
+| `timestamp` | When this summary was published, as in `state` and `outage`. A bridge reconnecting can deliver an older summary after a newer one (`docs/live-tests.md`, 2026-11-18); keep the one with the latest `timestamp`, and for a summary from before this field existed, the latest `ended_at`. Two summaries with the same `started_at` are an interim one and its correction: keep the one with `clock_synced: true`, whatever their `timestamp` says. An interim summary is stamped by the unsynced clock, which can run ahead as well as behind. |
 | `low_battery_reached` | `ups.status` contained `LB` at some poll during the outage |
 | `min_battery_charge_pct` | The lowest `battery.charge` seen. Absent when the UPS does not report a charge in 0–100, or when the daemon restarted at any time between the outage's start and its summary being published: the minimum is kept in memory only. |
-| `clock_synced` | Whether both times can be trusted. Absent where it cannot be determined (anywhere but Linux). |
+| `clock_synced` | Whether the times can be trusted, `timestamp` included. Absent where it cannot be determined (anywhere but Linux). |
 | `spans_restart` | The daemon restarted during the outage, or was not running when it ended |
 
 **When the daemon was not running at the end.** This is the case that matters most: the battery runs flat, the host dies with it, and when mains returns the host boots on restored power. The new process finds the outage still open in its state file and the UPS on mains. It clears the stale `outage` topic and publishes `last_outage` with `spans_restart: true`. `ended_at` is the host's **boot time**, because mains returning is what boots the host. If only the daemon restarted (same kernel `boot_id` as the record), `ended_at` is when this process started. Either way, it is the latest the outage could have ended, not necessarily when it did.
@@ -197,7 +199,7 @@ The outage in progress is kept in `outage.json`, written only on transitions (st
 
 "Published" means the broker sent PUBACK. Behind a bridged local broker that is the local one, and from there delivery is up to the bridge's queue, which Mosquitto saves to disk only every `autosave_interval`. A power loss within that window can lose a queued `last_outage` after the state file is gone. Tighten the broker config if that matters.
 
-`state` and `computed/*` follow `mqtt.retained`; `outage`, `last_outage`, the offline announcement and the LWT are always retained. An LWT (last will and testament) of `{"online":false,"timestamp":"…"}` is registered at startup so MQTT subscribers see the device go offline immediately if the daemon dies unexpectedly. Its `timestamp` is when the daemon started, since that is when it is registered.
+`state` and `computed/*` follow `mqtt.retained`; `outage`, `last_outage`, the offline announcement and the LWT are always retained. An LWT (last will and testament) of `{"online":false,"timestamp":"…","clock_synced":…}` is registered at startup so MQTT subscribers see the device go offline immediately if the daemon dies unexpectedly. Its `timestamp` is when the current connection was made, since that is when the will is registered, and `clock_synced` says whether the clock was synced then. Both are taken afresh at every connect, so they describe the connection whose loss the LWT announces, not when it fires. Distrust the `timestamp` when `clock_synced` is `false`. After a power cut the daemon usually starts before the clock syncs, and Mosquitto, which times keep-alives by the wall clock, drops every client at the sync and fires their LWTs: on 2026-11-18 that announced a running daemon offline with a time 14½ minutes wrong (docs/live-tests.md). Like the snapshot, it omits `clock_synced` where sync cannot be determined (not Linux).
 
 ### QoS: telemetry and events
 
@@ -224,7 +226,15 @@ Every QoS key must be 0, 1 or 2; anything else is a startup error.
 
 **Liveness behind a bridge.** Behind a bridged local broker, `online:false` only covers this process dying: the LWT fires when the daemon loses its connection to the *local* broker. When the site's uplink drops, remote subscribers do not see `online:false`; the retained `state` simply stops updating. To tell whether the site is reachable, watch the bridge's notification topic (e.g. `sites/<site>/bridge`, a retained `1`/`0` published by Mosquitto when the bridge has `notification_topic` set).
 
-When the bridge reconnects it forwards what it holds in one burst: the queued QoS 1 events, QoS 0 states published while a connect attempt was pending, and repeated copies of the retained topics, which the local broker queues again on connect attempts. The last message to arrive is current, but order the rest by their `timestamp`, not by arrival (see [the live tests](docs/live-tests.md), 2026-10-14).
+**When the whole site dies.** If the UPS runs flat, the host, its local broker and (often) the router go together, so this daemon's LWT cannot fire: it is registered with the local broker, which died too. The main broker publishes the bridge's `0` once its keep-alive runs out (46 s after the last message on 2026-11-18). Until power returns, the retained `state` is the last snapshot, typically `OB LB`. Read `bridge 0` after a `state` with `computed.low_battery: true` as *the site ran flat*, not as a network fault. The outage is reported once the host is back: `last_outage` ends at the boot, with `spans_restart: true`.
+
+**When the bridge comes back.** It forwards what it holds in one burst, all in the same second: the queued QoS 1 events, QoS 0 states published while a connect attempt was pending, and repeated copies of the retained topics, which the local broker queues again on connect attempts. After a power loss that includes the local broker's retained values as it last saved them, up to `autosave_interval` (300 s) before the death: an `outage` from before the end, and the *previous* `last_outage`. On 2026-11-18 the burst brought, in order, a stale `outage`, its clear, two offline announcements and the old summary after the new one. Every topic still ended on its right value, but only because the right copy happened to arrive last. Don't act on arrival order:
+
+- `state`, `outage`: order by `timestamp`, and distrust one whose `clock_synced` is `false`.
+- `{"online":false,…}` on `state`: an LWT is stamped when the daemon *connected*, not when it fired. A `false` `clock_synced` means the time is wrong, and a newer full snapshot overrides it whatever the order.
+- `last_outage`: between two summaries of the same outage (same `started_at`), keep the one with `clock_synced: true`; otherwise keep the latest `timestamp`, or for summaries from before that field, the latest `ended_at`. Going by `timestamp` alone is only safe when the unsynced clock runs behind, as the Pi's did; a host whose clock runs ahead would rank the interim summary above its correction.
+
+After a long cut, expect one offline announcement even though the daemon kept running. The host boots with its clock about as far behind as it was without power. Mosquitto times keep-alives by the wall clock, so at the first NTP sync it drops every local client and fires their LWTs. The daemon reconnects and republishes within the second. See [the live tests](docs/live-tests.md), 2026-10-14 and 2026-11-18.
 
 ---
 
@@ -269,7 +279,7 @@ If you run multiple instances against the same broker, each must have a distinct
 
 At most one such immediate publish goes out per poll interval. Power flapping every few seconds — a brownout, a generator transfer — would otherwise publish on every flip; instead a change held back goes out with the next scheduled publish, so a short outage's clear can arrive up to a poll late while its recorded times stay exact. The first low battery of an outage is never held back. Where `sample_interval` does not divide `poll_interval`, publishes drift later rather than earlier. `poll_interval` must be positive and `sample_interval` not negative.
 
-The publish rate is unchanged, which matters behind a bridged local broker: while its uplink is down the bridge queues the QoS 1 outage messages, one per poll. A sample is a single `LIST VAR` round trip to upsd, normally on the same host. A NUT error is logged when it starts and then once per poll interval, not on every sample.
+The publish rate is unchanged, which matters behind a bridged local broker: while its uplink is down the bridge queues the QoS 1 outage messages, one per poll. A sample is a single `LIST VAR` round trip to upsd, normally on the same host. A NUT error is logged when it starts and then once per poll interval, not on every sample. Low battery is logged as it starts, with `ups.status`, the battery voltage and (when plausible) the charge, and again when it clears. The onset is never held back. A clear is logged at most once per poll interval after the last line, so LB flickering on every sample logs at most a clear and an onset per poll interval. It is the last warning before a host on the UPS loses power, so it is what you look for in the journal afterwards.
 
 ### Environment variable overrides
 
@@ -505,7 +515,7 @@ so the addresses stay out of the repo), then:
 ./deploy.sh --install-sudoers --site NAME # install the narrow sudo rule deploy.sh needs
 ```
 
-`--check` reads the host and changes nothing: the deployed build, whether the prerequisites and config are there, whether the root commands a deploy runs need no password, the service's state, and the diff between the installed unit and this checkout's. It exits 0 when the host is ready, 1 when something needs attention, with the command that fixes it.
+`--check` reads the host and changes nothing: the deployed build, whether the prerequisites and config are there, whether the root commands a deploy runs need no password, the service's state, whether NUT's `upsmon` (`nut-monitor`) is running, and the diff between the installed unit and this checkout's. `upsmon` is not part of this project, but it is what shuts the host down when the UPS runs flat, and nothing else would show it had failed. A failed, stopped or disabled one needs attention, and the check says which, with the command that fixes it. One that is not installed or is masked is only noted, since both are deliberate. It exits 0 when the host is ready, 1 when something needs attention, with the command that fixes it.
 
 `first-install.sh` takes the same `--site` / `--host`. `UPS_MQTT_SITES` names a sites file elsewhere. Without either option both scripts stop and list the known sites.
 
@@ -732,6 +742,8 @@ The integration scenario tests (`internal/integration_scenarios_test.go`) are bu
 - **Noisy battery charge readings** during discharge (100% → 79% → 82%)
 - **`input.voltage = "0"`** for one poll during reconnect — the daemon reports −100% deviation without panicking
 
+**Riello iPlug** — `TestReplay_RunToEmpty_2026_11_18` replays a real run to empty from the device's own `LIST VAR` replies, recorded every 2–10 s in [`testdata/live-tests/2026-11-18/`](testdata/live-tests/2026-11-18/). It covers the 68 recorded minutes on battery, with the misdecoded 3434 % charge and 38-day runtime, LB at 10.8 V, and the host dying. A fresh process then starts after the reboot with the clock 14½ minutes slow, and the clock later syncs. It checks that no poll is missed, that the first LB goes out with the sample that saw it and is logged, that nothing is derived from the impossible readings, and that the summary ends at the real boot by the branch the Pi's journal shows it took.
+
 ### Label and topic routing
 
 The `label` field in config decouples the MQTT topic name from the NUT device identifier. `NUTConfig.EffectiveLabel()` returns the label if set, falling back to `ups_name`. All topic routing — including the LWT, outage topic, and JSON state — uses `EffectiveLabel()`, so renaming a device in MQTT never requires changes to the NUT configuration.
@@ -752,7 +764,7 @@ That's it. The JSON state topic and the MQTT computed topic both pick it up auto
 On `SIGTERM`/`SIGINT`:
 1. Stop the poll ticker
 2. Attempt one final `Poll()` — if it succeeds, publish a complete state snapshot
-3. Publish `{"online":false,"timestamp":"…"}` to the state topic (retained)
+3. Publish `{"online":false,"timestamp":"…","clock_synced":…}` to the state topic (retained), with the clock's sync at that moment
 4. Close NUT and MQTT connections. If the offline announcement failed, leave without a clean DISCONNECT, so the broker publishes the LWT in its place
 5. Exit 0
 

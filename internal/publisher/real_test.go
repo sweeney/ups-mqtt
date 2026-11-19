@@ -97,7 +97,7 @@ func TestNewMQTTPublisher_TLSCertError(t *testing.T) {
 		ClientID:  "test",
 		TLSCACert: "/nonexistent/ca.pem",
 	}
-	_, err := NewMQTTPublisher(cfg, "ups/state", "{}")
+	_, err := NewMQTTPublisher(cfg, "ups/state", func() string { return "{}" })
 	if err == nil {
 		t.Fatal("expected error when TLS CA cert file does not exist")
 	}
@@ -113,7 +113,7 @@ func TestNewMQTTPublisher_WithCredentials_TLSError(t *testing.T) {
 		Password:  "pass",
 		TLSCACert: "/nonexistent/ca.pem",
 	}
-	_, err := NewMQTTPublisher(cfg, "ups/state", "{}")
+	_, err := NewMQTTPublisher(cfg, "ups/state", func() string { return "{}" })
 	if err == nil {
 		t.Fatal("expected TLS error even with credentials set")
 	}
@@ -124,7 +124,7 @@ func TestNewMQTTPublisher_WithCredentials_TLSError(t *testing.T) {
 func TestNewMQTTPublisher_DoesNotConnect(t *testing.T) {
 	cfg := config.MQTTConfig{Broker: "tcp://127.0.0.1:1", ClientID: "test"}
 	start := time.Now()
-	p, err := NewMQTTPublisher(cfg, "ups/x/state", "{}")
+	p, err := NewMQTTPublisher(cfg, "ups/x/state", func() string { return "{}" })
 	if err != nil {
 		t.Fatalf("NewMQTTPublisher() = %v, want nil for an unreachable broker", err)
 	}
@@ -144,7 +144,7 @@ func TestNewMQTTPublisher_WillUsesEventQOS(t *testing.T) {
 		Broker: "tcp://127.0.0.1:1", ClientID: "test",
 		QOS: 0, TelemetryQOS: &telemetry, EventQOS: &event,
 	}
-	p, err := NewMQTTPublisher(cfg, "ups/x/state", `{"online":false}`)
+	p, err := NewMQTTPublisher(cfg, "ups/x/state", func() string { return `{"online":false}` })
 	if err != nil {
 		t.Fatalf("NewMQTTPublisher() = %v", err)
 	}

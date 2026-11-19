@@ -416,7 +416,11 @@ to the last publish (test 5: 80 min 54 s), LB at 10.8 V both times, and
 
 ### What the service did
 
-Everything it is designed to do, and all of it right:
+Everything it is designed to do, and all of it right. The run is replayed
+from the recorded snapshots in `TestReplay_RunToEmpty_2026_11_18`
+(`cmd/ups-mqtt`): both lifetimes of the daemon, the slow clock and its
+step, against what the device sent.
+
 - An `outage` every poll for 80 minutes, and `low_battery: true` within
   1.1 s of the UPS raising LB. LB came at a scheduled poll, so this run
   does not show whether the at-once publish of a sample fired; test 5 does.
@@ -438,6 +442,8 @@ which died with the host. The retained `state` stayed on the last
 snapshot, OB LB at 10.3 V, for 13½ minutes. As the README says, behind a
 bridge `online:false` only covers the process dying. A consumer that sees
 `bridge 0` after an OB LB `state` should take it that the site ran flat.
+The README's *Liveness behind a bridge* now says so, with rules for
+ordering what the reconnect burst brings.
 
 **The return.** The main broker got everything in the same second:
 
@@ -496,19 +502,26 @@ on the main broker, with a timestamp 14½ minutes wrong.
    … MINSUPPLIES … Edit your upsmon.conf`, i.e. no working `MONITOR` line.
    upsd is fine, so ups-mqtt kept working and nothing in MQTT shows it.
    Two hard power-offs in five weeks. The SD card survived both. The files
-   being written lost their last 10–30 s and ended in NUL padding.
+   being written lost their last 10–30 s and ended in NUL padding. Open on
+   the host; `deploy.sh --check` now flags it (below).
 2. **ups-mqtt's offline announcement can carry an unsynced time and does
    not say so.** Both the LWT and the snapshot carry a `timestamp`, but
    only the snapshot carries `clock_synced`. After a long cut the LWT is
    all but certain to fire at the first clock sync (above), stamped with
-   the unsynced time. Open: put `clock_synced` in the LWT too.
+   the unsynced time. Fixed: the LWT and the shutdown announcement carry
+   `clock_synced` too (`TestFormatOffline_ClockSynced`,
+   `TestPublishOffline_CarriesClockSynced`).
 3. **ups-mqtt does not log low battery.** The journal of the dead boot
    ends at 23:12:30, 50 s after LB, and has no trace of it. Only
-   `outage.json` and MQTT do. Open.
+   `outage.json` and MQTT do. Fixed: its onset is logged with the battery
+   voltage, at once, and its end too, at most once a poll interval
+   (`TestSample_LogsLowBattery*`, `TestSample_LowBatteryOnsetNotHeldBackByAClear`).
 4. **A replayed `last_outage` has nothing to order it by** except
    `ended_at`. A consumer that keeps the last to arrive was only right
-   because a third copy of the new one came last. Open: document the
-   `ended_at` rule, or give it a `timestamp`.
+   because a third copy of the new one came last. Fixed: `last_outage`
+   carries the `timestamp` it was published at, like `state` and `outage`
+   (`TestPublishLastOutage_Timestamp`); the README gives the rule, with
+   `ended_at` for summaries from before the field.
 5. **The Pi sees undervoltage on battery.** Five 4–6 s events in 80 min
    (two in test 5); `vcgencmd get_throttled` reports 0x50000 (undervoltage
    and throttling have occurred). The Pi's power supply runs on the UPS's
@@ -550,5 +563,9 @@ remount read-only and wait. If mains returns, reboot; if not, the power
 dies on a clean filesystem. That depends on nothing in the UPS, but it is
 more work and needs its own tests.
 
-Either way the upsmon config is host setup, outside this repo. The one
-change here would be for `ups-doctor.sh` to report a failed `nut-monitor`.
+Either way the upsmon config is host setup, outside this repo. What this
+repo can do is show the failure: `deploy.sh --check` now reports
+`nut-monitor`, and flags a failed one (`scripts/test/deploy_test.sh`). Run
+against both hosts, it flags the Pi's and passes the broker host's.
+(`ups-doctor.sh`, first thought of for this, checks only the macOS host,
+which runs no upsmon.)

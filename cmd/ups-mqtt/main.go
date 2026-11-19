@@ -8,6 +8,7 @@ import (
 	"log"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -41,7 +42,10 @@ func main() {
 
 	// Connect to MQTT broker first so LWT is registered before we talk to NUT.
 	lwtTopic := publisher.StateTopic(cfg.MQTT.TopicPrefix, cfg.NUT.EffectiveLabel())
-	lwtPayload := publisher.FormatOffline()
+	// The will is made afresh at every connect, so its timestamp and
+	// clock_synced are that connection's: after the reconnect that follows
+	// the first clock sync, it no longer says the clock is unsynced.
+	lwtPayload := func() string { return publisher.FormatOffline(tracker.ClockSynced()) }
 
 	pub, err := publisher.NewMQTTPublisher(cfg.MQTT, lwtTopic, lwtPayload)
 	if err != nil {
@@ -107,6 +111,11 @@ type daemon struct {
 	// sending one is logged when that starts and stops, not every sample.
 	implausible   string
 	implausibleAt time.Time
+
+	// Whether low battery was last logged as on, and when, so it is logged
+	// as it starts and ends, at most once a poll interval.
+	lowLogged   bool
+	lowLoggedAt time.Time
 }
 
 // run samples the UPS every sample interval until ctx is cancelled, then
@@ -152,7 +161,7 @@ loop:
 	}
 
 	// Always publish the offline announcement.
-	if err := publishOffline(d.pub, lwtTopic, d.cfg.MQTT.EffectiveEventQOS()); err != nil {
+	if err := publishOffline(d.pub, lwtTopic, d.cfg.MQTT.EffectiveEventQOS(), d.outage.tracker.ClockSynced()); err != nil {
 		log.Printf("publishing offline announcement: %v", err)
 	}
 
@@ -176,6 +185,7 @@ func (d *daemon) sample(now time.Time, force bool) {
 	varMap := nut.VarsToMap(vars)
 	m := metrics.Compute(varMap)
 	d.noteImplausible(now, varMap)
+	d.noteLowBattery(now, varMap, m)
 	d.track(varMap, m)
 
 	poll := d.cfg.NUT.PollInterval.Duration
@@ -259,6 +269,37 @@ func (d *daemon) noteImplausible(now time.Time, varMap map[string]string) {
 	log.Printf("ignoring impossible UPS readings: %s", strings.Join(bad, " "))
 }
 
+// noteLowBattery logs low battery starting and ending.  It is the warning
+// that the host is about to lose power, and the journal is where an outage
+// is pieced together afterwards; on 2026-11-18 it had no trace of it
+// (docs/live-tests.md).  The onset gives the battery voltage, verbatim, and
+// the charge only when it is plausible.  The onset is never held back: it
+// is the line most wanted from a host about to die, whose journal may lose
+// its last seconds.  A clear is logged at most once a poll interval after
+// the last line, so LB flickering on every sample logs at most a clear and
+// an onset a poll interval.
+func (d *daemon) noteLowBattery(now time.Time, varMap map[string]string, m metrics.Metrics) {
+	if m.LowBattery == d.lowLogged {
+		return
+	}
+	if !m.LowBattery && now.Sub(d.lowLoggedAt) < d.cfg.NUT.PollInterval.Duration {
+		return
+	}
+	d.lowLogged, d.lowLoggedAt = m.LowBattery, now
+	if !m.LowBattery {
+		log.Printf("low battery cleared (ups.status %s)", varMap["ups.status"])
+		return
+	}
+	detail := "ups.status " + varMap["ups.status"]
+	if v, ok := varMap["battery.voltage"]; ok {
+		detail += ", battery.voltage " + v
+	}
+	if c := metrics.BatteryChargePct(varMap); c != nil {
+		detail += ", battery.charge " + strconv.FormatFloat(*c, 'f', -1, 64)
+	}
+	log.Printf("low battery: the UPS reports its battery low (%s)", detail)
+}
+
 // logPollError logs a failed sample when NUT starts failing, then once a
 // poll interval while it goes on.  It goes by time, not the error text: a
 // re-dial's error names a new local port every time.
@@ -277,11 +318,12 @@ func (d *daemon) logPollError(now time.Time, err error) {
 
 // publishOffline announces a clean shutdown on the state topic, in the same
 // shape the broker would publish as the LWT.  It is an event, so it goes at
-// the event QoS like the LWT it stands in for.
-func publishOffline(pub publisher.Publisher, topic string, qos byte) error {
+// the event QoS like the LWT it stands in for.  clockSynced is the clock's
+// sync now, which says whether its timestamp can be trusted.
+func publishOffline(pub publisher.Publisher, topic string, qos byte, clockSynced *bool) error {
 	return pub.Publish(publisher.Message{
 		Topic:    topic,
-		Payload:  publisher.FormatOffline(),
+		Payload:  publisher.FormatOffline(clockSynced),
 		Retained: true,
 		QOS:      qos,
 	})

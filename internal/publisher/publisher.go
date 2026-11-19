@@ -70,6 +70,13 @@ type StateMessage struct {
 type OnlineState struct {
 	Online    bool   `json:"online"`
 	Timestamp string `json:"timestamp"`
+	// ClockSynced says whether Timestamp can be trusted, as in StateMessage.
+	// For the LWT both are taken when it is registered, at each connect:
+	// after a power cut the first is often before the clock syncs, and the
+	// broker may fire it at the sync itself (docs/live-tests.md,
+	// 2026-11-18); the reconnect that follows registers a synced one.
+	// Omitted where sync cannot be determined.
+	ClockSynced *bool `json:"clock_synced,omitempty"`
 }
 
 // OutageMessage is published to {prefix}/{ups_name}/outage whenever the UPS is
@@ -171,7 +178,14 @@ func ClearOutage(cfg PublishConfig, pub Publisher) error {
 // when an outage ends.  Unlike the outage topic, it is never cleared: it is
 // the record a subscriber that was not watching at the time can read
 // afterwards.  Each outage replaces the previous one.
+//
+// Timestamp is when it was published, as in StateMessage and OutageMessage,
+// so a summary replayed out of order by a bridge can be told from a newer
+// one (docs/live-tests.md, 2026-11-18).  It is the summary's PublishedAt,
+// which the tracker takes from the same clock as the other times, so
+// ClockSynced covers it too.
 type LastOutageMessage struct {
+	Timestamp           string   `json:"timestamp"`
 	UPSName             string   `json:"ups_name"`
 	StartedAt           string   `json:"started_at"`
 	EndedAt             string   `json:"ended_at"`
@@ -191,6 +205,7 @@ func LastOutageTopic(prefix, upsName string) string {
 // an event: always retained, at the event QoS.
 func PublishLastOutage(s outages.Summary, cfg PublishConfig, pub Publisher) error {
 	payload, err := json.Marshal(LastOutageMessage{
+		Timestamp:           s.PublishedAt.UTC().Format(time.RFC3339),
 		UPSName:             cfg.UPSName,
 		StartedAt:           s.StartedAt.UTC().Format(time.RFC3339),
 		EndedAt:             s.EndedAt.UTC().Format(time.RFC3339),
@@ -310,11 +325,14 @@ func PublishAll(
 	return errors.Join(errs...)
 }
 
-// FormatOffline returns the JSON payload for the offline announcement.
-func FormatOffline() string {
+// FormatOffline returns the JSON payload for the offline announcement and
+// the LWT, stamped now.  clockSynced is whether the wall clock is synced now
+// (nil if unknown), so whether the timestamp can be trusted.
+func FormatOffline(clockSynced *bool) string {
 	payload, _ := json.Marshal(OnlineState{
-		Online:    false,
-		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		Online:      false,
+		Timestamp:   time.Now().UTC().Format(time.RFC3339),
+		ClockSynced: clockSynced,
 	})
 	return string(payload)
 }

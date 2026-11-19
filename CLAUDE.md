@@ -21,6 +21,8 @@ github.com/sweeney/ups-mqtt
 
 ```
 cmd/ups-mqtt/main.go           entry point, poll loop, graceful shutdown
+cmd/ups-mqtt/replay_run_to_empty_test.go  the 2026-11-18 run to empty, replayed
+                               from the Riello's recorded LIST VAR snapshots
 internal/outages/              outage tracking across restarts, last_outage, clock
 internal/config/config.go      Config + TOML loader + env overrides
 internal/nut/                  Poller interface, real client, FakePoller
@@ -38,7 +40,8 @@ scripts/                       host tooling (ups-doctor, install-unit, install-s
                                persist-journal, live-test); tests in scripts/test/
 deploy.sh, first-install.sh    build and ship to a Linux host: --site NAME (deploy-sites.sh
                                reads the gitignored sites file; sites.example) or --host;
-                               deploy.sh --check reports first, read-only
+                               deploy.sh --check reports first, read-only, including
+                               a failed nut-monitor (upsmon)
 remote-setup.sh                the one sudo step first-install.sh prints
 install-macos.sh               macOS LaunchAgent install (net.swee.ups-mqtt.plist)
 ups-mqtt.service               systemd unit; config.toml.example; nut/ (macOS NUT examples)
@@ -79,7 +82,9 @@ for t in scripts/test/*_test.sh; do bash "$t"; done   # script tests (CI runs th
   whether the topic is clear (a predecessor may have died mid-outage, e.g. the
   host lost power), so the first poll on mains clears it unconditionally.
   `TestRestartAfterOutage_*` replays that against the Riello fixture with
-  `FakePublisher.Retained` standing in for the broker.
+  `FakePublisher.Retained` standing in for the broker, and
+  `TestReplay_RunToEmpty_2026_11_18` against the device's own recorded bytes
+  (`testdata/live-tests/2026-11-18/`).
 - QoS is per message, not per client: telemetry (`state`, `computed/*`) goes at
   `mqtt.telemetry_qos`; events (`outage` and its clear, `last_outage`, the
   offline announcement, the LWT) at `mqtt.event_qos`. Both fall back to
@@ -116,33 +121,53 @@ for t in scripts/test/*_test.sh; do bash "$t"; done   # script tests (CI runs th
   separate host-setup project; `mqtttest.StartBridged` fails if a substitution
   it makes no longer matches, and the mirror must be kept in step by hand.
 - `{prefix}/{label}/last_outage` is a retained summary published **after** the
-  outage clear when an outage ends; never cleared. `internal/outages.Tracker`
-  owns it: it persists the open outage to `state_dir`, else `$STATE_DIRECTORY`
-  (systemd's `StateDirectory=`, or the macOS plist) (`outage.json`, written on
-  transitions only, with the kernel `boot_id`; boot ID and boot time are
-  Linux-only, `clock_other.go`). After a restart on battery it resumes the
-  outage, except when the record is from an earlier boot and saw low battery:
-  that outage ran flat and ended at boot. An outage that ended while nothing
-  was running is reported with `spans_restart`, ending at boot after a reboot,
-  else at process start. Every event is anchored on the monotonic clock and
-  turned into wall time only at publish, so a later NTP sync corrects it; a
-  summary waits for sync (interim after `DefaultSyncWait`, corrected later).
-  Tests use `outages.FakeClock` and `outages.MemoryStore`; `TestRestart*` in
-  `cmd/ups-mqtt` replays the scenarios end to end.
+  outage clear when an outage ends; never cleared. It carries the `timestamp`
+  it was published at, so a bridge's out-of-order replay can be ordered.
+  `internal/outages.Tracker` owns it: it persists the open outage to
+  `state_dir`, else `$STATE_DIRECTORY` (systemd's `StateDirectory=`, or the
+  macOS plist) (`outage.json`, written on transitions only, with the kernel
+  `boot_id`; boot ID and boot time are Linux-only, `clock_other.go`). After a
+  restart on battery it resumes the outage, except when the record is from an
+  earlier boot and saw low battery: that outage ran flat and ended at boot. An
+  outage that ended while nothing was running is reported with
+  `spans_restart`, ending at boot after a reboot, else at process start. Every
+  event is anchored on the monotonic clock and turned into wall time only at
+  publish, so a later NTP sync corrects it; a summary waits for sync (interim
+  after `DefaultSyncWait`, corrected later). Tests use `outages.FakeClock` and
+  `outages.MemoryStore`; `TestRestart*` in `cmd/ups-mqtt` replays the
+  scenarios end to end.
 - The UPS is read every `nut.sample_interval` (default 2 s, capped at
   `poll_interval`) but published every `poll_interval`, plus at once when a
   sample sees on/off battery or low battery (`daemon.sample`), at most once
   per poll (the first low battery of an outage excepted), so flapping power
-  cannot multiply it. The tracker follows every sample (`daemon.track`), so
-  outage times are a sample's even when the publish was held back. Keep the
+  cannot multiply it. Low battery's onset and end are logged
+  (`daemon.noteLowBattery`): the onset at once, a clear at most once a poll
+  interval, since the journal is where a dead host's last minutes are read
+  afterwards and may lose its last seconds. The tracker follows every
+  sample (`daemon.track`), so outage times are a sample's even when the
+  publish was held back. Keep the
   publish rate: the Pi's bridged local broker queues one QoS 1 `outage` per
   publish while its uplink is down, and its cap was sized for 10 s polls.
 - `state` is published every poll regardless of change, so it doubles as a
   heartbeat. It is also the LWT topic, so it carries two shapes: a full snapshot
   while alive, `{"online":false,…}` when the broker declares the client dead.
-  The snapshot carries `clock_synced`, the clock's sync at that poll: after a
-  power cut a bridged broker can forward states stamped by an unsynced clock
-  among stale retained values (docs/live-tests.md, test 5).
+  Both carry `clock_synced`: the snapshot the clock's sync at that poll, the
+  offline shape the sync when it was made. paho fixes a client's will when
+  the client is made, so `MQTTPublisher` makes a new client, with the will
+  as it is then, at every connect (clean session, so nothing is lost): the
+  reconnect after the first clock sync registers a synced will
+  (`TestLiveWill_ReconnectRegistersAFreshWill`). All its clients share one
+  client ID, so each CONNECT takes the last one's session and fires its
+  will: a loss reported by a replaced client is ignored, and only one
+  reconnect runs at a time (`TestConnectionLost_FromAReplacedClientIsIgnored`,
+  `TestReconnect_OnlyOneAtATime`). A loss that arrives while it runs is not
+  dropped: the running loop goes round again, after the initial backoff,
+  deciding that and standing down under one lock
+  (`TestReconnect_LossWhileFinishingIsNotDropped`). After a power
+  cut a bridged broker can forward states stamped by an unsynced clock among
+  stale retained values (docs/live-tests.md, test 5), and Mosquitto drops
+  every client at the first clock sync, firing an LWT stamped before it
+  (2026-11-18).
 - `publisher.noisyVariableFamilies` denylists `driver.*` and
   `output.L2.*`/`output.L3.*` from `state.variables`. Never filter
   `battery.charge` or `input.voltage` wholesale — statehouse's ups adapter
