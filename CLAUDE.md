@@ -21,6 +21,8 @@ github.com/sweeney/ups-mqtt
 
 ```
 cmd/ups-mqtt/main.go           entry point, poll loop, graceful shutdown
+cmd/ups-mqtt/replay_run_to_empty_test.go  the 2026-11-18 run to empty, replayed
+                               from the Riello's recorded LIST VAR snapshots
 internal/outages/              outage tracking across restarts, last_outage, clock
 internal/config/config.go      Config + TOML loader + env overrides
 internal/nut/                  Poller interface, real client, FakePoller
@@ -28,8 +30,6 @@ internal/metrics/              pure computed metrics (100% test coverage)
 internal/publisher/            Publisher interface, topic routing, JSON, FakePublisher
 internal/integration_test.go   end-to-end: FakePoller → metrics → FakePublisher
 internal/integration_scenarios_test.go  replays captured power cuts (FakePoller.Sequence)
-cmd/ups-mqtt/replay_run_to_empty_test.go  the 2026-11-18 run to empty from the Riello's
-                               recorded LIST VAR snapshots, across the reboot
 internal/nut/testdata/         wire-format fixtures from every real device
 internal/retry/                connect with capped backoff and sparing failure logs
 internal/mqtttest/             real Mosquitto, fault-injecting TCP proxy, recorder (tests only)
@@ -123,18 +123,19 @@ for t in scripts/test/*_test.sh; do bash "$t"; done   # script tests (CI runs th
 - `{prefix}/{label}/last_outage` is a retained summary published **after** the
   outage clear when an outage ends; never cleared. It carries the `timestamp`
   it was published at, so a bridge's out-of-order replay can be ordered.
-  `internal/outages.Tracker` owns it: it persists the open outage to `state_dir`, else `$STATE_DIRECTORY`
-  (systemd's `StateDirectory=`, or the macOS plist) (`outage.json`, written on
-  transitions only, with the kernel `boot_id`; boot ID and boot time are
-  Linux-only, `clock_other.go`). After a restart on battery it resumes the
-  outage, except when the record is from an earlier boot and saw low battery:
-  that outage ran flat and ended at boot. An outage that ended while nothing
-  was running is reported with `spans_restart`, ending at boot after a reboot,
-  else at process start. Every event is anchored on the monotonic clock and
-  turned into wall time only at publish, so a later NTP sync corrects it; a
-  summary waits for sync (interim after `DefaultSyncWait`, corrected later).
-  Tests use `outages.FakeClock` and `outages.MemoryStore`; `TestRestart*` in
-  `cmd/ups-mqtt` replays the scenarios end to end.
+  `internal/outages.Tracker` owns it: it persists the open outage to
+  `state_dir`, else `$STATE_DIRECTORY` (systemd's `StateDirectory=`, or the
+  macOS plist) (`outage.json`, written on transitions only, with the kernel
+  `boot_id`; boot ID and boot time are Linux-only, `clock_other.go`). After a
+  restart on battery it resumes the outage, except when the record is from an
+  earlier boot and saw low battery: that outage ran flat and ended at boot. An
+  outage that ended while nothing was running is reported with
+  `spans_restart`, ending at boot after a reboot, else at process start. Every
+  event is anchored on the monotonic clock and turned into wall time only at
+  publish, so a later NTP sync corrects it; a summary waits for sync (interim
+  after `DefaultSyncWait`, corrected later). Tests use `outages.FakeClock` and
+  `outages.MemoryStore`; `TestRestart*` in `cmd/ups-mqtt` replays the
+  scenarios end to end.
 - The UPS is read every `nut.sample_interval` (default 2 s, capped at
   `poll_interval`) but published every `poll_interval`, plus at once when a
   sample sees on/off battery or low battery (`daemon.sample`), at most once
