@@ -150,8 +150,11 @@ for t in scripts/test/*_test.sh; do bash "$t"; done   # script tests (CI runs th
   heartbeat. It is also the LWT topic, so it carries two shapes: a full snapshot
   while alive, `{"online":false,…}` when the broker declares the client dead.
   Both carry `clock_synced`: the snapshot the clock's sync at that poll, the
-  offline shape the sync when it was made (for the LWT, at the first
-  connect; paho fixes the will for the life of the client). After a power
+  offline shape the sync when it was made. paho fixes a client's will when
+  the client is made, so `MQTTPublisher` makes a new client, with the will
+  as it is then, at every connect (clean session, so nothing is lost): the
+  reconnect after the first clock sync registers a synced will
+  (`TestLiveWill_ReconnectRegistersAFreshWill`). After a power
   cut a bridged broker can forward states stamped by an unsynced clock among
   stale retained values (docs/live-tests.md, test 5), and Mosquitto drops
   every client at the first clock sync, firing an LWT stamped before it

@@ -42,9 +42,10 @@ func main() {
 
 	// Connect to MQTT broker first so LWT is registered before we talk to NUT.
 	lwtTopic := publisher.StateTopic(cfg.MQTT.TopicPrefix, cfg.NUT.EffectiveLabel())
-	// The LWT is fixed here for the life of the process, so its timestamp
-	// and clock_synced are this moment's, not the moment it fires.
-	lwtPayload := publisher.FormatOffline(tracker.ClockSynced())
+	// The will is made afresh at every connect, so its timestamp and
+	// clock_synced are that connection's: after the reconnect that follows
+	// the first clock sync, it no longer says the clock is unsynced.
+	lwtPayload := func() string { return publisher.FormatOffline(tracker.ClockSynced()) }
 
 	pub, err := publisher.NewMQTTPublisher(cfg.MQTT, lwtTopic, lwtPayload)
 	if err != nil {

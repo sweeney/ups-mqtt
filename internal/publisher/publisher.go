@@ -71,10 +71,11 @@ type OnlineState struct {
 	Online    bool   `json:"online"`
 	Timestamp string `json:"timestamp"`
 	// ClockSynced says whether Timestamp can be trusted, as in StateMessage.
-	// For the LWT both are fixed when it is registered, at the first
-	// connect: after a power cut that is often before the clock syncs, and
-	// the broker may fire it at the sync itself (docs/live-tests.md,
-	// 2026-11-18).  Omitted where sync cannot be determined.
+	// For the LWT both are taken when it is registered, at each connect:
+	// after a power cut the first is often before the clock syncs, and the
+	// broker may fire it at the sync itself (docs/live-tests.md,
+	// 2026-11-18); the reconnect that follows registers a synced one.
+	// Omitted where sync cannot be determined.
 	ClockSynced *bool `json:"clock_synced,omitempty"`
 }
 

@@ -77,7 +77,19 @@ func DefaultTuning() Tuning {
 // empties paho's store, so nothing stale is ever resent.  What was missed is
 // made good by the caller republishing current state on Reconnected.
 type MQTTPublisher struct {
-	client    mqtt.Client
+	// client is the current paho client, replaced at each connect; read it
+	// with cur().
+	client mqtt.Client
+	// newClient makes a client whose will is the payload given, and will
+	// gives the payload as it is now.  paho fixes a client's will when the
+	// client is made, so connectOnce makes a new one each time: a will built
+	// once would outlive what it describes, such as a clock that was
+	// unsynced when the process started (docs/live-tests.md, 2026-11-18).
+	// The session is clean, so a new client loses nothing.  Both are nil in
+	// tests that supply client directly.
+	newClient func(will string) mqtt.Client
+	will      func() string
+
 	broker    string
 	timeout   time.Duration
 	reconnect retry.Backoff
@@ -113,15 +125,17 @@ type MQTTPublisher struct {
 // NewMQTTPublisher creates an MQTT client with DefaultTuning but does not
 // connect it; call Connect.  It fails only on configuration errors that no
 // retry can fix, such as an unreadable CA certificate.
-// lwtTopic and lwtPayload are used for the Last Will and Testament message,
-// published by the broker if the client disconnects unexpectedly.  The LWT is
-// an event, so it goes at the event QoS.
-func NewMQTTPublisher(cfg config.MQTTConfig, lwtTopic, lwtPayload string) (*MQTTPublisher, error) {
+// lwtTopic and lwtPayload give the Last Will and Testament message,
+// published by the broker if the client disconnects unexpectedly.
+// lwtPayload is called at every connect, so the will describes the
+// connection it is registered with.  The LWT is an event, so it goes at the
+// event QoS.
+func NewMQTTPublisher(cfg config.MQTTConfig, lwtTopic string, lwtPayload func() string) (*MQTTPublisher, error) {
 	return NewMQTTPublisherWith(cfg, lwtTopic, lwtPayload, DefaultTuning())
 }
 
 // NewMQTTPublisherWith is NewMQTTPublisher with explicit timings.
-func NewMQTTPublisherWith(cfg config.MQTTConfig, lwtTopic, lwtPayload string, tn Tuning) (*MQTTPublisher, error) {
+func NewMQTTPublisherWith(cfg config.MQTTConfig, lwtTopic string, lwtPayload func() string, tn Tuning) (*MQTTPublisher, error) {
 	p := &MQTTPublisher{
 		broker:      cfg.Broker,
 		timeout:     tn.PublishTimeout,
@@ -129,8 +143,27 @@ func NewMQTTPublisherWith(cfg config.MQTTConfig, lwtTopic, lwtPayload string, tn
 		wait:        retry.Sleep,
 		reconnected: make(chan struct{}, 1),
 		wedgeAfter:  2 * (tn.KeepAlive + tn.PingTimeout),
+		will:        lwtPayload,
 	}
 
+	var tlsCfg *tls.Config
+	if cfg.TLSCACert != "" {
+		var err error
+		if tlsCfg, err = newTLSConfig(cfg.TLSCACert); err != nil {
+			return nil, fmt.Errorf("loading TLS CA cert %q: %w", cfg.TLSCACert, err)
+		}
+	}
+	p.newClient = func(will string) mqtt.Client {
+		return mqtt.NewClient(clientOptions(cfg, tn, tlsCfg, p.connectionLost).
+			SetWill(lwtTopic, will, cfg.EffectiveEventQOS(), true))
+	}
+	p.client = p.newClient(lwtPayload())
+	return p, nil
+}
+
+// clientOptions are paho's options for every client the publisher makes,
+// all but the will.
+func clientOptions(cfg config.MQTTConfig, tn Tuning, tlsCfg *tls.Config, lost mqtt.ConnectionLostHandler) *mqtt.ClientOptions {
 	opts := mqtt.NewClientOptions()
 	opts.AddBroker(cfg.Broker)
 	opts.SetClientID(cfg.ClientID)
@@ -145,19 +178,18 @@ func NewMQTTPublisherWith(cfg config.MQTTConfig, lwtTopic, lwtPayload string, tn
 	opts.SetWriteTimeout(tn.PublishTimeout)
 	opts.SetCleanSession(true)
 	opts.SetAutoReconnect(false)
-	opts.SetConnectionLostHandler(p.connectionLost)
-	opts.SetWill(lwtTopic, lwtPayload, cfg.EffectiveEventQOS(), true)
-
-	if cfg.TLSCACert != "" {
-		tlsCfg, err := newTLSConfig(cfg.TLSCACert)
-		if err != nil {
-			return nil, fmt.Errorf("loading TLS CA cert %q: %w", cfg.TLSCACert, err)
-		}
+	opts.SetConnectionLostHandler(lost)
+	if tlsCfg != nil {
 		opts.SetTLSConfig(tlsCfg)
 	}
+	return opts
+}
 
-	p.client = mqtt.NewClient(opts)
-	return p, nil
+// cur returns the current client.
+func (p *MQTTPublisher) cur() mqtt.Client {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.client
 }
 
 // Connect makes one attempt to connect to the broker.  The caller retries:
@@ -183,7 +215,14 @@ func (p *MQTTPublisher) Connect(ctx context.Context) error {
 }
 
 func (p *MQTTPublisher) connectOnce(ctx context.Context) error {
-	token := p.client.Connect()
+	c := p.cur()
+	if p.newClient != nil && p.will != nil {
+		c = p.newClient(p.will())
+		p.mu.Lock()
+		p.client = c
+		p.mu.Unlock()
+	}
+	token := c.Connect()
 	select {
 	case <-token.Done():
 	case <-ctx.Done():
@@ -230,7 +269,7 @@ func (p *MQTTPublisher) reconnectLoop(lostAt time.Time) {
 	p.stalled = nil // its connection is gone; the new one starts clean
 	p.mu.Unlock()
 	if closed {
-		p.client.Disconnect(0) // connected just as Close ran
+		p.cur().Disconnect(0) // connected just as Close ran
 		return
 	}
 	log.Printf("reconnected to MQTT broker %s after %s (%d attempts)",
@@ -260,13 +299,14 @@ func (p *MQTTPublisher) Publish(msg Message) error {
 }
 
 func (p *MQTTPublisher) publish(msg Message) error {
-	if !p.client.IsConnectionOpen() {
+	c := p.cur()
+	if !c.IsConnectionOpen() {
 		return fmt.Errorf("publishing to %q: not connected to broker", msg.Topic)
 	}
 	if p.isStalled() {
 		return fmt.Errorf("publishing to %q: skipped — an earlier publish is still unacknowledged after %s", msg.Topic, p.timeout)
 	}
-	token := p.client.Publish(msg.Topic, msg.QOS, msg.Retained, msg.Payload)
+	token := c.Publish(msg.Topic, msg.QOS, msg.Retained, msg.Payload)
 	if !token.WaitTimeout(p.timeout) {
 		p.mu.Lock()
 		p.stalled, p.stalledAt = token, time.Now()
@@ -294,8 +334,9 @@ func (p *MQTTPublisher) isStalled() bool {
 		log.Printf("MQTT broker %s has not acknowledged a publish for %s although the connection looks open — reconnecting",
 			p.broker, time.Since(p.stalledAt).Round(time.Second))
 		p.stalled = nil
+		c := p.client // p.mu is held
 		go func() {
-			p.client.Disconnect(0)
+			c.Disconnect(0)
 			p.reconnectLoop(time.Now())
 		}()
 	}
@@ -310,12 +351,13 @@ func (p *MQTTPublisher) Close() error {
 	p.mu.Lock()
 	p.closed = true
 	failed := p.lastFailed
+	c := p.client
 	p.mu.Unlock()
-	if failed && p.client.IsConnectionOpen() {
+	if failed && c.IsConnectionOpen() {
 		log.Printf("leaving MQTT without a clean disconnect so the broker publishes the will")
 		return nil
 	}
-	p.client.Disconnect(250)
+	c.Disconnect(250)
 	return nil
 }
 

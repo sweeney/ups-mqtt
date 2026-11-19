@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"log"
 	"strings"
 	"testing"
@@ -194,7 +196,7 @@ func TestReconnected_DoesNotBlock(t *testing.T) {
 // session is clean, so an explicit reconnect empties paho's store.
 func TestNewMQTTPublisher_ManualReconnectCleanSession(t *testing.T) {
 	cfg := config.MQTTConfig{Broker: "tcp://127.0.0.1:1", ClientID: "test"}
-	p, err := NewMQTTPublisher(cfg, "ups/x/state", "{}")
+	p, err := NewMQTTPublisher(cfg, "ups/x/state", func() string { return "{}" })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -283,5 +285,48 @@ func TestConnectionLost_AfterCloseDoesNotReconnect(t *testing.T) {
 	p.connectionLost(c, errors.New("EOF"))
 	if c.connectCalls != 0 {
 		t.Errorf("connect called %d times after Close", c.connectCalls)
+	}
+}
+
+// The will must describe the connection it is registered with.  paho fixes
+// a client's will when the client is made, so a will built once at startup
+// outlives the very clock sync it was meant to flag: on 2026-11-18 the
+// daemon started unsynced, Mosquitto dropped it at the first NTP sync, and
+// the reconnect re-registered the same unsynced will for the rest of the
+// process's life (PR #34 review).  Each connect builds its client afresh,
+// with the will as it is then.  The session is clean, so nothing is lost.
+func TestConnect_BuildsTheWillAtEachConnect(t *testing.T) {
+	captureLog(t)
+	var wills []string
+	var clients []*fakeClient
+	n := 0
+	var waits []time.Duration
+	p := newTestPublisher(&fakeClient{}, &waits)
+	p.will = func() string { n++; return fmt.Sprintf(`{"online":false,"n":%d}`, n) }
+	p.newClient = func(will string) mqtt.Client {
+		wills = append(wills, will)
+		c := &fakeClient{connectErrs: []error{nil}}
+		clients = append(clients, c)
+		return c
+	}
+
+	if err := p.Connect(context.Background()); err != nil {
+		t.Fatalf("Connect() = %v", err)
+	}
+	if len(clients) != 1 {
+		t.Fatalf("Connect made %d clients, want one built with the will as it is now", len(clients))
+	}
+	// The link drops (here, at the clock sync) and the publisher reconnects.
+	clients[0].connected = false
+	p.connectionLost(nil, errors.New("EOF"))
+
+	if len(wills) != 2 || wills[0] != `{"online":false,"n":1}` || wills[1] != `{"online":false,"n":2}` {
+		t.Fatalf("wills registered = %q, want a fresh one per connect", wills)
+	}
+	if p.cur() != clients[1] {
+		t.Error("publisher still uses the first client after reconnecting")
+	}
+	if !p.cur().IsConnectionOpen() {
+		t.Error("the new client is not connected")
 	}
 }
