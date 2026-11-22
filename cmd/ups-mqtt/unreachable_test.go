@@ -13,7 +13,7 @@ import (
 	"github.com/sweeney/ups-mqtt/internal/publisher"
 )
 
-// On 2026-11-19 lenin's CyberPower left the USB bus.  upsd answered every
+// On 2026-11-19 a host's CyberPower left its USB bus.  upsd answered every
 // sample with DRIVER-NOT-CONNECTED for four days, and the daemon, alive and
 // connected, published nothing: no LWT could fire, and the retained state
 // sat on its last OL 100 % with only the timestamp to say it was old.
@@ -307,6 +307,27 @@ func TestSample_UnreachableIsLoggedOnce(t *testing.T) {
 	// The full error is kept for the log; only the cause is published.
 	if !strings.Contains(got[0], errDriverGone.Error()) {
 		t.Errorf("log %q lacks the error", got[0])
+	}
+}
+
+// A failed publish of the unreachable state is logged as a publish failure,
+// not with the "poll error:" that NUT's failures use alongside it.
+func TestSample_UnreachablePublishFailureIsNotAPollError(t *testing.T) {
+	logs := captureLogs(t)
+	d, pub, clk := samplingDaemon(reading("OL", "100"))
+	t0 := clk.Now()
+	step(d, clk, t0, 0, nil)
+	pub.PublishError = errors.New("broker gone")
+	for at := 2 * time.Second; at <= 12*time.Second; at += 2 * time.Second {
+		step(d, clk, t0, at, errDriverGone)
+	}
+	if got := lines(logs, "publishing unreachable state:"); len(got) != 1 {
+		t.Errorf("logged %d unreachable publish failures, want 1:\n%s", len(got), logs)
+	}
+	for _, l := range lines(logs, "poll error:") {
+		if strings.Contains(l, "broker gone") {
+			t.Errorf("publish failure logged as a poll error: %q", l)
+		}
 	}
 }
 

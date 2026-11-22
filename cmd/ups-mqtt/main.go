@@ -287,7 +287,7 @@ func (d *daemon) noteUnreachable(now time.Time, err error, force bool) {
 	d.lastPublish = now
 	at, since := tr.WallAt(tr.Mono()), tr.WallAt(d.failingSince)
 	if perr := publisher.PublishUnreachable(cfg, at, since, nut.Cause(err), d.pub); perr != nil {
-		log.Printf("poll error: %v", perr)
+		log.Printf("publishing unreachable state: %v", perr)
 	}
 	if cfg.Retained && !d.computedCleared {
 		if cerr := publisher.ClearComputed(cfg, d.pub); cerr != nil {

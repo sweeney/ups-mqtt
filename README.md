@@ -103,8 +103,9 @@ stamped meanwhile, after the power returns, among older retained values (see
 `ups_reachable` is `true` on every snapshot. If NUT has failed for a whole
 poll interval (upsd down, or its driver reporting `DRIVER-NOT-CONNECTED` or
 `DATA-STALE` because the UPS has left the USB bus), the state topic carries
-this instead, retained, repeated every poll interval in place of the
-heartbeat, and at once after a reconnect:
+this instead. It is repeated every poll interval in place of the heartbeat,
+and sent at once after a reconnect. Like the snapshot, it is retained if
+`mqtt.retained` is set, at the telemetry QoS:
 
 ```json
 {
@@ -117,35 +118,32 @@ heartbeat, and at once after a reconnect:
 }
 ```
 
-There is no reading, so no `variables` or `computed`. `unreachable_since`
-is the first failed sample, the same instant in every message of one
-episode, so it can be used to deduplicate alerts. Like the outage times it
-is measured on the monotonic clock, so a clock sync during the failure
-corrects it; trust it as far as `clock_synced` says. `cause` is upsd's error code when it sent one
-(`DRIVER-NOT-CONNECTED` and `DATA-STALE` are the driver's, so the UPS
-itself; `ACCESS-DENIED` and `UNKNOWN-UPS` are configuration), else
-`timeout`, `refused` or `unreachable` for the network. It is stable for as
-long as the failure is. The full error, which names upsd's address, is in
-the daemon's log. The first reading after NUT answers again is published
-at once, not at the next poll. A failure shorter than a poll interval (a
-upsd restart, a re-dial) publishes nothing. With `mqtt.retained` on, the
-`computed/*` topics are cleared once an episode (an empty retained
-payload), since they carry no timestamp and unknown is absent; the next
-reading publishes them again. `outage` is left as it was: it is an event,
-and clearing it without a reading would say the power is back, so a
-retained outage stays asserted.
+| Field | Meaning |
+|-------|---------|
+| `unreachable_since` | The first failed sample. It is the same instant in every message of one episode, so it can be used to deduplicate alerts. Like the outage times it is measured on the monotonic clock, so a clock sync during the failure corrects it; trust it as far as `clock_synced` says. |
+| `cause` | upsd's error code when it sent one (`DRIVER-NOT-CONNECTED` and `DATA-STALE` are the driver's, so the UPS itself; `ACCESS-DENIED` and `UNKNOWN-UPS` are configuration), else `timeout`, `refused` or `unreachable` for the network. It is stable for as long as the failure is. The full error, which names upsd's address, is in the daemon's log. |
+
+There is no reading, so there are no `variables` or `computed`.
+
+- **Short failures:** a failure shorter than a poll interval (a upsd restart, a re-dial) publishes nothing.
+- **Recovery:** the first reading after NUT answers again is published at once, not at the next poll.
+- **`computed/*`:** with `mqtt.retained` on, these topics are cleared once an episode (an empty retained payload), since they carry no timestamp and unknown is absent. The next reading publishes them again.
+- **`outage`:** left as it was. It is an event, and clearing it without a reading would say the power is back, so a retained outage stays asserted.
 
 The daemon is alive and connected throughout, so no LWT fires. Before this,
-the retained state stayed on the last reading: on 2026-11-19 lenin's UPS
-left the USB bus and `office-ups/state` showed `OL`, 100 %, for four days,
+the retained state stayed on the last reading: on 2026-11-19 a host's UPS
+left its USB bus and `office-ups/state` showed `OL`, 100 %, for four days,
 with only its `timestamp` to say it was old. Alert on `ups_reachable: false`
-to catch that; it needs a physical fix on the host (see
+to catch that. It needs a physical fix on the host (see
 [When the UPS stops reporting](#when-the-ups-stops-reporting)).
 
-So `state` has three shapes. Tell them apart by key: `online: false` is the
-daemon gone (the LWT or its shutdown), `ups_reachable: false` the daemon
-running but the UPS unreadable, and `ups_reachable: true` a reading. A
-snapshot from before this field existed has neither key; treat it as a
+So `state` has three shapes. Tell them apart by key:
+
+- `online: false`: the daemon has gone (the LWT, or its shutdown).
+- `ups_reachable: false`: the daemon is running but the UPS can't be read.
+- `ups_reachable: true`: a reading.
+
+A snapshot from before this field existed has neither key; treat it as a
 reading.
 
 `variables` carries every NUT variable except two families, which are excluded
