@@ -38,15 +38,13 @@ func unreachable(t *testing.T, fp *publisher.FakePublisher) (publisher.Message, 
 // the last reading: on 2026-11-19 lenin's UPS left the USB bus and the
 // retained state sat on a 4-day-old OL 100 % with nothing to say it was old
 // but its timestamp.  The payload carries no variables or computed values,
-// since there is no reading; it says since when, and why.
+// since there is no reading; it says since when, and a coarse cause.
 func TestPublishUnreachable_Shape(t *testing.T) {
 	yes := true
 	fp := &publisher.FakePublisher{}
 	cfg := publisher.PublishConfig{Prefix: "ups", UPSName: "cyberpower", Retained: true,
 		TelemetryQOS: 0, EventQOS: 1, ClockSynced: &yes}
-	cause := errors.New(`listing variables for "cyberpower": upsd error: DRIVER-NOT-CONNECTED`)
-
-	if err := publisher.PublishUnreachable(cfg, 95*time.Second, cause, fp); err != nil {
+	if err := publisher.PublishUnreachable(cfg, 95*time.Second, "DRIVER-NOT-CONNECTED", fp); err != nil {
 		t.Fatalf("PublishUnreachable: %v", err)
 	}
 	msg, got := unreachable(t, fp)
@@ -60,10 +58,10 @@ func TestPublishUnreachable_Shape(t *testing.T) {
 	if got["clock_synced"] != true {
 		t.Errorf("clock_synced = %v, want true", got["clock_synced"])
 	}
-	if got["error"] != cause.Error() {
-		t.Errorf("error = %v, want %q", got["error"], cause.Error())
+	if got["cause"] != "DRIVER-NOT-CONNECTED" {
+		t.Errorf("cause = %v, want DRIVER-NOT-CONNECTED", got["cause"])
 	}
-	for _, k := range []string{"variables", "computed", "online"} {
+	for _, k := range []string{"variables", "computed", "online", "error"} {
 		if _, ok := got[k]; ok {
 			t.Errorf("%s present with no reading to report: %s", k, msg.Payload)
 		}
@@ -93,7 +91,7 @@ func TestPublishUnreachable_Shape(t *testing.T) {
 func TestPublishUnreachable_ClockUnknown(t *testing.T) {
 	fp := &publisher.FakePublisher{}
 	cfg := publisher.PublishConfig{Prefix: "ups", UPSName: "cyberpower"}
-	if err := publisher.PublishUnreachable(cfg, time.Minute, errors.New("x"), fp); err != nil {
+	if err := publisher.PublishUnreachable(cfg, time.Minute, "x", fp); err != nil {
 		t.Fatal(err)
 	}
 	msg, got := unreachable(t, fp)
@@ -106,7 +104,7 @@ func TestPublishUnreachable_ClockUnknown(t *testing.T) {
 func TestPublishUnreachable_ReturnsPublishError(t *testing.T) {
 	fp := &publisher.FakePublisher{PublishError: errors.New("broker gone")}
 	cfg := publisher.PublishConfig{Prefix: "ups", UPSName: "cyberpower"}
-	if err := publisher.PublishUnreachable(cfg, time.Minute, errors.New("x"), fp); err == nil {
+	if err := publisher.PublishUnreachable(cfg, time.Minute, "x", fp); err == nil {
 		t.Error("PublishUnreachable() = nil with the publish failing")
 	}
 }

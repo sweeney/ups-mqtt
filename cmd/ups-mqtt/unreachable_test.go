@@ -2,7 +2,7 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -16,7 +16,7 @@ import (
 // sample with DRIVER-NOT-CONNECTED for four days, and the daemon, alive and
 // connected, published nothing: no LWT could fire, and the retained state
 // sat on its last OL 100 % with only the timestamp to say it was old.
-var errDriverGone = errors.New(`listing variables for "cyberpower": upsd error: DRIVER-NOT-CONNECTED`)
+var errDriverGone = fmt.Errorf("listing variables for %q: %w", "cyberpower", &nut.ProtocolError{Code: "DRIVER-NOT-CONNECTED"})
 
 // step runs one sample at t0+at, the UPS answering or failing with err, the
 // tracker's clock kept in step.
@@ -82,8 +82,13 @@ func TestSample_UnreachableOnceNUTHasFailedForAPoll(t *testing.T) {
 		t.Fatalf("ups_reachable on each state = %v, want %v", got, want)
 	}
 	u := ss[1]
-	if u["error"] != errDriverGone.Error() {
-		t.Errorf("error = %v, want %q", u["error"], errDriverGone)
+	// The cause is upsd's code, not the error: that names upsd's address,
+	// and after a failed re-dial a new local port every poll.
+	if u["cause"] != "DRIVER-NOT-CONNECTED" {
+		t.Errorf("cause = %v, want DRIVER-NOT-CONNECTED", u["cause"])
+	}
+	if _, ok := u["error"]; ok {
+		t.Error("the raw error is published")
 	}
 	ts, _ := time.Parse(time.RFC3339, u["timestamp"].(string))
 	since, _ := time.Parse(time.RFC3339, u["unreachable_since"].(string))
@@ -208,6 +213,10 @@ func TestSample_UnreachableIsLoggedOnce(t *testing.T) {
 	}
 	if !strings.Contains(got[0], "ups_reachable:false") {
 		t.Errorf("log %q does not say what was published", got[0])
+	}
+	// The full error is kept for the log; only the cause is published.
+	if !strings.Contains(got[0], errDriverGone.Error()) {
+		t.Errorf("log %q lacks the error", got[0])
 	}
 }
 

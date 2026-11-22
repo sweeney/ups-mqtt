@@ -249,7 +249,9 @@ func (d *daemon) slack() time.Duration {
 // leaves the last reading retained, looking current: the daemon is alive and
 // connected, so no LWT fires (2026-11-19, four days).  A shorter failure, a
 // upsd restart or a re-dial, publishes nothing.  The outage topic is left
-// alone: without a reading the power state is unknown.
+// alone: without a reading the power state is unknown.  What is published is
+// nut.Cause, coarse and stable; the error itself, with upsd's address and a
+// fresh local port after each failed re-dial, goes to the log.
 func (d *daemon) noteUnreachable(now time.Time, err error, force bool) {
 	if d.failingSince.IsZero() {
 		d.failingSince = now
@@ -264,13 +266,13 @@ func (d *daemon) noteUnreachable(now time.Time, err error, force bool) {
 	}
 	cfg := publishConfig(d.cfg, &d.outage)
 	if !d.unreachable {
-		log.Printf("UPS unreachable: NUT has failed for %s; publishing ups_reachable:false on %s until it answers",
-			failing.Round(time.Second), publisher.StateTopic(cfg.Prefix, cfg.UPSName))
+		log.Printf("UPS unreachable: NUT has failed for %s (%v); publishing ups_reachable:false on %s until it answers",
+			failing.Round(time.Second), err, publisher.StateTopic(cfg.Prefix, cfg.UPSName))
 	}
 	d.unreachable = true
 	d.lastPublish = now
-	if err := publisher.PublishUnreachable(cfg, failing, err, d.pub); err != nil {
-		log.Printf("poll error: %v", err)
+	if perr := publisher.PublishUnreachable(cfg, failing, nut.Cause(err), d.pub); perr != nil {
+		log.Printf("poll error: %v", perr)
 	}
 }
 

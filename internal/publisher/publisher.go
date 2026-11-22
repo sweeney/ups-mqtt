@@ -86,10 +86,12 @@ type UnreachableState struct {
 	// NUT has been failing by the monotonic clock, so a clock step in
 	// between does not move it.
 	UnreachableSince string `json:"unreachable_since"`
-	// Error is the last failure, as upsd or the network reported it:
-	// DRIVER-NOT-CONNECTED and DATA-STALE are the driver's (the UPS itself),
-	// a refused or timed-out connection is upsd's.
-	Error string `json:"error"`
+	// Cause is nut.Cause of the latest failure: upsd's code
+	// (DRIVER-NOT-CONNECTED and DATA-STALE are the driver's, so the UPS
+	// itself), else timeout, refused or unreachable.  Coarse and stable,
+	// unlike the error, which names upsd's address and a new local port
+	// after every failed re-dial; the log has that.
+	Cause string `json:"cause"`
 }
 
 // OnlineState is the LWT / online-announcement payload.
@@ -364,10 +366,10 @@ func FormatOffline(clockSynced *bool) string {
 }
 
 // PublishUnreachable publishes UnreachableState on the state topic: NUT has
-// failed for failingFor, most recently with cause.  It stands in for the
+// failed for failingFor, most recently with cause (nut.Cause).  It stands in for the
 // snapshot, every poll, so like the snapshot it is telemetry and follows
 // mqtt.retained: at QoS 1 it would fill a bridge's queue the same way.
-func PublishUnreachable(cfg PublishConfig, failingFor time.Duration, cause error, pub Publisher) error {
+func PublishUnreachable(cfg PublishConfig, failingFor time.Duration, cause string, pub Publisher) error {
 	now := time.Now().UTC().Truncate(time.Second)
 	payload, err := json.Marshal(UnreachableState{
 		Timestamp:        now.Format(time.RFC3339),
@@ -375,7 +377,7 @@ func PublishUnreachable(cfg PublishConfig, failingFor time.Duration, cause error
 		ClockSynced:      cfg.ClockSynced,
 		UPSReachable:     false,
 		UnreachableSince: now.Add(-failingFor.Round(time.Second)).Format(time.RFC3339),
-		Error:            cause.Error(),
+		Cause:            cause,
 	})
 	if err != nil {
 		return fmt.Errorf("marshalling unreachable state: %w", err)

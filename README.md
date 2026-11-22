@@ -113,13 +113,17 @@ heartbeat, and at once after a reconnect:
   "clock_synced": true,
   "ups_reachable": false,
   "unreachable_since": "2026-11-19T15:47:58Z",
-  "error": "listing variables for \"cyberpower\": upsd error: DRIVER-NOT-CONNECTED"
+  "cause": "DRIVER-NOT-CONNECTED"
 }
 ```
 
 There is no reading, so no `variables` or `computed`. `unreachable_since`
-is the first failed sample. `error` is the latest failure, worded as upsd or
-the network gave it. The first reading after NUT answers again is published
+is the first failed sample. `cause` is upsd's error code when it sent one
+(`DRIVER-NOT-CONNECTED` and `DATA-STALE` are the driver's, so the UPS
+itself; `ACCESS-DENIED` and `UNKNOWN-UPS` are configuration), else
+`timeout`, `refused` or `unreachable` for the network. It is stable for as
+long as the failure is. The full error, which names upsd's address, is in
+the daemon's log. The first reading after NUT answers again is published
 at once, not at the next poll. A failure shorter than a poll interval (a
 upsd restart, a re-dial) publishes nothing. The `computed/*` topics and
 `outage` are left as they were: without a reading the power state is

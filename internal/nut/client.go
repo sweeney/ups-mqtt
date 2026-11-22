@@ -7,6 +7,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -191,12 +192,43 @@ func (c *Client) listCommand(cmd string) ([]string, error) {
 	}
 }
 
-// protocolError converts an "ERR ..." reply into a Go error.
+// ProtocolError is an "ERR <code>" reply from upsd: DRIVER-NOT-CONNECTED and
+// DATA-STALE come from the driver (the UPS itself), ACCESS-DENIED and
+// UNKNOWN-UPS from the configuration.
+type ProtocolError struct {
+	Code string
+}
+
+func (e *ProtocolError) Error() string { return "upsd error: " + e.Code }
+
+// protocolError converts an "ERR ..." reply into a *ProtocolError.
 func protocolError(line string) error {
 	if code, ok := strings.CutPrefix(line, "ERR "); ok {
-		return fmt.Errorf("upsd error: %s", code)
+		return &ProtocolError{Code: code}
 	}
 	return nil
+}
+
+// Cause reduces a failed poll to a stable, coarse code that is safe to
+// publish: upsd's code when it sent one, else "timeout", "refused" or
+// "unreachable".  The error itself names upsd's address and, after a failed
+// re-dial, a new local port every time; keep it for the log.  The first
+// failure decides, since Poll wraps it and only describes the re-dial's.
+func Cause(err error) string {
+	if err == nil {
+		return ""
+	}
+	var pe *ProtocolError
+	var ne net.Error
+	switch {
+	case errors.As(err, &pe):
+		return pe.Code
+	case errors.As(err, &ne) && ne.Timeout():
+		return "timeout"
+	case errors.Is(err, syscall.ECONNREFUSED):
+		return "refused"
+	}
+	return "unreachable"
 }
 
 // Poll fetches the current variable set for the configured UPS. If the
