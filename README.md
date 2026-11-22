@@ -144,7 +144,10 @@ So `state` has three shapes. Tell them apart by key:
 - `ups_reachable: true`: a reading.
 
 A snapshot from before this field existed has neither key; treat it as a
-reading.
+reading. A consumer that reads `variables` and `computed` without checking
+the shape gets nothing from the other two (no keys, so no zeroes), but should
+not take them as a reading: a "last seen" moved by them says the UPS is
+reporting when it is not.
 
 `variables` carries every NUT variable except two families, which are excluded
 because they describe NUT itself or hardware the device does not have, and
