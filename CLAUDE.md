@@ -149,24 +149,31 @@ for t in scripts/test/*_test.sh; do bash "$t"; done   # script tests (CI runs th
   publish rate: the Pi's bridged local broker queues one QoS 1 `outage` per
   publish while its uplink is down, and its cap was sized for 10 s polls.
 - `state` is published every poll regardless of change, so it doubles as a
-  heartbeat. It is also the LWT topic, so it carries two shapes: a full snapshot
-  while alive, `{"online":false,…}` when the broker declares the client dead.
-  Both carry `clock_synced`: the snapshot the clock's sync at that poll, the
-  offline shape the sync when it was made. paho fixes a client's will when
-  the client is made, so `MQTTPublisher` makes a new client, with the will
-  as it is then, at every connect (clean session, so nothing is lost): the
-  reconnect after the first clock sync registers a synced will
+  heartbeat. It is also the LWT topic, so it carries three shapes: a full
+  snapshot (`ups_reachable: true`) while alive, `{"online":false,…}` when the
+  broker declares the client dead, and `{"ups_reachable":false,…}` once NUT
+  has failed for a poll interval (`daemon.noteUnreachable`,
+  `publisher.UnreachableState`): repeated every poll and on a reconnect, the
+  first reading after it published at once, `computed/*` and `outage` left
+  alone since the power state is unknown. Without it a UPS that left its
+  host's USB bus froze the retained state on its last reading for four days
+  (2026-11-19), since a live daemon fires no LWT. All carry `clock_synced`:
+  the snapshot and the unreachable shape the clock's sync at that publish, the
+  offline shape the sync when it was made. paho fixes a client's will when the
+  client is made, so `MQTTPublisher` makes a new client, with the will as it
+  is then, at every connect (clean session, so nothing is lost): the reconnect
+  after the first clock sync registers a synced will
   (`TestLiveWill_ReconnectRegistersAFreshWill`). All its clients share one
-  client ID, so each CONNECT takes the last one's session and fires its
-  will: a loss reported by a replaced client is ignored, and only one
-  reconnect runs at a time (`TestConnectionLost_FromAReplacedClientIsIgnored`,
+  client ID, so each CONNECT takes the last one's session and fires its will:
+  a loss reported by a replaced client is ignored, and only one reconnect runs
+  at a time (`TestConnectionLost_FromAReplacedClientIsIgnored`,
   `TestReconnect_OnlyOneAtATime`). A loss that arrives while it runs is not
   dropped: the running loop goes round again, after the initial backoff,
   deciding that and standing down under one lock
-  (`TestReconnect_LossWhileFinishingIsNotDropped`). After a power
-  cut a bridged broker can forward states stamped by an unsynced clock among
-  stale retained values (docs/live-tests.md, test 5), and Mosquitto drops
-  every client at the first clock sync, firing an LWT stamped before it
+  (`TestReconnect_LossWhileFinishingIsNotDropped`). After a power cut a
+  bridged broker can forward states stamped by an unsynced clock among stale
+  retained values (docs/live-tests.md, test 5), and Mosquitto drops every
+  client at the first clock sync, firing an LWT stamped before it
   (2026-11-18).
 - `publisher.noisyVariableFamilies` denylists `driver.*` and
   `output.L2.*`/`output.L3.*` from `state.variables`. Never filter

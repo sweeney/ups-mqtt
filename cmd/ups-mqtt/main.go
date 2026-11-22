@@ -107,6 +107,11 @@ type daemon struct {
 	pollErrors    int
 	lastPollErrAt time.Time
 
+	// When NUT started failing (zero while it answers), and whether the
+	// state topic has been told the UPS is unreachable: see noteUnreachable.
+	failingSince time.Time
+	unreachable  bool
+
 	// The impossible readings last logged, and when, so a device stuck
 	// sending one is logged when that starts and stops, not every sample.
 	implausible   string
@@ -175,11 +180,19 @@ func (d *daemon) sample(now time.Time, force bool) {
 	vars, err := d.poller.Poll()
 	if err != nil {
 		d.logPollError(now, err)
+		d.noteUnreachable(now, err, force)
 		return
 	}
 	if d.pollErrors > 0 {
 		log.Printf("NUT answering again after %d failed samples", d.pollErrors)
 		d.pollErrors = 0
+		d.failingSince = time.Time{}
+	}
+	if d.unreachable {
+		// The retained state says the UPS cannot be read until this
+		// reading replaces it, so it goes out now, not at the next poll.
+		d.unreachable = false
+		force = true
 	}
 
 	varMap := nut.VarsToMap(vars)
@@ -188,12 +201,7 @@ func (d *daemon) sample(now time.Time, force bool) {
 	d.noteLowBattery(now, varMap, m)
 	d.track(varMap, m)
 
-	poll := d.cfg.NUT.PollInterval.Duration
-	// A little slack keeps ticker jitter from pushing a publish to the
-	// sample after.  It is capped well below a sample, so where the sample
-	// does not divide the poll interval, publishing drifts later, never
-	// earlier: the publish rate is never more than once per poll.
-	slack := min(d.cfg.NUT.EffectiveSampleInterval()/2, 250*time.Millisecond)
+	poll, slack := d.cfg.NUT.PollInterval.Duration, d.slack()
 	due := now.Sub(d.lastPublish) >= poll-slack
 	// A change of power state is published at once, but at most once per
 	// poll interval: power flapping every couple of seconds must not
@@ -221,6 +229,47 @@ func (d *daemon) sample(now time.Time, force bool) {
 	d.published, d.lastPublish = true, now
 	d.lastOnBattery, d.lastLow = m.OnBattery, m.LowBattery
 	if err := publishSample(varMap, m, d.pub, d.cfg, &d.outage); err != nil {
+		log.Printf("poll error: %v", err)
+	}
+}
+
+// slack is how much early a publish due every poll interval may go out.  It
+// keeps ticker jitter from pushing a publish to the sample after, and is
+// capped well below a sample, so where the sample does not divide the poll
+// interval, publishing drifts later, never earlier: the publish rate is never
+// more than once per poll.
+func (d *daemon) slack() time.Duration {
+	return min(d.cfg.NUT.EffectiveSampleInterval()/2, 250*time.Millisecond)
+}
+
+// noteUnreachable follows a failed sample.  Once NUT has failed for a poll
+// interval it publishes publisher.UnreachableState on the state topic, then
+// again every poll interval, as the heartbeat would have been, and at once
+// on a reconnect (force).  Without it a UPS that leaves its host's USB bus
+// leaves the last reading retained, looking current: the daemon is alive and
+// connected, so no LWT fires (2026-11-19, four days).  A shorter failure, a
+// upsd restart or a re-dial, publishes nothing.  The outage topic is left
+// alone: without a reading the power state is unknown.
+func (d *daemon) noteUnreachable(now time.Time, err error, force bool) {
+	if d.failingSince.IsZero() {
+		d.failingSince = now
+	}
+	poll, slack := d.cfg.NUT.PollInterval.Duration, d.slack()
+	failing := now.Sub(d.failingSince)
+	if failing < poll-slack {
+		return
+	}
+	if d.unreachable && !force && now.Sub(d.lastPublish) < poll-slack {
+		return
+	}
+	cfg := publishConfig(d.cfg, &d.outage)
+	if !d.unreachable {
+		log.Printf("UPS unreachable: NUT has failed for %s; publishing ups_reachable:false on %s until it answers",
+			failing.Round(time.Second), publisher.StateTopic(cfg.Prefix, cfg.UPSName))
+	}
+	d.unreachable = true
+	d.lastPublish = now
+	if err := publisher.PublishUnreachable(cfg, failing, err, d.pub); err != nil {
 		log.Printf("poll error: %v", err)
 	}
 }
@@ -364,7 +413,18 @@ func doPoll(poller nut.Poller, pub publisher.Publisher, cfg *config.Config, outa
 // publishSample publishes one reading: the outage message first, then the
 // telemetry.  See doPoll.
 func publishSample(varMap map[string]string, m metrics.Metrics, pub publisher.Publisher, cfg *config.Config, outage *outageState) error {
-	pubCfg := publisher.PublishConfig{
+	pubCfg := publishConfig(cfg, outage)
+
+	outageErr := publishOutageState(varMap, m, pubCfg, pub, outage)
+	telemetryErr := publisher.PublishAll(varMap, m, pubCfg, pub)
+
+	return errors.Join(outageErr, telemetryErr)
+}
+
+// publishConfig is what a publish needs from the config, with the clock's
+// sync now.
+func publishConfig(cfg *config.Config, outage *outageState) publisher.PublishConfig {
+	return publisher.PublishConfig{
 		Prefix:       cfg.MQTT.TopicPrefix,
 		UPSName:      cfg.NUT.EffectiveLabel(),
 		Retained:     cfg.MQTT.Retained,
@@ -372,11 +432,6 @@ func publishSample(varMap map[string]string, m metrics.Metrics, pub publisher.Pu
 		EventQOS:     cfg.MQTT.EffectiveEventQOS(),
 		ClockSynced:  outage.tracker.ClockSynced(),
 	}
-
-	outageErr := publishOutageState(varMap, m, pubCfg, pub, outage)
-	telemetryErr := publisher.PublishAll(varMap, m, pubCfg, pub)
-
-	return errors.Join(outageErr, telemetryErr)
 }
 
 // outageStore returns where the outage in progress is persisted, so that a
