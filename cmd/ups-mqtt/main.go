@@ -107,9 +107,11 @@ type daemon struct {
 	pollErrors    int
 	lastPollErrAt time.Time
 
-	// When NUT started failing (zero while it answers), and whether the
-	// state topic has been told the UPS is unreachable: see noteUnreachable.
-	failingSince time.Time
+	// Whether NUT is failing and since when, on the tracker's monotonic
+	// clock, and whether the state topic has been told the UPS is
+	// unreachable.  See noteUnreachable.
+	failing      bool
+	failingSince time.Duration
 	unreachable  bool
 
 	// The impossible readings last logged, and when, so a device stuck
@@ -186,8 +188,8 @@ func (d *daemon) sample(now time.Time, force bool) {
 	if d.pollErrors > 0 {
 		log.Printf("NUT answering again after %d failed samples", d.pollErrors)
 		d.pollErrors = 0
-		d.failingSince = time.Time{}
 	}
+	d.failing = false
 	if d.unreachable {
 		// The retained state says the UPS cannot be read until this
 		// reading replaces it, so it goes out now, not at the next poll.
@@ -248,17 +250,23 @@ func (d *daemon) slack() time.Duration {
 // on a reconnect (force).  Without it a UPS that leaves its host's USB bus
 // leaves the last reading retained, looking current: the daemon is alive and
 // connected, so no LWT fires (2026-11-19, four days).  A shorter failure, a
-// upsd restart or a re-dial, publishes nothing.  The outage topic is left
-// alone: without a reading the power state is unknown.  What is published is
-// nut.Cause, coarse and stable; the error itself, with upsd's address and a
-// fresh local port after each failed re-dial, goes to the log.
+// upsd restart or a re-dial, publishes nothing.
+//
+// The failure is anchored on the tracker's monotonic clock and turned into
+// wall time at each publish, like the outage times, so a clock sync during
+// it corrects unreachable_since, which is otherwise one instant for the
+// episode.  What is published is nut.Cause, coarse and stable; the error
+// itself, with upsd's address and a fresh local port after each failed
+// re-dial, goes to the log.  The outage topic and computed/* are left
+// alone: without a reading the power state is unknown.
 func (d *daemon) noteUnreachable(now time.Time, err error, force bool) {
-	if d.failingSince.IsZero() {
-		d.failingSince = now
+	tr := d.outage.tracker
+	if !d.failing {
+		d.failing, d.failingSince = true, tr.Mono()
 	}
 	poll, slack := d.cfg.NUT.PollInterval.Duration, d.slack()
-	failing := now.Sub(d.failingSince)
-	if failing < poll-slack {
+	failingFor := tr.Mono() - d.failingSince
+	if failingFor < poll-slack {
 		return
 	}
 	if d.unreachable && !force && now.Sub(d.lastPublish) < poll-slack {
@@ -267,11 +275,12 @@ func (d *daemon) noteUnreachable(now time.Time, err error, force bool) {
 	cfg := publishConfig(d.cfg, &d.outage)
 	if !d.unreachable {
 		log.Printf("UPS unreachable: NUT has failed for %s (%v); publishing ups_reachable:false on %s until it answers",
-			failing.Round(time.Second), err, publisher.StateTopic(cfg.Prefix, cfg.UPSName))
+			failingFor.Round(time.Second), err, publisher.StateTopic(cfg.Prefix, cfg.UPSName))
 	}
 	d.unreachable = true
 	d.lastPublish = now
-	if perr := publisher.PublishUnreachable(cfg, failing, nut.Cause(err), d.pub); perr != nil {
+	at, since := tr.WallAt(tr.Mono()), tr.WallAt(d.failingSince)
+	if perr := publisher.PublishUnreachable(cfg, at, since, nut.Cause(err), d.pub); perr != nil {
 		log.Printf("poll error: %v", perr)
 	}
 }

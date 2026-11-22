@@ -18,6 +18,9 @@ import (
 // sat on its last OL 100 % with only the timestamp to say it was old.
 var errDriverGone = fmt.Errorf("listing variables for %q: %w", "cyberpower", &nut.ProtocolError{Code: "DRIVER-NOT-CONNECTED"})
 
+// rfc3339 is t as a payload carries it.
+func rfc3339(t time.Time) string { return t.UTC().Format(time.RFC3339) }
+
 // step runs one sample at t0+at, the UPS answering or failing with err, the
 // tracker's clock kept in step.
 func step(d *daemon, clk *outages.FakeClock, t0 time.Time, at time.Duration, err error) {
@@ -81,24 +84,51 @@ func TestSample_UnreachableOnceNUTHasFailedForAPoll(t *testing.T) {
 	if got, want := reachableOf(ss), []any{true, false, false}; !equal(got, want) {
 		t.Fatalf("ups_reachable on each state = %v, want %v", got, want)
 	}
-	u := ss[1]
 	// The cause is upsd's code, not the error: that names upsd's address,
 	// and after a failed re-dial a new local port every poll.
-	if u["cause"] != "DRIVER-NOT-CONNECTED" {
-		t.Errorf("cause = %v, want DRIVER-NOT-CONNECTED", u["cause"])
+	for i, want := range map[int]string{1: rfc3339(t0.Add(12 * time.Second)), 2: rfc3339(t0.Add(22 * time.Second))} {
+		if ss[i]["cause"] != "DRIVER-NOT-CONNECTED" {
+			t.Errorf("state %d: cause = %v, want DRIVER-NOT-CONNECTED", i, ss[i]["cause"])
+		}
+		if _, ok := ss[i]["error"]; ok {
+			t.Errorf("state %d carries the raw error", i)
+		}
+		if ss[i]["timestamp"] != want {
+			t.Errorf("state %d: timestamp %v, want %v, from the daemon's clock", i, ss[i]["timestamp"], want)
+		}
+		// One instant for the whole episode, so a consumer can key on it.
+		if ss[i]["unreachable_since"] != rfc3339(t0.Add(2*time.Second)) {
+			t.Errorf("state %d: unreachable_since %v, want the first failed sample %v",
+				i, ss[i]["unreachable_since"], rfc3339(t0.Add(2*time.Second)))
+		}
 	}
-	if _, ok := u["error"]; ok {
-		t.Error("the raw error is published")
+}
+
+// unreachable_since is anchored on the monotonic clock, as the tracker's
+// outage times are: a clock sync during the failure corrects it.  The Pi
+// boots with its clock 14½ minutes slow, and the first sync steps it.
+func TestSample_UnreachableSinceSurvivesAClockSync(t *testing.T) {
+	d, pub, clk := samplingDaemon(reading("OL", "100"))
+	t0 := clk.Now()
+	step(d, clk, t0, 0, nil)
+	step(d, clk, t0, 2*time.Second, errDriverGone)
+	step(d, clk, t0, 4*time.Second, errDriverGone)
+	clk.Step(14*time.Minute + 30*time.Second) // wall only: the sync
+	t1 := t0.Add(14*time.Minute + 30*time.Second)
+	for at := 6 * time.Second; at <= 12*time.Second; at += 2 * time.Second {
+		clk.Advance(2 * time.Second)
+		d.poller.(*nut.FakePoller).Err = errDriverGone
+		d.sample(t0.Add(at), false) // the sample's own time is monotonic
 	}
-	ts, _ := time.Parse(time.RFC3339, u["timestamp"].(string))
-	since, _ := time.Parse(time.RFC3339, u["unreachable_since"].(string))
-	if got := ts.Sub(since); got != 10*time.Second {
-		t.Errorf("unreachable_since is %v before the timestamp, want 10s (failing since 2 s, published at 12 s)", got)
+	ss := states(t, pub)
+	if len(ss) != 2 {
+		t.Fatalf("%d states, want the reading and one unreachable", len(ss))
 	}
-	ts2, _ := time.Parse(time.RFC3339, ss[2]["timestamp"].(string))
-	since2, _ := time.Parse(time.RFC3339, ss[2]["unreachable_since"].(string))
-	if got := ts2.Sub(since2); got != 20*time.Second {
-		t.Errorf("second unreachable_since is %v before its timestamp, want 20s", got)
+	if got, want := ss[1]["unreachable_since"], rfc3339(t1.Add(2*time.Second)); got != want {
+		t.Errorf("unreachable_since = %v, want %v: the first failure on the synced clock", got, want)
+	}
+	if got, want := ss[1]["timestamp"], rfc3339(t1.Add(12*time.Second)); got != want {
+		t.Errorf("timestamp = %v, want %v", got, want)
 	}
 }
 
@@ -250,9 +280,7 @@ func TestSample_ASecondFailureCountsFromItsOwnStart(t *testing.T) {
 	if got, want := reachableOf(ss), []any{true, false, true, true, false}; !equal(got, want) {
 		t.Fatalf("ups_reachable on each state = %v, want %v", got, want)
 	}
-	ts, _ := time.Parse(time.RFC3339, ss[4]["timestamp"].(string))
-	since, _ := time.Parse(time.RFC3339, ss[4]["unreachable_since"].(string))
-	if got := ts.Sub(since); got != 10*time.Second {
-		t.Errorf("unreachable_since is %v before the timestamp, want 10s (since 32 s)", got)
+	if got, want := ss[4]["unreachable_since"], rfc3339(t0.Add(32*time.Second)); got != want {
+		t.Errorf("unreachable_since = %v, want %v (the second failure's start)", got, want)
 	}
 }

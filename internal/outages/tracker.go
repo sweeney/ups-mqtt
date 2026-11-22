@@ -417,16 +417,16 @@ func (t *Tracker) summarise(p *ended) Summary {
 	var end time.Time
 	switch {
 	case p.endMono != nil:
-		end = t.wallAt(*p.endMono)
+		end = t.WallAt(*p.endMono)
 	case p.restartEnd:
 		// Mains returning is what brings a host back after its UPS ran flat,
 		// so boot time is the best estimate of the end.  If only the process
 		// restarted, the outage ended at some point before this process
 		// started.  The boot ID says which; without one, a boot after the
 		// start means a reboot.
-		end = t.wallAt(0)
+		end = t.WallAt(0)
 		if boot, ok := t.clock.BootMono(); ok {
-			bootWall := t.wallAt(boot)
+			bootWall := t.WallAt(boot)
 			if (p.rebooted != nil && *p.rebooted) || (p.rebooted == nil && bootWall.After(start)) {
 				end = bootWall
 			}
@@ -462,15 +462,20 @@ func (t *Tracker) summarise(p *ended) Summary {
 	}
 }
 
-// wallAt is the wall time of the monotonic reading m, as best known now.
-func (t *Tracker) wallAt(m time.Duration) time.Time {
+// Mono is the tracker clock's monotonic reading now, for anchoring an event
+// that WallAt later turns into wall time.
+func (t *Tracker) Mono() time.Duration { return t.clock.Mono() }
+
+// WallAt is the wall time of the monotonic reading m, as best known now: a
+// clock sync since m corrects it.
+func (t *Tracker) WallAt(m time.Duration) time.Time {
 	return t.clock.Now().Add(m - t.clock.Mono())
 }
 
 // startWall is the outage's start on the wall clock, as best known now.
 func (t *Tracker) startWall(ep *episode) time.Time {
 	if ep.startMono != nil {
-		return t.wallAt(*ep.startMono)
+		return t.WallAt(*ep.startMono)
 	}
 	return ep.rec.StartedAt
 }

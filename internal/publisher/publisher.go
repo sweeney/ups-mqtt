@@ -82,9 +82,9 @@ type UnreachableState struct {
 	// ClockSynced says whether the times can be trusted, as in StateMessage.
 	ClockSynced  *bool `json:"clock_synced,omitempty"`
 	UPSReachable bool  `json:"ups_reachable"`
-	// UnreachableSince is the first failed sample, timestamp less how long
-	// NUT has been failing by the monotonic clock, so a clock step in
-	// between does not move it.
+	// UnreachableSince is the first failed sample.  The daemon anchors it
+	// on the monotonic clock, so a clock sync since corrects it, and it is
+	// the same instant in every message of one episode.
 	UnreachableSince string `json:"unreachable_since"`
 	// Cause is nut.Cause of the latest failure: upsd's code
 	// (DRIVER-NOT-CONNECTED and DATA-STALE are the driver's, so the UPS
@@ -365,18 +365,18 @@ func FormatOffline(clockSynced *bool) string {
 	return string(payload)
 }
 
-// PublishUnreachable publishes UnreachableState on the state topic: NUT has
-// failed for failingFor, most recently with cause (nut.Cause).  It stands in for the
-// snapshot, every poll, so like the snapshot it is telemetry and follows
-// mqtt.retained: at QoS 1 it would fill a bridge's queue the same way.
-func PublishUnreachable(cfg PublishConfig, failingFor time.Duration, cause string, pub Publisher) error {
-	now := time.Now().UTC().Truncate(time.Second)
+// PublishUnreachable publishes UnreachableState on the state topic, stamped
+// at, NUT failing since since with cause.  The caller passes both times from
+// its clock.  It stands in for the snapshot, every poll, so like the
+// snapshot it is telemetry and follows mqtt.retained: at QoS 1 it would fill
+// a bridge's queue the same way.
+func PublishUnreachable(cfg PublishConfig, at, since time.Time, cause string, pub Publisher) error {
 	payload, err := json.Marshal(UnreachableState{
-		Timestamp:        now.Format(time.RFC3339),
+		Timestamp:        at.UTC().Format(time.RFC3339),
 		UPSName:          cfg.UPSName,
 		ClockSynced:      cfg.ClockSynced,
 		UPSReachable:     false,
-		UnreachableSince: now.Add(-failingFor.Round(time.Second)).Format(time.RFC3339),
+		UnreachableSince: since.UTC().Format(time.RFC3339),
 		Cause:            cause,
 	})
 	if err != nil {

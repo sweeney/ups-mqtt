@@ -118,7 +118,10 @@ heartbeat, and at once after a reconnect:
 ```
 
 There is no reading, so no `variables` or `computed`. `unreachable_since`
-is the first failed sample. `cause` is upsd's error code when it sent one
+is the first failed sample, the same instant in every message of one
+episode, so it can be used to deduplicate alerts. Like the outage times it
+is measured on the monotonic clock, so a clock sync during the failure
+corrects it; trust it as far as `clock_synced` says. `cause` is upsd's error code when it sent one
 (`DRIVER-NOT-CONNECTED` and `DATA-STALE` are the driver's, so the UPS
 itself; `ACCESS-DENIED` and `UNKNOWN-UPS` are configuration), else
 `timeout`, `refused` or `unreachable` for the network. It is stable for as

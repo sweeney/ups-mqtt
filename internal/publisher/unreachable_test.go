@@ -35,7 +35,7 @@ func unreachable(t *testing.T, fp *publisher.FakePublisher) (publisher.Message, 
 }
 
 // When NUT stops answering, the state topic says so instead of freezing on
-// the last reading: on 2026-11-19 lenin's UPS left the USB bus and the
+// the last reading: on 2026-11-19 a host's UPS left its USB bus and the
 // retained state sat on a 4-day-old OL 100 % with nothing to say it was old
 // but its timestamp.  The payload carries no variables or computed values,
 // since there is no reading; it says since when, and a coarse cause.
@@ -44,41 +44,33 @@ func TestPublishUnreachable_Shape(t *testing.T) {
 	fp := &publisher.FakePublisher{}
 	cfg := publisher.PublishConfig{Prefix: "ups", UPSName: "cyberpower", Retained: true,
 		TelemetryQOS: 0, EventQOS: 1, ClockSynced: &yes}
-	if err := publisher.PublishUnreachable(cfg, 95*time.Second, "DRIVER-NOT-CONNECTED", fp); err != nil {
+	at := time.Date(2026, 11, 19, 15, 49, 33, 600_000_000, time.UTC)
+	since := time.Date(2026, 11, 19, 15, 47, 58, 400_000_000, time.UTC)
+
+	if err := publisher.PublishUnreachable(cfg, at, since, "DRIVER-NOT-CONNECTED", fp); err != nil {
 		t.Fatalf("PublishUnreachable: %v", err)
 	}
 	msg, got := unreachable(t, fp)
 
-	if got["ups_reachable"] != false {
-		t.Errorf("ups_reachable = %v, want false", got["ups_reachable"])
-	}
-	if got["ups_name"] != "cyberpower" {
-		t.Errorf("ups_name = %v, want cyberpower", got["ups_name"])
-	}
-	if got["clock_synced"] != true {
-		t.Errorf("clock_synced = %v, want true", got["clock_synced"])
-	}
-	if got["cause"] != "DRIVER-NOT-CONNECTED" {
-		t.Errorf("cause = %v, want DRIVER-NOT-CONNECTED", got["cause"])
+	for k, want := range map[string]any{
+		"ups_reachable":     false,
+		"ups_name":          "cyberpower",
+		"clock_synced":      true,
+		"cause":             "DRIVER-NOT-CONNECTED",
+		"timestamp":         "2026-11-19T15:49:33Z",
+		"unreachable_since": "2026-11-19T15:47:58Z",
+	} {
+		if got[k] != want {
+			t.Errorf("%s = %v, want %v", k, got[k], want)
+		}
 	}
 	for _, k := range []string{"variables", "computed", "online", "error"} {
 		if _, ok := got[k]; ok {
-			t.Errorf("%s present with no reading to report: %s", k, msg.Payload)
+			t.Errorf("%s present: %s", k, msg.Payload)
 		}
 	}
-	ts, err := time.Parse(time.RFC3339, got["timestamp"].(string))
-	if err != nil {
-		t.Fatalf("timestamp: %v", err)
-	}
-	since, err := time.Parse(time.RFC3339, got["unreachable_since"].(string))
-	if err != nil {
-		t.Fatalf("unreachable_since: %v", err)
-	}
-	if d := ts.Sub(since); d != 95*time.Second {
-		t.Errorf("unreachable_since is %v before timestamp, want 95s", d)
-	}
 	if !msg.Retained {
-		t.Error("not retained: a late subscriber would get the last reading instead")
+		t.Error("not retained with mqtt.retained on: a late subscriber would get the last reading instead")
 	}
 	// It replaces the heartbeat every poll while NUT is down, so it is
 	// telemetry: at QoS 1 it would fill a bridge's queue like any other.
@@ -87,11 +79,24 @@ func TestPublishUnreachable_Shape(t *testing.T) {
 	}
 }
 
+// It follows mqtt.retained, like the snapshot it stands in for.
+func TestPublishUnreachable_FollowsRetained(t *testing.T) {
+	fp := &publisher.FakePublisher{}
+	cfg := publisher.PublishConfig{Prefix: "ups", UPSName: "cyberpower", TelemetryQOS: 1}
+	if err := publisher.PublishUnreachable(cfg, time.Now(), time.Now(), "timeout", fp); err != nil {
+		t.Fatal(err)
+	}
+	msg, _ := unreachable(t, fp)
+	if msg.Retained || msg.QOS != 1 {
+		t.Errorf("retained %v, QoS %d: want mqtt.retained (off) and the telemetry QoS (1)", msg.Retained, msg.QOS)
+	}
+}
+
 // Like the snapshot, clock_synced is absent where sync cannot be determined.
 func TestPublishUnreachable_ClockUnknown(t *testing.T) {
 	fp := &publisher.FakePublisher{}
 	cfg := publisher.PublishConfig{Prefix: "ups", UPSName: "cyberpower"}
-	if err := publisher.PublishUnreachable(cfg, time.Minute, "x", fp); err != nil {
+	if err := publisher.PublishUnreachable(cfg, time.Now(), time.Now(), "x", fp); err != nil {
 		t.Fatal(err)
 	}
 	msg, got := unreachable(t, fp)
@@ -104,7 +109,7 @@ func TestPublishUnreachable_ClockUnknown(t *testing.T) {
 func TestPublishUnreachable_ReturnsPublishError(t *testing.T) {
 	fp := &publisher.FakePublisher{PublishError: errors.New("broker gone")}
 	cfg := publisher.PublishConfig{Prefix: "ups", UPSName: "cyberpower"}
-	if err := publisher.PublishUnreachable(cfg, time.Minute, "x", fp); err == nil {
+	if err := publisher.PublishUnreachable(cfg, time.Now(), time.Now(), "x", fp); err == nil {
 		t.Error("PublishUnreachable() = nil with the publish failing")
 	}
 }
