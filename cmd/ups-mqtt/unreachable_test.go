@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -129,6 +130,65 @@ func TestSample_UnreachableSinceSurvivesAClockSync(t *testing.T) {
 	}
 	if got, want := ss[1]["timestamp"], rfc3339(t1.Add(12*time.Second)); got != want {
 		t.Errorf("timestamp = %v, want %v", got, want)
+	}
+}
+
+// The retained computed/* topics are telemetry like state, with no timestamp
+// at all, so they are cleared once an episode: unknown is absent.  The first
+// reading after it publishes them again.
+func TestSample_UnreachableClearsComputedOnce(t *testing.T) {
+	d, pub, clk := samplingDaemon(reading("OL", "100"))
+	t0 := clk.Now()
+	step(d, clk, t0, 0, nil)
+	for at := 2 * time.Second; at <= 32*time.Second; at += 2 * time.Second {
+		step(d, clk, t0, at, errDriverGone) // unreachable at 12, 22, 32 s
+	}
+	topic := "ups/cyberpower/computed/on_battery"
+	if _, held := pub.Retained(topic); held {
+		t.Errorf("%s still retained while the UPS cannot be read", topic)
+	}
+	if got := count(pub, topic); got != 2 {
+		t.Errorf("%s published %d times, want 2: the reading and one clear for the episode", topic, got)
+	}
+	step(d, clk, t0, 34*time.Second, nil)
+	if m, held := pub.Retained(topic); !held || m.Payload != "false" {
+		t.Errorf("%s after recovery = %q, %v: want the reading again", topic, m.Payload, held)
+	}
+}
+
+// A clear that fails is tried again with the next unreachable state.
+func TestSample_FailedComputedClearIsRetried(t *testing.T) {
+	d, pub, clk := samplingDaemon(reading("OL", "100"))
+	t0 := clk.Now()
+	topic := "ups/cyberpower/computed/on_battery"
+	step(d, clk, t0, 0, nil)
+	pub.PublishError = errors.New("link down")
+	pub.FailTopic = func(tp string) bool { return tp == topic }
+	for at := 2 * time.Second; at <= 12*time.Second; at += 2 * time.Second {
+		step(d, clk, t0, at, errDriverGone)
+	}
+	pub.FailTopic = func(string) bool { return false }
+	for at := 14 * time.Second; at <= 22*time.Second; at += 2 * time.Second {
+		step(d, clk, t0, at, errDriverGone)
+	}
+	if _, held := pub.Retained(topic); held {
+		t.Errorf("%s still retained: the failed clear was not retried", topic)
+	}
+}
+
+// With mqtt.retained off there is nothing held on the broker to clear.
+func TestSample_UnreachableClearsNothingUnretained(t *testing.T) {
+	d, pub, clk := samplingDaemon(reading("OL", "100"))
+	d.cfg.MQTT.Retained = false
+	t0 := clk.Now()
+	step(d, clk, t0, 0, nil)
+	for at := 2 * time.Second; at <= 12*time.Second; at += 2 * time.Second {
+		step(d, clk, t0, at, errDriverGone)
+	}
+	for _, m := range pub.Messages {
+		if strings.Contains(m.Topic, "/computed/") && m.Payload == "" {
+			t.Errorf("cleared %s with mqtt.retained off", m.Topic)
+		}
 	}
 }
 
@@ -282,5 +342,24 @@ func TestSample_ASecondFailureCountsFromItsOwnStart(t *testing.T) {
 	}
 	if got, want := ss[4]["unreachable_since"], rfc3339(t0.Add(32*time.Second)); got != want {
 		t.Errorf("unreachable_since = %v, want %v (the second failure's start)", got, want)
+	}
+}
+
+// Each episode clears computed/* afresh: the reading between them published
+// it again.
+func TestSample_EachEpisodeClearsComputed(t *testing.T) {
+	d, pub, clk := samplingDaemon(reading("OL", "100"))
+	t0 := clk.Now()
+	topic := "ups/cyberpower/computed/on_battery"
+	step(d, clk, t0, 0, nil)
+	for at := 2 * time.Second; at <= 12*time.Second; at += 2 * time.Second {
+		step(d, clk, t0, at, errDriverGone)
+	}
+	step(d, clk, t0, 14*time.Second, nil) // the reading republishes it
+	for at := 16 * time.Second; at <= 26*time.Second; at += 2 * time.Second {
+		step(d, clk, t0, at, errDriverGone)
+	}
+	if m, held := pub.Retained(topic); held {
+		t.Errorf("%s = %q retained in the second episode: not cleared again", topic, m.Payload)
 	}
 }

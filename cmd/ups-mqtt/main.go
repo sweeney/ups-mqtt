@@ -108,11 +108,12 @@ type daemon struct {
 	lastPollErrAt time.Time
 
 	// Whether NUT is failing and since when, on the tracker's monotonic
-	// clock, and whether the state topic has been told the UPS is
-	// unreachable.  See noteUnreachable.
-	failing      bool
-	failingSince time.Duration
-	unreachable  bool
+	// clock; whether the state topic has been told the UPS is unreachable;
+	// and whether computed/* has been cleared since.  See noteUnreachable.
+	failing         bool
+	failingSince    time.Duration
+	unreachable     bool
+	computedCleared bool
 
 	// The impossible readings last logged, and when, so a device stuck
 	// sending one is logged when that starts and stops, not every sample.
@@ -193,7 +194,8 @@ func (d *daemon) sample(now time.Time, force bool) {
 	if d.unreachable {
 		// The retained state says the UPS cannot be read until this
 		// reading replaces it, so it goes out now, not at the next poll.
-		d.unreachable = false
+		// It publishes computed/* again, which the episode cleared.
+		d.unreachable, d.computedCleared = false, false
 		force = true
 	}
 
@@ -257,8 +259,12 @@ func (d *daemon) slack() time.Duration {
 // it corrects unreachable_since, which is otherwise one instant for the
 // episode.  What is published is nut.Cause, coarse and stable; the error
 // itself, with upsd's address and a fresh local port after each failed
-// re-dial, goes to the log.  The outage topic and computed/* are left
-// alone: without a reading the power state is unknown.
+// re-dial, goes to the log.
+//
+// With mqtt.retained on, the retained computed/* topics, which carry no
+// timestamp at all, are cleared once an episode (retried until it works):
+// unknown is absent.  The outage topic is left alone: it is an event, and
+// clearing it without a reading would say the power is back.
 func (d *daemon) noteUnreachable(now time.Time, err error, force bool) {
 	tr := d.outage.tracker
 	if !d.failing {
@@ -282,6 +288,13 @@ func (d *daemon) noteUnreachable(now time.Time, err error, force bool) {
 	at, since := tr.WallAt(tr.Mono()), tr.WallAt(d.failingSince)
 	if perr := publisher.PublishUnreachable(cfg, at, since, nut.Cause(err), d.pub); perr != nil {
 		log.Printf("poll error: %v", perr)
+	}
+	if cfg.Retained && !d.computedCleared {
+		if cerr := publisher.ClearComputed(cfg, d.pub); cerr != nil {
+			log.Printf("clearing computed topics: %v", cerr)
+		} else {
+			d.computedCleared = true
+		}
 	}
 }
 

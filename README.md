@@ -128,9 +128,12 @@ itself; `ACCESS-DENIED` and `UNKNOWN-UPS` are configuration), else
 long as the failure is. The full error, which names upsd's address, is in
 the daemon's log. The first reading after NUT answers again is published
 at once, not at the next poll. A failure shorter than a poll interval (a
-upsd restart, a re-dial) publishes nothing. The `computed/*` topics and
-`outage` are left as they were: without a reading the power state is
-unknown, so a retained outage stays asserted and is not cleared.
+upsd restart, a re-dial) publishes nothing. With `mqtt.retained` on, the
+`computed/*` topics are cleared once an episode (an empty retained
+payload), since they carry no timestamp and unknown is absent; the next
+reading publishes them again. `outage` is left as it was: it is an event,
+and clearing it without a reading would say the power is back, so a
+retained outage stays asserted.
 
 The daemon is alive and connected throughout, so no LWT fires. Before this,
 the retained state stayed on the last reading: on 2026-11-19 lenin's UPS

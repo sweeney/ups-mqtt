@@ -32,6 +32,14 @@ type Metrics struct {
 	InputVoltageDeviationPct *float64 `json:"input_voltage_deviation_pct,omitempty"`
 }
 
+// TopicNames is every computed/ topic name AsTopicMap can produce, whether or
+// not the metric is known, so a publisher can clear them all when there is no
+// reading.
+var TopicNames = []string{
+	"on_battery", "low_battery", "status_display",
+	"load_watts", "battery_runtime_mins", "battery_runtime_hours", "input_voltage_deviation_pct",
+}
+
 // AsTopicMap returns each known metric as a topic-name → string-payload pair,
 // ready to publish as individual MQTT computed/ topics.
 //

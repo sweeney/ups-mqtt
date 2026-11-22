@@ -389,6 +389,21 @@ func PublishUnreachable(cfg PublishConfig, at, since time.Time, cause string, pu
 	return nil
 }
 
+// ClearComputed empties every retained computed/ topic, at the telemetry
+// QoS: with no reading the values are unknown, and unknown is absent.  The
+// next reading publishes them again.  Every clear is attempted, and the
+// failures returned joined.
+func ClearComputed(cfg PublishConfig, pub Publisher) error {
+	var errs []error
+	for _, name := range metrics.TopicNames {
+		topic := fmt.Sprintf("%s/%s/computed/%s", cfg.Prefix, cfg.UPSName, name)
+		if err := pub.Publish(Message{Topic: topic, Payload: "", Retained: true, QOS: cfg.TelemetryQOS}); err != nil {
+			errs = append(errs, fmt.Errorf("clearing %q: %w", topic, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
 // StateTopic returns the MQTT topic used for the combined state message.
 func StateTopic(prefix, upsName string) string {
 	return fmt.Sprintf("%s/%s/state", prefix, upsName)

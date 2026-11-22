@@ -457,3 +457,18 @@ func TestImplausible(t *testing.T) {
 		}
 	}
 }
+
+// TopicNames is every name AsTopicMap can produce, so a publisher can clear
+// them all when there is no reading.  With every metric known, AsTopicMap
+// produces exactly these.
+func TestTopicNames_MatchAsTopicMapWithEverythingKnown(t *testing.T) {
+	tm := Compute(sampleVars).AsTopicMap()
+	if len(tm) != len(TopicNames) {
+		t.Errorf("AsTopicMap() has %d keys, TopicNames %d", len(tm), len(TopicNames))
+	}
+	for _, name := range TopicNames {
+		if _, ok := tm[name]; !ok {
+			t.Errorf("TopicNames has %q, which AsTopicMap() does not produce", name)
+		}
+	}
+}

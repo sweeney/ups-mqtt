@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sweeney/ups-mqtt/internal/metrics"
 	"github.com/sweeney/ups-mqtt/internal/publisher"
 )
 
@@ -111,5 +112,47 @@ func TestPublishUnreachable_ReturnsPublishError(t *testing.T) {
 	cfg := publisher.PublishConfig{Prefix: "ups", UPSName: "cyberpower"}
 	if err := publisher.PublishUnreachable(cfg, time.Now(), time.Now(), "x", fp); err == nil {
 		t.Error("PublishUnreachable() = nil with the publish failing")
+	}
+}
+
+// Without a reading the computed values are unknown, and unknown is absent:
+// ClearComputed empties every retained computed/ topic, at the telemetry QoS.
+func TestClearComputed(t *testing.T) {
+	fp := &publisher.FakePublisher{}
+	cfg := publisher.PublishConfig{Prefix: "ups", UPSName: "cyberpower", Retained: true, TelemetryQOS: 0, EventQOS: 1}
+	if err := publisher.ClearComputed(cfg, fp); err != nil {
+		t.Fatal(err)
+	}
+	if len(fp.Messages) != len(metrics.TopicNames) {
+		t.Errorf("%d clears, want one per computed topic (%d)", len(fp.Messages), len(metrics.TopicNames))
+	}
+	for _, name := range metrics.TopicNames {
+		topic := "ups/cyberpower/computed/" + name
+		m, ok := fp.Find(topic)
+		if !ok {
+			t.Errorf("computed/%s not cleared", name)
+			continue
+		}
+		if _, held := fp.Retained(topic); held {
+			t.Errorf("computed/%s still held retained after the clear", name)
+		}
+		if m.Payload != "" || !m.Retained || m.QOS != 0 {
+			t.Errorf("computed/%s: payload %q retained %v QoS %d, want an empty retained QoS 0", name, m.Payload, m.Retained, m.QOS)
+		}
+	}
+}
+
+// Every clear is attempted even when one fails, and the failures returned.
+func TestClearComputed_AttemptsEveryTopic(t *testing.T) {
+	fp := &publisher.FakePublisher{
+		PublishError: errors.New("link degraded"),
+		FailTopic:    func(topic string) bool { return strings.HasSuffix(topic, "/on_battery") },
+	}
+	cfg := publisher.PublishConfig{Prefix: "ups", UPSName: "cyberpower", Retained: true}
+	if err := publisher.ClearComputed(cfg, fp); err == nil {
+		t.Error("ClearComputed() = nil with a clear failing")
+	}
+	if got := len(fp.Messages) + len(fp.Failed); got != len(metrics.TopicNames) {
+		t.Errorf("%d clears attempted, want %d", got, len(metrics.TopicNames))
 	}
 }
