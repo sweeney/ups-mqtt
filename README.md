@@ -12,7 +12,7 @@ Every poll cycle, ups-mqtt publishes two kinds of MQTT messages. When the UPS sw
 
 The middle component of every topic is the **label** — a human-readable name set in config (e.g. `office-ups`, `network-ups`). It defaults to the NUT device name (`ups_name`) if no label is set.
 
-The state topic is published on every poll whether or not anything changed, so it doubles as a heartbeat.
+The state topic is published on every poll whether or not anything changed, so it doubles as a heartbeat. If the UPS itself cannot be read, it says so rather than going quiet: see [When the UPS cannot be read](#when-the-ups-cannot-be-read).
 
 > **Raw NUT variables are no longer published as individual topics.**
 > Earlier versions mirrored every variable `upsc` returns onto its own retained
@@ -70,6 +70,7 @@ A single combined JSON snapshot on `{prefix}/{label}/state`, published every pol
   "timestamp": "2026-02-23T16:40:18Z",
   "ups_name": "office-ups",
   "clock_synced": true,
+  "ups_reachable": true,
   "variables": {
     "ups.status": "OL",
     "ups.load": "8",
@@ -96,6 +97,57 @@ stamped meanwhile, after the power returns, among older retained values (see
 [the live tests](docs/live-tests.md), test 5). Judge a state by `timestamp` and
 `clock_synced`, not by arrival order. Absent where sync cannot be determined
 (anywhere but Linux).
+
+#### When the UPS cannot be read
+
+`ups_reachable` is `true` on every snapshot. If NUT has failed for a whole
+poll interval (upsd down, or its driver reporting `DRIVER-NOT-CONNECTED` or
+`DATA-STALE` because the UPS has left the USB bus), the state topic carries
+this instead. It is repeated every poll interval in place of the heartbeat,
+and sent at once after a reconnect. Like the snapshot, it is retained if
+`mqtt.retained` is set, at the telemetry QoS:
+
+```json
+{
+  "timestamp": "2026-11-19T15:48:56Z",
+  "ups_name": "office-ups",
+  "clock_synced": true,
+  "ups_reachable": false,
+  "unreachable_since": "2026-11-19T15:47:58Z",
+  "cause": "DRIVER-NOT-CONNECTED"
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `unreachable_since` | The first failed sample. It is the same instant in every message of one episode, so it can be used to deduplicate alerts. Like the outage times it is measured on the monotonic clock, so a clock sync during the failure corrects it; trust it as far as `clock_synced` says. |
+| `cause` | upsd's error code when it sent one (`DRIVER-NOT-CONNECTED` and `DATA-STALE` are the driver's, so the UPS itself; `ACCESS-DENIED` and `UNKNOWN-UPS` are configuration), else `timeout`, `refused` or `unreachable` for the network. It is stable for as long as the failure is. The full error, which names upsd's address, is in the daemon's log. |
+
+There is no reading, so there are no `variables` or `computed`.
+
+- **Short failures:** a failure shorter than a poll interval (a upsd restart, a re-dial) publishes nothing.
+- **Recovery:** the first reading after NUT answers again is published at once, not at the next poll.
+- **`computed/*`:** with `mqtt.retained` on, these topics are cleared once an episode (an empty retained payload), since they carry no timestamp and unknown is absent. The next reading publishes them again.
+- **`outage`:** left as it was. It is an event, and clearing it without a reading would say the power is back, so a retained outage stays asserted.
+
+The daemon is alive and connected throughout, so no LWT fires. Before this,
+the retained state stayed on the last reading: on 2026-11-19 a host's UPS
+left its USB bus and `office-ups/state` showed `OL`, 100 %, for four days,
+with only its `timestamp` to say it was old. Alert on `ups_reachable: false`
+to catch that. It needs a physical fix on the host (see
+[When the UPS stops reporting](#when-the-ups-stops-reporting)).
+
+So `state` has three shapes. Tell them apart by key:
+
+- `online: false`: the daemon has gone (the LWT, or its shutdown).
+- `ups_reachable: false`: the daemon is running but the UPS can't be read.
+- `ups_reachable: true`: a reading.
+
+A snapshot from before this field existed has neither key; treat it as a
+reading. A consumer that reads `variables` and `computed` without checking
+the shape gets nothing from the other two (no keys, so no zeroes), but should
+not take them as a reading: a "last seen" moved by them says the UPS is
+reporting when it is not.
 
 `variables` carries every NUT variable except two families, which are excluded
 because they describe NUT itself or hardware the device does not have, and
@@ -207,7 +259,7 @@ Messages fall into two kinds, each with its own QoS:
 
 | Kind | Topics | Config key |
 |------|--------|------------|
-| telemetry | `state` snapshots, `computed/*` | `mqtt.telemetry_qos` |
+| telemetry | `state` snapshots and the unreachable state, `computed/*` | `mqtt.telemetry_qos` |
 | events | `outage` and its clear, `last_outage`, the shutdown offline announcement, the LWT | `mqtt.event_qos` |
 
 Both fall back to `mqtt.qos`, so a config that sets only `qos` behaves as before. The split matters behind a local broker bridged to a remote one. While the bridge is down, Mosquitto queues QoS 1 messages for it and drops QoS 0 ones. Its queue is capped, and once the cap is reached it drops the *newest* messages. If telemetry were sent at QoS 1, it would fill the queue with readings the next poll supersedes, and the outage message would be the one dropped. For that setup use `telemetry_qos = 0` and `event_qos = 1`. The first poll after the bridge reconnects refreshes every retained telemetry topic.
@@ -231,6 +283,7 @@ Every QoS key must be 0, 1 or 2; anything else is a startup error.
 **When the bridge comes back.** It forwards what it holds in one burst, all in the same second: the queued QoS 1 events, QoS 0 states published while a connect attempt was pending, and repeated copies of the retained topics, which the local broker queues again on connect attempts. After a power loss that includes the local broker's retained values as it last saved them, up to `autosave_interval` (300 s) before the death: an `outage` from before the end, and the *previous* `last_outage`. On 2026-11-18 the burst brought, in order, a stale `outage`, its clear, two offline announcements and the old summary after the new one. Every topic still ended on its right value, but only because the right copy happened to arrive last. Don't act on arrival order:
 
 - `state`, `outage`: order by `timestamp`, and distrust one whose `clock_synced` is `false`.
+- `{"ups_reachable":false,…}` on `state`: order by `timestamp` like a snapshot.
 - `{"online":false,…}` on `state`: an LWT is stamped when the daemon *connected*, not when it fired. A `false` `clock_synced` means the time is wrong, and a newer full snapshot overrides it whatever the order.
 - `last_outage`: between two summaries of the same outage (same `started_at`), keep the one with `clock_synced: true`; otherwise keep the latest `timestamp`, or for summaries from before that field, the latest `ended_at`. Going by `timestamp` alone is only safe when the unsynced clock runs behind, as the Pi's did; a host whose clock runs ahead would rank the interim summary above its correction.
 
@@ -466,6 +519,10 @@ This is a macOS-specific issue with the `usbhid-ups` driver, not specific to any
 This setting is already present in `nut/ups.conf.example`. Without it, the driver will silently stall and the only recovery is a manual restart.
 
 #### When the UPS stops reporting
+
+Subscribers see this as `ups_reachable: false` on the state topic (see
+[When the UPS cannot be read](#when-the-ups-cannot-be-read)), and the log
+says `UPS unreachable: NUT has failed for …` once a poll interval in.
 
 Start with the doctor script — it identifies which link in the chain has failed
 before changing anything:

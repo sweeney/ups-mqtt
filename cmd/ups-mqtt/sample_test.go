@@ -250,7 +250,8 @@ func TestSample_PollErrorLoggedOncePerPoll(t *testing.T) {
 		fp.Err = fmt.Errorf("read tcp 127.0.0.1:%d->127.0.0.1:3493: i/o timeout", 50000+i)
 		d.sample(t0.Add(time.Duration(i)*2*time.Second), false)
 	}
-	if n := strings.Count(buf.String(), "i/o timeout"); n != 3 {
+	// Counted by prefix: the unreachable line at 10 s names the error too.
+	if n := strings.Count(buf.String(), "poll error: polling NUT"); n != 3 {
 		t.Errorf("logged %d times over 20 s, want 3 (0, 10, 20 s):\n%s", n, buf.String())
 	}
 	if !strings.Contains(buf.String(), "11 failed samples so far") {

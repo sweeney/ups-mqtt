@@ -61,9 +61,37 @@ type StateMessage struct {
 	// without an RTC the clock is wrong until NTP syncs, and states stamped
 	// meanwhile can reach a bridged broker late.  Absent where sync cannot
 	// be determined.
-	ClockSynced *bool             `json:"clock_synced,omitempty"`
-	Variables   map[string]string `json:"variables"`
-	Computed    metrics.Metrics   `json:"computed"`
+	ClockSynced *bool `json:"clock_synced,omitempty"`
+	// UPSReachable is always true here: this is a reading.  The state
+	// topic's unreachable shape (UnreachableState) sets it false, so a
+	// subscriber tells the two apart by one field.
+	UPSReachable bool              `json:"ups_reachable"`
+	Variables    map[string]string `json:"variables"`
+	Computed     metrics.Metrics   `json:"computed"`
+}
+
+// UnreachableState is published on the state topic in place of a snapshot
+// once NUT has failed for a poll interval, and every poll interval after,
+// until it answers again.  The daemon is alive and connected, so no LWT
+// fires; without this the retained state freezes on the last reading, as it
+// did for four days on 2026-11-19 when a UPS left its host's USB bus.  There
+// is no reading, so it has no variables or computed values.
+type UnreachableState struct {
+	Timestamp string `json:"timestamp"`
+	UPSName   string `json:"ups_name"`
+	// ClockSynced says whether the times can be trusted, as in StateMessage.
+	ClockSynced  *bool `json:"clock_synced,omitempty"`
+	UPSReachable bool  `json:"ups_reachable"`
+	// UnreachableSince is the first failed sample.  The daemon anchors it
+	// on the monotonic clock, so a clock sync since corrects it, and it is
+	// the same instant in every message of one episode.
+	UnreachableSince string `json:"unreachable_since"`
+	// Cause is nut.Cause of the latest failure: upsd's code
+	// (DRIVER-NOT-CONNECTED and DATA-STALE are the driver's, so the UPS
+	// itself), else timeout, refused or unreachable.  Coarse and stable,
+	// unlike the error, which names upsd's address and a new local port
+	// after every failed re-dial; the log has that.
+	Cause string `json:"cause"`
 }
 
 // OnlineState is the LWT / online-announcement payload.
@@ -337,6 +365,45 @@ func FormatOffline(clockSynced *bool) string {
 	return string(payload)
 }
 
+// PublishUnreachable publishes UnreachableState on the state topic, stamped
+// at, NUT failing since since with cause.  The caller passes both times from
+// its clock.  It stands in for the snapshot, every poll, so like the
+// snapshot it is telemetry and follows mqtt.retained: at QoS 1 it would fill
+// a bridge's queue the same way.
+func PublishUnreachable(cfg PublishConfig, at, since time.Time, cause string, pub Publisher) error {
+	payload, err := json.Marshal(UnreachableState{
+		Timestamp:        at.UTC().Format(time.RFC3339),
+		UPSName:          cfg.UPSName,
+		ClockSynced:      cfg.ClockSynced,
+		UPSReachable:     false,
+		UnreachableSince: since.UTC().Format(time.RFC3339),
+		Cause:            cause,
+	})
+	if err != nil {
+		return fmt.Errorf("marshalling unreachable state: %w", err)
+	}
+	topic := StateTopic(cfg.Prefix, cfg.UPSName)
+	if err := pub.Publish(Message{Topic: topic, Payload: string(payload), Retained: cfg.Retained, QOS: cfg.TelemetryQOS}); err != nil {
+		return fmt.Errorf("publishing %q: %w", topic, err)
+	}
+	return nil
+}
+
+// ClearComputed empties every retained computed/ topic, at the telemetry
+// QoS: with no reading the values are unknown, and unknown is absent.  The
+// next reading publishes them again.  Every clear is attempted, and the
+// failures returned joined.
+func ClearComputed(cfg PublishConfig, pub Publisher) error {
+	var errs []error
+	for _, name := range metrics.TopicNames {
+		topic := fmt.Sprintf("%s/%s/computed/%s", cfg.Prefix, cfg.UPSName, name)
+		if err := pub.Publish(Message{Topic: topic, Payload: "", Retained: true, QOS: cfg.TelemetryQOS}); err != nil {
+			errs = append(errs, fmt.Errorf("clearing %q: %w", topic, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
 // StateTopic returns the MQTT topic used for the combined state message.
 func StateTopic(prefix, upsName string) string {
 	return fmt.Sprintf("%s/%s/state", prefix, upsName)
@@ -350,11 +417,12 @@ func publishState(
 	pub Publisher,
 ) error {
 	state := StateMessage{
-		Timestamp:   time.Now().UTC().Format(time.RFC3339),
-		UPSName:     cfg.UPSName,
-		ClockSynced: cfg.ClockSynced,
-		Variables:   publishableVariables(vars),
-		Computed:    m,
+		Timestamp:    time.Now().UTC().Format(time.RFC3339),
+		UPSName:      cfg.UPSName,
+		ClockSynced:  cfg.ClockSynced,
+		UPSReachable: true,
+		Variables:    publishableVariables(vars),
+		Computed:     m,
 	}
 	payload, err := json.Marshal(state)
 	if err != nil {

@@ -784,3 +784,24 @@ func TestOnMains_SupersededSummariesLoggedOnce(t *testing.T) {
 		t.Errorf("the count was not logged on publishing:\n%s", buf.String())
 	}
 }
+
+// Mono and WallAt let another event be anchored the way the tracker anchors
+// its own: by the monotonic clock, turned into wall time only when it is
+// published, so a clock sync in between corrects it (the daemon's
+// unreachable_since).
+func TestTracker_WallAtFollowsAClockStep(t *testing.T) {
+	clk := &FakeClock{Wall: time.Date(2026, 11, 19, 15, 33, 0, 0, time.UTC)}
+	tr := NewTracker(clk, &MemoryStore{})
+	at := tr.Mono()
+	clk.Advance(10 * time.Second)
+	clk.Step(14*time.Minute + 30*time.Second) // the clock syncs, 14½ min forward
+	clk.Advance(5 * time.Second)
+
+	want := time.Date(2026, 11, 19, 15, 47, 30, 0, time.UTC) // corrected start
+	if got := tr.WallAt(at); !got.Equal(want) {
+		t.Errorf("WallAt = %v, want %v", got, want)
+	}
+	if got := tr.WallAt(tr.Mono()); !got.Equal(clk.Now()) {
+		t.Errorf("WallAt(Mono()) = %v, want now %v", got, clk.Now())
+	}
+}
